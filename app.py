@@ -20,40 +20,39 @@ st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets Anda. Kl
 MULAI_SCAN = st.button("🚀 Mulai Pemindaian Market Real-Time", use_container_width=True)
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (ANTI-ERROR KOLOM)
+# 2. LOGIKA UTAMA SCREENER (ABSULUT BARIS 13 KE BAWAH)
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Menghubungkan ke Google Sheets dan mengunduh data bursa..."):
         try:
-            # SOLUSI: Baca seluruh sheet sebagai text tanpa menentukan header terlebih dahulu (on_bad_lines='skip')
-            # Ini membuat Python kebal dari error "Expected X fields, saw Y"
+            # Baca sheet tanpa header, skip bad lines agar kebal error kolom
             df_raw = pd.read_csv(URL_PERMANEN, header=None, on_bad_lines='skip')
             
-            # Cari baris yang berisi kata "Quote" di Kolom A (Indeks 0) untuk menentukan awal tabel
-            start_row = df_raw[df_raw[0] == 'Quote'].index
+            # KUNCI ABSOLUT: Berdasarkan gambar Anda, data tabel mulai dari Baris 13 (Indeks Python: 12)
+            # Kita langsung ambil dari baris ke-14 (Indeks 13) ke bawah untuk daftar sahamnya
+            start_idx = 12
             
-            if len(start_row) == 0:
-                # Jika tidak ketemu teks 'Quote', gunakan fallback baris ke-12 (indeks 12 berarti baris 13)
-                start_idx = 12
-            else:
-                start_idx = start_row[0]
+            if len(df_raw) <= start_idx:
+                st.error("Google Sheets Anda kekurangan baris data atau kosong.")
+                st.stop()
                 
-            # Ambil data dari baris setelah kata 'Quote' tersebut sampai ke bawah khusus Kolom A saja
+            # Ambil khusus Kolom A (Indeks 0) dari baris setelah header ke bawah
             kode_saham_raw = df_raw.iloc[start_idx+1:, 0].dropna().tolist()
             
-            # Bersihkan dari spasi, baris kosong, teks judul, atau karakter aneh
             watchlist = []
             for kode in kode_saham_raw:
                 kode_clean = str(kode).strip().upper()
-                # Pastikan hanya mengambil yang berupa kode saham (bukan baris judul atau kosong)
-                if kode_clean and kode_clean != 'NAN' and kode_clean != 'QUOTE' and len(kode_clean) <= 5:
-                    watchlist.append(kode_clean + ".JK")
+                # Filter agar yang diambil hanya kode saham yang valid (biasanya 4-5 karakter huruf)
+                if kode_clean and kode_clean != 'NAN' and kode_clean != 'QUOTE' and len(kode_clean) <= 6:
+                    # Antisipasi jika di sheet tidak sengaja tertulis angka atau teks aneh
+                    if kode_clean.isalpha():
+                        watchlist.append(kode_clean + ".JK")
             
             if not watchlist:
-                st.error("Gagal mendeteksi kode saham di kolom A. Pastikan tabel dimulai dengan header 'Quote'.")
+                st.error("Gagal membaca kode saham dari Baris 14 ke bawah pada Kolom A. Pastikan kode saham ditulis di Kolom A.")
                 st.stop()
                 
-            st.info(f"🔍 Memindai **{len(watchlist)} saham** yang terdaftar di database Anda...")
+            st.info(f"🔍 Memindai **{len(watchlist)} saham** dari database Google Sheets Anda...")
             
             hasil_screener = []
             progress_bar = st.progress(0)
@@ -109,4 +108,4 @@ if MULAI_SCAN:
                 st.warning("Tidak ada saham dari database Anda yang saat ini berada di atas SMA 50 (1H).")
                 
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat membaca file. Deskripsi Error: {e}")
+            st.error(f"Terjadi kesalahan teknis saat membaca file. Deskripsi Error: {e}")
