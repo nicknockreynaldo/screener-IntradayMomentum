@@ -15,44 +15,35 @@ st.subheader("Timeframe: 1 Jam (1H)")
 # Tempelkan link Google Sheets Anda di bawah ini (Wajib berakhiran /export?format=csv)
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/edit?gid=0#gid=0/export?format=csv"
 
-st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets Anda. Klik tombol di bawah untuk memulai pemindaian.")
+st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets (Format Rapi). Klik tombol di bawah untuk memulai pemindaian.")
 
 MULAI_SCAN = st.button("🚀 Mulai Pemindaian Market Real-Time", use_container_width=True)
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (ABSULUT BARIS 13 KE BAWAH)
+# 2. LOGIKA UTAMA SCREENER (FORMAT DATA BERSIH A1/A2)
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Menghubungkan ke Google Sheets dan mengunduh data bursa..."):
         try:
-            # Baca sheet tanpa header, skip bad lines agar kebal error kolom
-            df_raw = pd.read_csv(URL_PERMANEN, header=None, on_bad_lines='skip')
+            # Karena tabel mulai dari A1, langsung baca secara normal dan rapi
+            df_sheet = pd.read_csv(URL_PERMANEN)
             
-            # KUNCI ABSOLUT: Berdasarkan gambar Anda, data tabel mulai dari Baris 13 (Indeks Python: 12)
-            # Kita langsung ambil dari baris ke-14 (Indeks 13) ke bawah untuk daftar sahamnya
-            start_idx = 12
-            
-            if len(df_raw) <= start_idx:
-                st.error("Google Sheets Anda kekurangan baris data atau kosong.")
+            # Cek apakah kolom 'Quote' ada di baris pertama
+            if 'Quote' not in df_sheet.columns:
+                st.error("Gagal mendeteksi kolom dengan nama 'Quote' di baris pertama Google Sheets Anda. Pastikan nama kolom di sel A1 tertulis 'Quote'.")
                 st.stop()
                 
-            # Ambil khusus Kolom A (Indeks 0) dari baris setelah header ke bawah
-            kode_saham_raw = df_raw.iloc[start_idx+1:, 0].dropna().tolist()
+            # Bersihkan baris kosong di kolom Quote
+            df_sheet = df_sheet.dropna(subset=['Quote'])
             
-            watchlist = []
-            for kode in kode_saham_raw:
-                kode_clean = str(kode).strip().upper()
-                # Filter agar yang diambil hanya kode saham yang valid (biasanya 4-5 karakter huruf)
-                if kode_clean and kode_clean != 'NAN' and kode_clean != 'QUOTE' and len(kode_clean) <= 6:
-                    # Antisipasi jika di sheet tidak sengaja tertulis angka atau teks aneh
-                    if kode_clean.isalpha():
-                        watchlist.append(kode_clean + ".JK")
+            # Ambil kode saham dari Baris 2 (A2) ke bawah dan tambahkan akhiran .JK secara otomatis
+            watchlist = [str(kode).strip().upper() + ".JK" for kode in df_sheet['Quote'].values if len(str(kode).strip()) <= 5]
             
             if not watchlist:
-                st.error("Gagal membaca kode saham dari Baris 14 ke bawah pada Kolom A. Pastikan kode saham ditulis di Kolom A.")
+                st.warning("Tidak ditemukan kode saham yang valid di kolom 'Quote'.")
                 st.stop()
                 
-            st.info(f"🔍 Memindai **{len(watchlist)} saham** dari database Google Sheets Anda...")
+            st.info(f"🔍 Berhasil memuat **{len(watchlist)} saham** dari kolom 'Quote'. Memulai scanning bursa...")
             
             hasil_screener = []
             progress_bar = st.progress(0)
@@ -75,7 +66,7 @@ if MULAI_SCAN:
                         harga_terakhir = last_bar['Close']
                         nilai_sma50 = last_bar['SMA50']
                         
-                        # Filter Kondisi Harga > SMA 50
+                        # Filter Kondisi: Harga Terakhir > SMA 50
                         if harga_terakhir > nilai_sma50:
                             jarak_persen = ((harga_terakhir - nilai_sma50) / nilai_sma50) * 100
                             clean_ticker = ticker.replace(".JK", "")
@@ -96,7 +87,7 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
-                # Sort dari yang paling dekat dengan garis SMA 50
+                # Sort dari yang paling dekat dengan garis SMA 50 (area pantulan potensial)
                 df_hasil = df_hasil.sort_values(by="Jarak di Atas SMA50", ascending=True)
                 
                 # Format visual persen
