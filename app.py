@@ -13,8 +13,7 @@ st.subheader("Timeframe: 1 Jam (1H)")
 
 # --- LINK PERMANEN ANDA ---
 # Tempelkan link Google Sheets Anda di bawah ini (Wajib berakhiran /export?format=csv)
-URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/edit?gid=0#gid=0/export?format=csv"
-
+URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/edit?gid=0#gid=0/export?format=csv&range=A13:K"
 st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets Anda. Klik tombol di bawah untuk memulai pemindaian.")
 
 # HANYA ADA SATU TOMBOL UTAMA, TIDAK ADA KOTAK INPUT LAGI
@@ -27,7 +26,7 @@ if MULAI_SCAN:
     with st.spinner("Menghubungkan ke Google Sheets dan mengunduh data bursa..."):
         try:
             # Membaca sheet otomatis melompati 12 baris pertama ringkasan
-            df_sheet = pd.read_csv(URL_PERMANEN, skiprows=12)
+            df_sheet = pd.read_csv(URL_PERMANEN)
             df_sheet = df_sheet.dropna(subset=['Quote'])
             watchlist = [str(kode).strip() + ".JK" for kode in df_sheet['Quote'].values]
             
