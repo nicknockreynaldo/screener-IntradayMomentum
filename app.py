@@ -11,8 +11,7 @@ st.set_page_config(page_title="IHSG SMA 50 Screener", page_icon="📈", layout="
 st.title("📈 IHSG SMA 50 Market Screener")
 st.subheader("Timeframe: Daily (Kebal Bug Yahoo Finance)")
 
-# --- LINK PERMANEN ANDA (SUDAH DIREVISI) ---
-# Tautan Google Sheets Anda yang sudah dikonversi otomatis ke format CSV ekspor
+# --- LINK PERMANEN ANDA ---
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 
 st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets Anda. Klik tombol di bawah untuk memulai pemindaian cepat.")
@@ -68,4 +67,36 @@ if MULAI_SCAN:
                         
                         # Filter Kondisi: Harga Terakhir > SMA 50
                         if harga_terakhir > nilai_sma50:
-                            jarak_persen = ((harga_terakhir - nilai_sma
+                            # PERBAIKAN: Rumus matematika dipastikan menutup seluruh tanda kurung dengan benar
+                            jarak_persen = ((harga_terakhir - nilai_sma50) / nilai_sma50) * 100
+                            clean_ticker = ticker.replace(".JK", "")
+                            
+                            hasil_screener.append({
+                                "Kode Saham": clean_ticker,
+                                "Harga Terakhir (Rp)": int(harga_terakhir),
+                                "Nilai SMA 50 (Daily)": round(nilai_sma50, 2),
+                                "Jarak di Atas SMA50": round(jarak_persen, 2)
+                            })
+                except:
+                    pass  # Lewati jika ada satu saham yang datanya tidak lengkap
+            
+            # ==============================================================================
+            # 3. TAMPILKAN HASILNYA
+            # ==============================================================================
+            st.success("🎯 Pemindaian Massal Selesai!")
+            
+            if hasil_screener:
+                df_hasil = pd.DataFrame(hasil_screener)
+                # Urutkan dari yang paling dekat dengan garis SMA 50 (potensi Pantulan / Buy on Weakness)
+                df_hasil = df_hasil.sort_values(by="Jarak di Atas SMA50", ascending=True)
+                
+                # Format visual persen
+                df_hasil["Jarak di Atas SMA50"] = df_hasil["Jarak di Atas SMA50"].apply(lambda x: f"+{x}%")
+                
+                st.metric(label="Saham Lolos Filter (Uptrend / di Atas SMA 50)", value=f"{len(df_hasil)} Saham")
+                st.dataframe(df_hasil, use_container_width=True, hide_index=True)
+            else:
+                st.warning("Tidak ada saham dari database Anda yang saat ini berada di atas SMA 50.")
+                
+        except Exception as e:
+            st.error(f"Terjadi kesalahan teknis saat membaca data. Deskripsi Error: {e}")
