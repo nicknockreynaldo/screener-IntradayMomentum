@@ -15,35 +15,39 @@ st.subheader("Timeframe: 1 Jam (1H)")
 # Tempelkan link Google Sheets Anda di bawah ini (Wajib berakhiran /export?format=csv)
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/edit?gid=0#gid=0/export?format=csv"
 
-st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets (Format Rapi). Klik tombol di bawah untuk memulai pemindaian.")
+st.write("Aplikasi telah terhubung secara permanen dengan Google Sheets (Format Kolom A). Klik tombol di bawah untuk memulai pemindaian.")
 
 MULAI_SCAN = st.button("🚀 Mulai Pemindaian Market Real-Time", use_container_width=True)
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (FORMAT DATA BERSIH A1/A2)
+# 2. LOGIKA UTAMA SCREENER (ANTI-ERROR TOKENIZING)
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Menghubungkan ke Google Sheets dan mengunduh data bursa..."):
         try:
-            # Karena tabel mulai dari A1, langsung baca secara normal dan rapi
-            df_sheet = pd.read_csv(URL_PERMANEN)
+            # SOLUSI: Menggunakan usecols=[0] agar Python HANYA membaca Kolom A (Quote)
+            # Ditambah nrows=200 untuk membatasi scan hanya pada 200 baris pertama (mencegah loop baris kosong di bawah)
+            df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             
-            # Cek apakah kolom 'Quote' ada di baris pertama
-            if 'Quote' not in df_sheet.columns:
-                st.error("Gagal mendeteksi kolom dengan nama 'Quote' di baris pertama Google Sheets Anda. Pastikan nama kolom di sel A1 tertulis 'Quote'.")
-                st.stop()
-                
-            # Bersihkan baris kosong di kolom Quote
+            # Mengubah nama kolom pertama secara paksa menjadi 'Quote' untuk antisipasi jika header tergeser
+            df_sheet.columns = ['Quote']
+            
+            # Bersihkan baris yang kosong atau berisi teks header itu sendiri
             df_sheet = df_sheet.dropna(subset=['Quote'])
             
-            # Ambil kode saham dari Baris 2 (A2) ke bawah dan tambahkan akhiran .JK secara otomatis
-            watchlist = [str(kode).strip().upper() + ".JK" for kode in df_sheet['Quote'].values if len(str(kode).strip()) <= 5]
+            watchlist_raw = df_sheet['Quote'].astype(str).str.strip().str.upper().tolist()
+            
+            # Filter hanya mengambil kode saham yang valid (4 huruf alfabet, misal: BBCA, BMRI)
+            watchlist = []
+            for kode in watchlist_raw:
+                if kode.isalpha() and len(kode) == 4 and kode != 'QUOTE':
+                    watchlist.append(kode + ".JK")
             
             if not watchlist:
-                st.warning("Tidak ditemukan kode saham yang valid di kolom 'Quote'.")
+                st.error("Gagal mendeteksi kode saham 4 huruf di Kolom A. Pastikan kode saham Anda tertulis di Kolom A mulai dari Baris 2.")
                 st.stop()
                 
-            st.info(f"🔍 Berhasil memuat **{len(watchlist)} saham** dari kolom 'Quote'. Memulai scanning bursa...")
+            st.info(f"🔍 Berhasil memuat **{len(watchlist)} saham** dari kolom pertama. Memulai scanning bursa...")
             
             hasil_screener = []
             progress_bar = st.progress(0)
@@ -87,7 +91,7 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
-                # Sort dari yang paling dekat dengan garis SMA 50 (area pantulan potensial)
+                # Sort dari yang paling dekat dengan garis SMA 50
                 df_hasil = df_hasil.sort_values(by="Jarak di Atas SMA50", ascending=True)
                 
                 # Format visual persen
