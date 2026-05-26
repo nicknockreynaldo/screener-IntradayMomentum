@@ -20,8 +20,8 @@ st.sidebar.header("⚙️ Parameter Sensor")
 FILTER_DAILY_MA10 = st.sidebar.selectbox(
     "1. Filter Tren Besar (Daily MA 10)",
     options=[
-        "Power Play",
-        "General"
+        "Power Play (Above DMA10)",
+        "General (Below DMA10)"
     ],
     index=0
 )
