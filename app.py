@@ -2,144 +2,178 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import warnings
+
+warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF
+# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF MULTI-FILTER
 # ==============================================================================
-st.set_page_config(page_title="IHSG Custom MA Screener", page_icon="📈", layout="wide")
+st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
-st.title("📈 IHSG Custom Moving Average Screener")
-st.write("Hubungkan database saham Anda via Google Sheets, lalu atur indikator yang ingin Anda gunakan pada menu di sebelah kiri.")
+st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
+st.write("Atur parameter filter tren besar (Daily) dan eksekusi (Intraday) pada panel sebelah kiri.")
 
-# --- PANEL ATURAN INPUT DI SEBELAH KIRI (SIDEBAR) ---
-st.sidebar.header("⚙️ Pengaturan Parameter")
+st.sidebar.header("⚙️ Parameter Sensor")
 
-# Pilihan Timeframe (Dilengkapi jimat proteksi pembatasan data)
+# --- FILTER 1: FILTER TREN UTAMA (DAILY MA 10) ---
+FILTER_DAILY_MA10 = st.sidebar.selectbox(
+    "1. Filter Tren Besar (Daily MA 10)",
+    options=[
+        "Power Play Uptrend",
+        "Flexible"
+    ],
+    index=0
+)
+
+# --- FILTER 2: TIMEFRAME EKSEKUSI ---
 TF_PILIHAN = st.sidebar.selectbox(
-    "1. Pilih Timeframe (TF)",
+    "2. Pilih Timeframe Eksekusi",
     options=["1 Jam (1H)", "Harian (Daily)"],
     index=0
 )
 
-# Konversi teks pilihan ke parameter yfinance
 if TF_PILIHAN == "1 Jam (1H)":
     interval_param = "1h"
-    period_param = "1mo"  # 1 bulan sangat aman & cepat untuk data jam-jaman
+    period_param = "1mo"
     label_tf = "1H"
 else:
     interval_param = "1d"
-    period_param = "1y"   # 1 tahun untuk data harian
+    period_param = "1y"
     label_tf = "Daily"
 
-# Input Angka Moving Average secara manual
+# --- FILTER 3: PERIODE MA KUSTOM ---
 MA_PERIODE = st.sidebar.number_input(
-    f"2. Periode Moving Average (MA)",
+    "3. Periode Moving Average (MA) Eksekusi",
     min_value=5,
     max_value=200,
-    value=50,  # Default awal tetap 50
+    value=50,
     step=5
 )
 
 # --- LINK PERMANEN GOOGLE SHEETS ANDA ---
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 
-MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian", use_container_width=True)
+MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_width=True)
 
-# Informasikan parameter aktif di halaman utama
-st.info(f"📋 **Kondisi Screener Aktif:** Mencari Saham dengan Harga Terakhir di Atas **SMA {MA_PERIODE}** pada Timeframe **{TF_PILIHAN}**.")
+# Menampilkan status filter aktif di dashboard utama
+st.info(f"📋 **Kondisi Aktif:** Harga Terakhir harus berada di atas **SMA {MA_PERIODE} ({label_tf})** | Mode Tren: **{FILTER_DAILY_MA10}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (DYNAMIC BULK DOWNLOAD)
+# 2. LOGIKA UTAMA SCREENER (DUAL INTERVAL DOWNLOAD)
 # ==============================================================================
 if MULAI_SCAN:
-    with st.spinner("Menghubungkan ke Google Sheets dan memproses data bursa..."):
+    with st.spinner("Mengunduh dan menyinkronkan data pasar multi-timeframe..."):
         try:
-            # Ambil kolom pertama saja (Quote)
+            # Ambil database dari Google Sheets (Kolom A)
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             df_sheet.columns = ['Quote']
             df_sheet = df_sheet.dropna(subset=['Quote'])
             
             watchlist_raw = df_sheet['Quote'].astype(str).str.strip().str.upper().tolist()
             
-            # Filter kode saham 4 huruf
             watchlist = []
             for kode in watchlist_raw:
                 if kode.isalpha() and len(kode) == 4 and kode != 'QUOTE':
                     watchlist.append(kode + ".JK")
             
             if not watchlist:
-                st.error("Gagal mendeteksi kode saham 4 huruf di Google Sheets Anda.")
+                st.error("Gagal mendeteksi kode saham yang valid di Google Sheets Anda.")
                 st.stop()
                 
-            st.write(f"🔍 Memulai pemindaian massal **{len(watchlist)} saham**...")
+            st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # Download data massal secara dinamis berdasarkan input user
-            data_bulk = yf.download(
-                watchlist, 
-                period=period_param, 
-                interval=interval_param, 
-                group_by='ticker', 
-                auto_adjust=False, 
-                progress=False
-            )
+            # --- DOWNLOAD DATA 1: DATA DAILY UTK FILTER TREN ---
+            data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
+            # --- DOWNLOAD DATA 2: DATA EKSEKUSI (Bisa 1H / Daily) ---
+            if interval_param == "1d":
+                data_exec_bulk = data_daily_bulk
+            else:
+                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
+                
             hasil_screener = []
             
-            # Looping kalkulasi data di memori
+            # Perulangan analisa di memori
             for ticker in watchlist:
                 try:
                     if len(watchlist) == 1:
-                        df_saham = data_bulk
+                        df_d = data_daily_bulk
+                        df_e = data_exec_bulk
                     else:
-                        df_saham = data_bulk[ticker]
+                        df_d = data_daily_bulk[ticker]
+                        df_e = data_exec_bulk[ticker]
                         
-                    if 'Close' in df_saham.columns:
-                        df_saham = df_saham.dropna(subset=['Close'])
-                        close_prices = df_saham['Close'].squeeze()
+                    # Dapatkan Harga Terakhir
+                    if 'Close' in df_e.columns:
+                        close_exec = df_e['Close'].dropna().squeeze()
                     else:
-                        df_saham = df_saham.dropna(subset=['Adj Close'])
-                        close_prices = df_saham['Adj Close'].squeeze()
+                        close_exec = df_e['Adj Close'].dropna().squeeze()
+                        
+                    if close_exec.empty:
+                        continue
+                        
+                    harga_terakhir = float(close_exec.iloc[-1])
                     
-                    # Pastikan baris data cukup untuk menghitung periode MA yang diinput
-                    if not df_saham.empty and len(close_prices) >= MA_PERIODE:
-                        # Hitung MA dinamis sesuai input user
-                        ma_series = close_prices.rolling(window=MA_PERIODE).mean()
+                    # LOGIKA FILTER 1 (DAILY MA 10)
+                    if "Power Play Uptrend" in FILTER_DAILY_MA10:
+                        if 'Close' in df_d.columns:
+                            close_daily = df_d['Close'].dropna().squeeze()
+                        else:
+                            close_daily = df_d['Adj Close'].dropna().squeeze()
+                            
+                        if len(close_daily) >= 10:
+                            daily_ma10 = float(close_daily.rolling(window=10).mean().iloc[-1])
+                            if harga_terakhir < daily_ma10:
+                                continue  # Lewati saham jika di bawah Daily MA 10
+                                
+                    # LOGIKA FILTER 2 (CUSTOM MA EKSEKUSI)
+                    if len(close_exec) >= MA_PERIODE:
+                        ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
+                        nilai_ma_exec = float(ma_exec_series.iloc[-1])
                         
-                        harga_terakhir = float(close_prices.iloc[-1])
-                        nilai_ma = float(ma_series.iloc[-1])
-                        
-                        # Filter Kondisi: Close > Custom MA
-                        if harga_terakhir > nilai_ma:
-                            jarak_persen = ((harga_terakhir - nilai_ma) / nilai_ma) * 100
+                        if harga_terakhir > nilai_ma_exec:
+                            jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
                             clean_ticker = ticker.replace(".JK", "")
                             
+                            # Cek status posisi terhadap Daily MA10 untuk ditampilkan di tabel
+                            status_daily = "Di Atas Daily MA10"
+                            if 'Close' in df_d.columns:
+                                close_d_check = df_d['Close'].dropna().squeeze()
+                            else:
+                                close_d_check = df_d['Adj Close'].dropna().squeeze()
+                                
+                            if len(close_d_check) >= 10:
+                                d_ma10 = float(close_d_check.rolling(window=10).mean().iloc[-1])
+                                if harga_terakhir < d_ma10:
+                                    status_daily = "Di Bawah Daily MA10"
+                                    
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
                                 "Harga Terakhir": round(harga_terakhir, 2),
-                                f"Nilai SMA {MA_PERIODE} ({label_tf})": round(nilai_ma, 2),
+                                f"Nilai SMA {MA_PERIODE} ({label_tf})": round(nilai_ma_exec, 2),
+                                "Tren Besar (Daily MA10)": status_daily,
                                 f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
                             })
                 except:
                     pass
-            
+                    
             # ==============================================================================
-            # 3. TAMPILKAN HASILNYA
+            # 3. OUTPUT TABEL HASIL SINKRONISASI
             # ==============================================================================
             st.success("🎯 Pemindaian Selesai!")
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
-                # Sort dari yang paling dekat dengan garis MA (Best area untuk Buy on Weakness)
                 sort_column = f"Jarak di Atas SMA{MA_PERIODE}"
                 df_hasil = df_hasil.sort_values(by=sort_column, ascending=True)
                 
-                # Format visual persen teks
                 df_hasil[sort_column] = df_hasil[sort_column].apply(lambda x: f"+{x}%")
                 
-                st.metric(label=f"Saham Lolos Filter (> SMA {MA_PERIODE})", value=f"{len(df_hasil)} Saham")
+                st.metric(label="Saham Lolos Filter Kombinasi", value=f"{len(df_hasil)} Saham")
                 st.dataframe(df_hasil, use_container_width=True, hide_index=True)
             else:
-                st.warning(f"Tidak ada saham dari database Anda yang saat ini berada di atas SMA {MA_PERIODE} ({label_tf}).")
+                st.warning("Tidak ada saham dari database Anda yang memenuhi seluruh kombinasi kriteria di atas.")
                 
         except Exception as e:
-            st.error(f"Terjadi kesalahan teknis saat membaca data. Deskripsi Error: {e}")
+            st.error(f"Terjadi kesalahan teknis: {e}")
