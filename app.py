@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
-st.write("Atur parameter filter tren besar (Daily) and eksekusi (Intraday) pada panel sebelah kiri.")
+st.write("Atur parameter filter tren besar (Daily) dan eksekusi (Intraday) pada panel sebelah kiri.")
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
@@ -20,8 +20,8 @@ st.sidebar.header("⚙️ Parameter Sensor")
 FILTER_DAILY_MA10 = st.sidebar.selectbox(
     "1. Filter Tren Besar (Daily MA 10)",
     options=[
-        "Power Play Uptrend",
-        "Flexible"
+        "Power Play",
+        "General"
     ],
     index=0
 )
@@ -92,7 +92,7 @@ if MULAI_SCAN:
                 
             hasil_screener = []
             
-            # Perulangan analisa di memori (Bagian yang Spasinya Diratakan Kembali)
+            # Perulangan analisa di memori
             for ticker in watchlist:
                 try:
                     if len(watchlist) == 1:
@@ -113,17 +113,26 @@ if MULAI_SCAN:
                         
                     harga_terakhir = float(close_exec.iloc[-1])
                     
-                    # LOGIKA FILTER 1 (DAILY MA 10)
-                    if "Power Play Uptrend" in FILTER_DAILY_MA10:
-                        if 'Close' in df_d.columns:
-                            close_daily = df_d['Close'].dropna().squeeze()
-                        else:
-                            close_daily = df_d['Adj Close'].dropna().squeeze()
-                            
-                        if len(close_daily) >= 10:
-                            daily_ma10 = float(close_daily.rolling(window=10).mean().iloc[-1])
-                            if harga_terakhir < daily_ma10:
-                                continue
+                    # Ambil data Close Daily untuk hitung DMA10
+                    if 'Close' in df_d.columns:
+                        close_daily = df_d['Close'].dropna().squeeze()
+                    else:
+                        close_daily = df_d['Adj Close'].dropna().squeeze()
+                        
+                    if len(close_daily) < 10:
+                        continue
+                        
+                    daily_ma10 = float(close_daily.rolling(window=10).mean().iloc[-1])
+                    
+                    # LOGIKA FILTER SAKRAL (Power Play vs General)
+                    if FILTER_DAILY_MA10 == "Power Play":
+                        if harga_terakhir < daily_ma10:
+                            continue  # Jika Power Play, buang yang di bawah DMA10
+                        status_daily = "Above DMA10"
+                    else:  # Mode General
+                        if harga_terakhir >= daily_ma10:
+                            continue  # Jika General, buang yang di atas DMA10
+                        status_daily = "Below DMA10"
                                 
                     # LOGIKA FILTER 2 (CUSTOM MA EKSEKUSI DI SIDEBAR)
                     if len(close_exec) >= MA_PERIODE:
@@ -133,24 +142,12 @@ if MULAI_SCAN:
                         if harga_terakhir > nilai_ma_exec:
                             jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
                             clean_ticker = ticker.replace(".JK", "")
-                            
-                            # Cek status posisi terhadap Daily MA10 untuk ditampilkan di tabel
-                            status_daily = "Above Daily MA10"
-                            if 'Close' in df_d.columns:
-                                close_d_check = df_d['Close'].dropna().squeeze()
-                            else:
-                                close_d_check = df_d['Adj Close'].dropna().squeeze()
-                                
-                            if len(close_d_check) >= 10:
-                                d_ma10 = float(close_d_check.rolling(window=10).mean().iloc[-1])
-                                if harga_terakhir < d_ma10:
-                                    status_daily = "Below Daily MA10"
                                     
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
                                 "Harga Terakhir": round(harga_terakhir, 2),
                                 f"Nilai SMA {MA_PERIODE} ({label_tf})": round(nilai_ma_exec, 2),
-                                "Tren Besar (Daily MA10)": status_daily,
+                                "Above/Below DMA10": status_daily,
                                 f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
                             })
                 except:
