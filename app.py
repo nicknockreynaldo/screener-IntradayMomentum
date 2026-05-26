@@ -42,13 +42,11 @@ else:
     period_param = "1y"
     label_tf = "Daily"
 
-# --- FILTER 3: PERIODE MA KUSTOM ---
-MA_PERIODE = st.sidebar.number_input(
+# --- FILTER 3: PERIODE MA KUSTOM (DIUBAH JADI DROPDOWN FIXED SAKRAL) ---
+MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
-    min_value=5,
-    max_value=200,
-    value=50,
-    step=5
+    options=[5, 10, 20, 50, 200],
+    index=3  # Default otomatis mengarah ke MA 50 (pilihan ke-4)
 )
 
 # --- LINK PERMANEN GOOGLE SHEETS ANDA ---
@@ -97,83 +95,3 @@ if MULAI_SCAN:
             # Perulangan analisa di memori
             for ticker in watchlist:
                 try:
-                    if len(watchlist) == 1:
-                        df_d = data_daily_bulk
-                        df_e = data_exec_bulk
-                    else:
-                        df_d = data_daily_bulk[ticker]
-                        df_e = data_exec_bulk[ticker]
-                        
-                    # Dapatkan Harga Terakhir
-                    if 'Close' in df_e.columns:
-                        close_exec = df_e['Close'].dropna().squeeze()
-                    else:
-                        close_exec = df_e['Adj Close'].dropna().squeeze()
-                        
-                    if close_exec.empty:
-                        continue
-                        
-                    harga_terakhir = float(close_exec.iloc[-1])
-                    
-                    # LOGIKA FILTER 1 (DAILY MA 10)
-                    if "Power Play Uptrend" in FILTER_DAILY_MA10:
-                        if 'Close' in df_d.columns:
-                            close_daily = df_d['Close'].dropna().squeeze()
-                        else:
-                            close_daily = df_d['Adj Close'].dropna().squeeze()
-                            
-                        if len(close_daily) >= 10:
-                            daily_ma10 = float(close_daily.rolling(window=10).mean().iloc[-1])
-                            if harga_terakhir < daily_ma10:
-                                continue  # Lewati saham jika di bawah Daily MA 10
-                                
-                    # LOGIKA FILTER 2 (CUSTOM MA EKSEKUSI)
-                    if len(close_exec) >= MA_PERIODE:
-                        ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
-                        nilai_ma_exec = float(ma_exec_series.iloc[-1])
-                        
-                        if harga_terakhir > nilai_ma_exec:
-                            jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
-                            clean_ticker = ticker.replace(".JK", "")
-                            
-                            # Cek status posisi terhadap Daily MA10 untuk ditampilkan di tabel
-                            status_daily = "Di Atas Daily MA10"
-                            if 'Close' in df_d.columns:
-                                close_d_check = df_d['Close'].dropna().squeeze()
-                            else:
-                                close_d_check = df_d['Adj Close'].dropna().squeeze()
-                                
-                            if len(close_d_check) >= 10:
-                                d_ma10 = float(close_d_check.rolling(window=10).mean().iloc[-1])
-                                if harga_terakhir < d_ma10:
-                                    status_daily = "Di Bawah Daily MA10"
-                                    
-                            hasil_screener.append({
-                                "Kode Saham": clean_ticker,
-                                "Harga Terakhir": round(harga_terakhir, 2),
-                                f"Nilai SMA {MA_PERIODE} ({label_tf})": round(nilai_ma_exec, 2),
-                                "Tren Besar (Daily MA10)": status_daily,
-                                f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
-                            })
-                except:
-                    pass
-                    
-            # ==============================================================================
-            # 3. OUTPUT TABEL HASIL SINKRONISASI
-            # ==============================================================================
-            st.success("🎯 Pemindaian Selesai!")
-            
-            if hasil_screener:
-                df_hasil = pd.DataFrame(hasil_screener)
-                sort_column = f"Jarak di Atas SMA{MA_PERIODE}"
-                df_hasil = df_hasil.sort_values(by=sort_column, ascending=True)
-                
-                df_hasil[sort_column] = df_hasil[sort_column].apply(lambda x: f"+{x}%")
-                
-                st.metric(label="Saham Lolos Filter Kombinasi", value=f"{len(df_hasil)} Saham")
-                st.dataframe(df_hasil, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Tidak ada saham dari database Anda yang memenuhi seluruh kombinasi kriteria di atas.")
-                
-        except Exception as e:
-            st.error(f"Terjadi kesalahan teknis: {e}")
