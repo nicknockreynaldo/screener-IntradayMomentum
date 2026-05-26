@@ -135,7 +135,7 @@ if MULAI_SCAN:
                             clean_ticker = ticker.replace(".JK", "")
                             
                             # Cek status posisi terhadap Daily MA10 untuk ditampilkan di tabel
-                            status_daily = "Di Atas Daily MA10"
+                            status_daily = "Above Daily MA10"
                             if 'Close' in df_d.columns:
                                 close_d_check = df_d['Close'].dropna().squeeze()
                             else:
@@ -144,7 +144,7 @@ if MULAI_SCAN:
                             if len(close_d_check) >= 10:
                                 d_ma10 = float(close_d_check.rolling(window=10).mean().iloc[-1])
                                 if harga_terakhir < d_ma10:
-                                    status_daily = "Di Bawah Daily MA10"
+                                    status_daily = "Below Daily MA10"
                                     
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
