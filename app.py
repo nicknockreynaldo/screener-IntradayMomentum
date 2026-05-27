@@ -27,20 +27,29 @@ FILTER_INTRADAY = st.sidebar.selectbox(
     help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
 )
 
-# --- DROPDOWN 2: TIMEFRAME EKSEKUSI ---
+# --- DROPDOWN 2: TIMEFRAME EKSEKUSI (REVISI: TAMBAH 5M & 15M) ---
 TF_PILIHAN = st.sidebar.selectbox(
     "2. Pilih Timeframe Eksekusi",
-    options=["1 Jam (1H)", "Harian (Daily)"],
-    index=0
+    options=["5 Menit (5m)", "15 Menit (15m)", "1 Jam (1H)", "Harian (Daily)"],
+    index=3  # Default otomatis diarahkan ke Harian (Daily)
 )
 
-if TF_PILIHAN == "1 Jam (1H)":
+# Logika penyesuaian period & interval secara dinamis agar aman dari rate-limit
+if TF_PILIHAN == "5 Menit (5m)":
+    interval_param = "5m"
+    period_param = "5d"       # 5 hari data menit aman & melimpah untuk SMA 50
+    label_tf = "5m"
+elif TF_PILIHAN == "15 Menit (15m)":
+    interval_param = "15m"
+    period_param = "7d"       # 7 hari data untuk timeframe 15 menit
+    label_tf = "15m"
+elif TF_PILIHAN == "1 Jam (1H)":
     interval_param = "1h"
-    period_param = "1mo"
+    period_param = "1mo"      # 1 bulan data untuk timeframe 1 jam
     label_tf = "1H"
 else:
     interval_param = "1d"
-    period_param = "2y"  # Rentang data aman untuk kalkulasi SMA 200
+    period_param = "2y"       # 2 tahun data harian (Wajib untuk mengamankan SMA 200)
     label_tf = "Daily"
 
 # --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
@@ -59,9 +68,14 @@ MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_wid
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (FAST BULK DOWNLOAD)
+# 2. LOGIKA UTAMA SCREENER (DYNAMIC BULK DOWNLOAD ROUTINE)
 # ==============================================================================
 if MULAI_SCAN:
+    # Validasi Pengaman Khusus: Cegah user memilih SMA 200 di timeframe 5m atau 15m karena datanya tidak akan cukup
+    if interval_param in ["5m", "15m"] and MA_PERIODE == 200:
+        st.error(f"❌ Batasan Teknis: SMA 200 terlalu besar untuk Timeframe {TF_PILIHAN} pada mode unduh cepat. Silakan gunakan maksimal SMA 50 untuk timeframe menit ini, atau pindah ke timeframe 1 Jam / Daily jika ingin memakai SMA 200.")
+        st.stop()
+
     with st.spinner("Mengunduh data pasar massal secara instan..."):
         try:
             # Ambil database dari Google Sheets (Kolom A)
@@ -82,10 +96,10 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # --- DOWNLOAD DATA DAILY 2 TAHUN ---
-            data_daily_bulk = yf.download(watchlist, period="2y", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
+            # --- DOWNLOAD DATA DAILY (Selalu ditarik untuk mengunci Filter Open Hari Ini) ---
+            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
-            # --- DOWNLOAD DATA EKSEKUSI ---
+            # --- DOWNLOAD DATA EKSEKUSI (Bisa 5m, 15m, 1h, atau 1d) ---
             if interval_param == "1d":
                 data_exec_bulk = data_daily_bulk
             else:
@@ -118,7 +132,7 @@ if MULAI_SCAN:
                             if not open_series.empty:
                                 open_hari_ini = float(open_series.iloc[-1])
                                 if harga_terakhir < open_hari_ini:
-                                    continue  # Skip candle merah
+                                    continue  # Singkirkan candle merah harian
                                 
                     # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
                     if len(close_exec) >= MA_PERIODE:
@@ -131,27 +145,26 @@ if MULAI_SCAN:
                                     
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
-                                "Harga Terakhir": int(harga_terakhir),
+                                "Harga Terakhir": int(harga_terakhir) if harga_terakhir >= 1 else round(harga_terakhir, 2),
                                 f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
-                                "Jarak (%)": round(jarak_persen, 2)  # Disimpan sebagai float murni agar sorting angka akurat
+                                "Jarak (%)": round(jarak_persen, 2)
                             })
                 except:
                     pass
                     
             # ==============================================================================
-            # 3. OUTPUT INTERAKTIF (BISA DI-SORTING & PAS DILAYAR)
+            # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY KODE SAHAM)
             # ==============================================================================
             st.success("🎯 Pemindaian Selesai!")
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
                 
-                # Default urutan awal saat pertama load: Urutkan berdasarkan Kode Saham dari A ke Z
+                # Default awal: Urut berdasarkan Kode Saham dari A ke Z
                 df_hasil = df_hasil.sort_values(by="Kode Saham", ascending=True)
                 
                 st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
                 
-                # Tampilkan tabel interaktif yang dipaksa lebar penuh tanpa scrollbar horizontal
                 st.dataframe(
                     df_hasil,
                     use_container_width=True,
@@ -159,7 +172,7 @@ if MULAI_SCAN:
                     column_config={
                         "Jarak (%)": st.column_config.NumberColumn(
                             "Jarak (%)",
-                            format="+%.2f%%"  # Memasang logo plus dan persen secara visual saja tanpa merusak sistem angka sorting
+                            format="+%.2f%%"
                         )
                     }
                 )
