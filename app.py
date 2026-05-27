@@ -7,26 +7,27 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF MULTI-FILTER
+# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
-st.write("Atur parameter filter tren besar (Daily) dan eksekusi (Intraday) pada panel sebelah kiri.")
+st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
-# --- FILTER 1: FILTER TREN UTAMA (DAILY MA 10) ---
-FILTER_DAILY_MA10 = st.sidebar.selectbox(
-    "1. Filter Tren Besar (Daily MA 10)",
+# --- DROPDOWN 1: FILTER INTRADAY MOMENTUM VS OPEN ---
+FILTER_INTRADAY = st.sidebar.selectbox(
+    "1. Filter Pergerakan Hari Ini (Vs Open)",
     options=[
-        "Power Play (Above DMA10)",
-        "General (Below DMA10)"
+        "Intraday Momentum (>0%)",
+        "General"
     ],
-    index=0
+    index=0,
+    help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
 )
 
-# --- FILTER 2: TIMEFRAME EKSEKUSI ---
+# --- DROPDOWN 2: TIMEFRAME EKSEKUSI ---
 TF_PILIHAN = st.sidebar.selectbox(
     "2. Pilih Timeframe Eksekusi",
     options=["1 Jam (1H)", "Harian (Daily)"],
@@ -42,11 +43,11 @@ else:
     period_param = "1y"
     label_tf = "Daily"
 
-# --- FILTER 3: PERIODE MA KUSTOM ---
+# --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
-    index=3
+    index=3  # Default otomatis mengarah ke MA 50
 )
 
 # --- LINK PERMANEN GOOGLE SHEETS ANDA ---
@@ -55,13 +56,13 @@ URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEym
 MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_width=True)
 
 # Menampilkan status filter aktif di dashboard utama
-st.info(f"📋 **Kondisi Aktif:** Harga Terakhir harus berada di atas **SMA {MA_PERIODE} ({label_tf})** | Mode Tren: **{FILTER_DAILY_MA10}**")
+st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (DUAL INTERVAL DOWNLOAD)
+# 2. LOGIKA UTAMA SCREENER (CLEAN DOWNLOAD ROUTINE)
 # ==============================================================================
 if MULAI_SCAN:
-    with st.spinner("Mengunduh dan menyinkronkan data pasar multi-timeframe..."):
+    with st.spinner("Mengunduh dan memproses data pasar..."):
         try:
             # Ambil database dari Google Sheets (Kolom A)
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
@@ -81,10 +82,10 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # --- DOWNLOAD DATA 1: DATA DAILY UTK FILTER TREN ---
+            # --- DOWNLOAD DATA DAILY (Hanya untuk ambil harga Open Hari Ini jika filter aktif) ---
             data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
-            # --- DOWNLOAD DATA 2: DATA EKSEKUSI (Bisa 1H / Daily) ---
+            # --- DOWNLOAD DATA EKSEKUSI (1H / Daily) ---
             if interval_param == "1d":
                 data_exec_bulk = data_daily_bulk
             else:
@@ -102,7 +103,7 @@ if MULAI_SCAN:
                         df_d = data_daily_bulk[ticker]
                         df_e = data_exec_bulk[ticker]
                         
-                    # Dapatkan Harga Terakhir
+                    # Dapatkan Harga Terakhir dari data eksekusi
                     if 'Close' in df_e.columns:
                         close_exec = df_e['Close'].dropna().squeeze()
                     else:
@@ -113,32 +114,19 @@ if MULAI_SCAN:
                         
                     harga_terakhir = float(close_exec.iloc[-1])
                     
-                    # Ambil data Close Daily untuk hitung DMA10
-                    if 'Close' in df_d.columns:
-                        close_daily = df_d['Close'].dropna().squeeze()
-                    else:
-                        close_daily = df_d['Adj Close'].dropna().squeeze()
-                        
-                    if len(close_daily) < 10:
-                        continue
-                        
-                    daily_ma10 = float(close_daily.rolling(window=10).mean().iloc[-1])
-                    
-                    # LOGIKA FILTER SAKRAL (Power Play vs General)
-                    if FILTER_DAILY_MA10 == "Power Play":
-                        if harga_terakhir < daily_ma10:
-                            continue  # Jika Power Play, buang yang di bawah DMA10
-                        status_daily = "Above DMA10"
-                    else:  # Mode General
-                        if harga_terakhir >= daily_ma10:
-                            continue  # Jika General, buang yang di atas DMA10
-                        status_daily = "Below DMA10"
+                    # --- LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
+                    if FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                        if 'Open' in df_d.columns:
+                            open_hari_ini = float(df_d['Open'].dropna().squeeze().iloc[-1])
+                            if harga_terakhir < open_hari_ini:
+                                continue  # Buang jika harga saat ini di bawah Open jam 9 pagi tadi
                                 
-                    # LOGIKA FILTER 2 (CUSTOM MA EKSEKUSI DI SIDEBAR)
+                    # --- LOGIKA FILTER UTAMA (CUSTOM MA PILIHAN) ---
                     if len(close_exec) >= MA_PERIODE:
                         ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
                         nilai_ma_exec = float(ma_exec_series.iloc[-1])
                         
+                        # Aturan mutlak: Harga wajib berada di atas MA pilihan
                         if harga_terakhir > nilai_ma_exec:
                             jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
                             clean_ticker = ticker.replace(".JK", "")
@@ -146,8 +134,7 @@ if MULAI_SCAN:
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
                                 "Harga Terakhir": round(harga_terakhir, 2),
-                                f"Nilai SMA {MA_PERIODE} ({label_tf})": round(nilai_ma_exec, 2),
-                                "Above/Below DMA10": status_daily,
+                                f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
                                 f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
                             })
                 except:
@@ -165,10 +152,10 @@ if MULAI_SCAN:
                 
                 df_hasil[sort_column] = df_hasil[sort_column].apply(lambda x: f"+{x}%")
                 
-                st.metric(label="Saham Lolos Filter Kombinasi", value=f"{len(df_hasil)} Saham")
+                st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
                 st.dataframe(df_hasil, use_container_width=True, hide_index=True)
             else:
-                st.warning("Tidak ada saham dari database Anda yang memenuhi seluruh kombinasi kriteria di atas.")
+                st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
                 
         except Exception as e:
             st.error(f"Terjadi kesalahan teknis: {e}")
