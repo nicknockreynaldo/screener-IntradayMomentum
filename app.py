@@ -59,7 +59,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_wid
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (CLEAN DOWNLOAD ROUTINE)
+# 2. LOGIKA UTAMA SCREENER (ROUTINE PENYARINGAN KUAT)
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Mengunduh dan memproses data pasar..."):
@@ -82,10 +82,10 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # --- DOWNLOAD DATA DAILY (Hanya untuk ambil harga Open Hari Ini jika filter aktif) ---
+            # --- 1. DOWNLOAD DATA DAILY ---
             data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
-            # --- DOWNLOAD DATA EKSEKUSI (1H / Daily) ---
+            # --- 2. DOWNLOAD DATA EKSEKUSI ---
             if interval_param == "1d":
                 data_exec_bulk = data_daily_bulk
             else:
@@ -96,20 +96,32 @@ if MULAI_SCAN:
             # Perulangan analisa di memori
             for ticker in watchlist:
                 try:
-                    if len(watchlist) == 1:
-                        df_d = data_daily_bulk
-                        df_e = data_exec_bulk
+                    # Ambil data spesifik per saham untuk data harian
+                    if ticker in data_daily_bulk.columns.get_level_values(0):
+                        df_d = data_daily_bulk[ticker].copy()
                     else:
-                        df_d = data_daily_bulk[ticker]
-                        df_e = data_exec_bulk[ticker]
+                        continue
                         
-                    # Dapatkan Harga Terakhir dari data eksekusi
-                    if 'Close' in df_e.columns:
-                        close_exec = df_e['Close'].dropna().squeeze()
+                    # Ambil data spesifik per saham untuk data eksekusi
+                    if interval_param == "1d":
+                        df_e = df_d.copy()
                     else:
-                        close_exec = df_e['Adj Close'].dropna().squeeze()
+                        if ticker in data_exec_bulk.columns.get_level_values(0):
+                            df_e = data_exec_bulk[ticker].copy()
+                        else:
+                            continue
+                    
+                    # Bersihkan kolom jika masih berwujud MultiIndex
+                    if isinstance(df_e.columns, pd.MultiIndex):
+                        df_e.columns = df_e.columns.get_level_values(0)
+                    if isinstance(df_d.columns, pd.MultiIndex):
+                        df_d.columns = df_d.columns.get_level_values(0)
                         
-                    if close_exec.empty:
+                    # Ekstrak data Close untuk eksekusi
+                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
+                    close_exec = df_e[kolom_close_e].dropna().squeeze()
+                    
+                    if close_exec.empty or isinstance(close_exec, pd.DataFrame):
                         continue
                         
                     harga_terakhir = float(close_exec.iloc[-1])
@@ -117,16 +129,18 @@ if MULAI_SCAN:
                     # --- LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
                     if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                         if 'Open' in df_d.columns:
-                            open_hari_ini = float(df_d['Open'].dropna().squeeze().iloc[-1])
-                            if harga_terakhir < open_hari_ini:
-                                continue  # Buang jika harga saat ini di bawah Open jam 9 pagi tadi
+                            open_series = df_d['Open'].dropna().squeeze()
+                            if not open_series.empty:
+                                open_hari_ini = float(open_series.iloc[-1])
+                                if harga_terakhir < open_hari_ini:
+                                    continue  # Skip jika candle harian berwarna merah
                                 
-                    # --- LOGIKA FILTER UTAMA (CUSTOM MA PILIHAN) ---
+                    # --- LOGIKA FILTER UTAMA MOVING AVERAGE ---
                     if len(close_exec) >= MA_PERIODE:
                         ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
                         nilai_ma_exec = float(ma_exec_series.iloc[-1])
                         
-                        # Aturan mutlak: Harga wajib berada di atas MA pilihan
+                        # Pengkondisian mutlak: Harga wajib di atas SMA
                         if harga_terakhir > nilai_ma_exec:
                             jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
                             clean_ticker = ticker.replace(".JK", "")
@@ -137,7 +151,7 @@ if MULAI_SCAN:
                                 f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
                                 f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
                             })
-                except:
+                except Exception as inner_e:
                     pass
                     
             # ==============================================================================
@@ -158,4 +172,4 @@ if MULAI_SCAN:
                 st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
                 
         except Exception as e:
-            st.error(f"Terjadi kesalahan teknis: {e}")
+            st.error(f"Terjadi kesalahan teknis utama: {e}")
