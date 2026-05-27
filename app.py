@@ -3,12 +3,11 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import warnings
-import time
 
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
+# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF MULTI-FILTER
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
@@ -41,7 +40,7 @@ if TF_PILIHAN == "1 Jam (1H)":
     label_tf = "1H"
 else:
     interval_param = "1d"
-    period_param = "1y"
+    period_param = "2y"  # Diperpanjang ke 2 tahun untuk akurasi data harian SMA 200
     label_tf = "Daily"
 
 # --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
@@ -60,10 +59,10 @@ MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_wid
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (METODE LOOP INDIVIDUAL AMAN)
+# 2. LOGIKA UTAMA SCREENER (FAST BULK DOWNLOAD WITH EXTENDED PERIOD)
 # ==============================================================================
 if MULAI_SCAN:
-    with st.spinner("Mengunduh dan memproses data pasar secara presisi..."):
+    with st.spinner("Mengunduh data pasar massal secara instan..."):
         try:
             # Ambil database dari Google Sheets (Kolom A)
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
@@ -81,67 +80,56 @@ if MULAI_SCAN:
                 st.error("Gagal mendeteksi kode saham yang valid di Google Sheets Anda.")
                 st.stop()
                 
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
+            
+            # --- DOWNLOAD DATA 1: DATA DAILY DENGAN PERIODE 2 TAHUN (Amankan SMA 200) ---
+            data_daily_bulk = yf.download(watchlist, period="2y", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
+            
+            # --- DOWNLOAD DATA 2: DATA EKSEKUSI ---
+            if interval_param == "1d":
+                data_exec_bulk = data_daily_bulk
+            else:
+                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
+                
             hasil_screener = []
             
-            # Perulangan download individual untuk menjamin struktur kolom 1D datar murni
-            for i, ticker in enumerate(watchlist):
-                clean_ticker = ticker.replace(".JK", "")
-                status_text.text(f"📥 Memproses ({i+1}/{len(watchlist)}): {clean_ticker}")
-                progress_bar.progress((i + 1) / len(watchlist))
-                
+            # Perulangan analisa super cepat di memori
+            for ticker in watchlist:
                 try:
-                    # Download data harian murni khusus ticker ini (untuk ambil Open harian)
-                    df_d = yf.download(ticker, period="3mo", interval="1d", auto_adjust=False, progress=False)
-                    
-                    if df_d.empty:
-                        continue
-                        
-                    # Handle jika yfinance mengembalikan multi-index kolom meskipun single download
-                    if isinstance(df_d.columns, pd.MultiIndex):
-                        df_d.columns = df_d.columns.get_level_values(0)
-                        
-                    # Download data eksekusi khusus ticker ini
-                    if interval_param == "1d":
-                        df_e = df_d.copy()
+                    # Ambil sub-dataframe terisolasi
+                    if len(watchlist) == 1:
+                        df_d = data_daily_bulk.copy()
+                        df_e = data_exec_bulk.copy()
                     else:
-                        df_e = yf.download(ticker, period=period_param, interval=interval_param, auto_adjust=False, progress=False)
-                        if isinstance(df_e.columns, pd.MultiIndex):
-                            df_e.columns = df_e.columns.get_level_values(0)
-                            
-                    if df_e.empty:
-                        continue
-                    
-                    # Ambil list harga close eksekusi secara aman
-                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
-                    close_exec_series = df_e[kolom_close_e].dropna()
-                    
-                    if close_exec_series.empty:
-                        continue
+                        df_d = data_daily_bulk[ticker].copy()
+                        df_e = data_exec_bulk[ticker].copy()
                         
-                    # Dapatkan harga berjalan detik ini (mengonversi ke float murni)
-                    harga_terakhir = float(close_exec_series.values[-1])
+                    # Dapatkan Harga Terakhir dari data eksekusi
+                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
+                    close_exec = df_e[kolom_close_e].dropna().squeeze()
+                    
+                    if close_exec.empty:
+                        continue
+                    harga_terakhir = float(close_exec.iloc[-1])
                     
                     # --- 1. LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
                     if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                         if 'Open' in df_d.columns:
-                            open_series = df_d['Open'].dropna()
+                            open_series = df_d['Open'].dropna().squeeze()
                             if not open_series.empty:
-                                open_hari_ini = float(open_series.values[-1])
+                                open_hari_ini = float(open_series.iloc[-1])
                                 if harga_terakhir < open_hari_ini:
-                                    continue  # Lewati jika candle hari ini berwarna merah
-                                    
+                                    continue  # Singkirkan candle merah
+                                
                     # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
-                    if len(close_exec_series) >= MA_PERIODE:
-                        # Hitung SMA bergulir
-                        ma_series = close_exec_series.rolling(window=MA_PERIODE).mean()
-                        nilai_ma_exec = float(ma_series.values[-1])
+                    if len(close_exec) >= MA_PERIODE:
+                        ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
+                        nilai_ma_exec = float(ma_exec_series.iloc[-1])
                         
-                        # Aturan sakral: Harga terakhir harus di atas nilai SMA
                         if harga_terakhir > nilai_ma_exec:
                             jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
-                            
+                            clean_ticker = ticker.replace(".JK", "")
+                                    
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
                                 "Harga Terakhir": round(harga_terakhir, 2),
@@ -151,13 +139,6 @@ if MULAI_SCAN:
                 except:
                     pass
                     
-                # Jeda mikro agar terhindar dari pemblokiran server
-                time.sleep(0.1)
-                
-            # Bersihkan teks indikator loading loop
-            status_text.empty()
-            progress_bar.empty()
-            
             # ==============================================================================
             # 3. OUTPUT TABEL HASIL SINKRONISASI
             # ==============================================================================
