@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF MULTI-FILTER
+# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
@@ -40,7 +40,7 @@ if TF_PILIHAN == "1 Jam (1H)":
     label_tf = "1H"
 else:
     interval_param = "1d"
-    period_param = "2y"  # Diperpanjang ke 2 tahun untuk akurasi data harian SMA 200
+    period_param = "2y"  # Rentang data aman untuk kalkulasi SMA 200
     label_tf = "Daily"
 
 # --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
@@ -59,7 +59,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Mulai Pemindaian Massal", use_container_wid
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (FAST BULK DOWNLOAD WITH EXTENDED PERIOD)
+# 2. LOGIKA UTAMA SCREENER (FAST BULK DOWNLOAD)
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Mengunduh data pasar massal secara instan..."):
@@ -82,10 +82,10 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # --- DOWNLOAD DATA 1: DATA DAILY DENGAN PERIODE 2 TAHUN (Amankan SMA 200) ---
+            # --- DOWNLOAD DATA DAILY 2 TAHUN ---
             data_daily_bulk = yf.download(watchlist, period="2y", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
-            # --- DOWNLOAD DATA 2: DATA EKSEKUSI ---
+            # --- DOWNLOAD DATA EKSEKUSI ---
             if interval_param == "1d":
                 data_exec_bulk = data_daily_bulk
             else:
@@ -93,10 +93,9 @@ if MULAI_SCAN:
                 
             hasil_screener = []
             
-            # Perulangan analisa super cepat di memori
+            # Perulangan analisa di memori
             for ticker in watchlist:
                 try:
-                    # Ambil sub-dataframe terisolasi
                     if len(watchlist) == 1:
                         df_d = data_daily_bulk.copy()
                         df_e = data_exec_bulk.copy()
@@ -119,7 +118,7 @@ if MULAI_SCAN:
                             if not open_series.empty:
                                 open_hari_ini = float(open_series.iloc[-1])
                                 if harga_terakhir < open_hari_ini:
-                                    continue  # Singkirkan candle merah
+                                    continue  # Skip candle merah
                                 
                     # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
                     if len(close_exec) >= MA_PERIODE:
@@ -132,27 +131,28 @@ if MULAI_SCAN:
                                     
                             hasil_screener.append({
                                 "Kode Saham": clean_ticker,
-                                "Harga Terakhir": round(harga_terakhir, 2),
+                                "Harga Terakhir": int(harga_terakhir),
                                 f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
-                                f"Jarak di Atas SMA{MA_PERIODE}": round(jarak_persen, 2)
+                                "Jarak (%)": f"+{round(jarak_persen, 2)}%"
                             })
                 except:
                     pass
                     
             # ==============================================================================
-            # 3. OUTPUT TABEL HASIL SINKRONISASI
+            # 3. OUTPUT TABEL STATIS TANPA SCROLLBAR (FIXED VIEW)
             # ==============================================================================
             st.success("🎯 Pemindaian Selesai!")
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
-                sort_column = f"Jarak di Atas SMA{MA_PERIODE}"
-                df_hasil = df_hasil.sort_values(by=sort_column, ascending=True)
                 
-                df_hasil[sort_column] = df_hasil[sort_column].apply(lambda x: f"+{x}%")
+                # Urutkan berdasarkan jarak persen paling dekat dengan MA
+                df_hasil = df_hasil.sort_values(by="Jarak (%)", ascending=True)
                 
                 st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
-                st.dataframe(df_hasil, use_container_width=True, hide_index=True)
+                
+                # Menggunakan st.table agar seluruh kolom langsung terhampar lebar tanpa scrollbar
+                st.table(df_hasil)
             else:
                 st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
                 
