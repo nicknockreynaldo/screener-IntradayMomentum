@@ -133,26 +133,36 @@ if MULAI_SCAN:
                                 "Kode Saham": clean_ticker,
                                 "Harga Terakhir": int(harga_terakhir),
                                 f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
-                                "Jarak (%)": f"+{round(jarak_persen, 2)}%"
+                                "Jarak (%)": round(jarak_persen, 2)  # Disimpan sebagai float murni agar sorting angka akurat
                             })
                 except:
                     pass
                     
             # ==============================================================================
-            # 3. OUTPUT TABEL STATIS TANPA SCROLLBAR (FIXED VIEW)
+            # 3. OUTPUT INTERAKTIF (BISA DI-SORTING & PAS DILAYAR)
             # ==============================================================================
             st.success("🎯 Pemindaian Selesai!")
             
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
                 
-                # Urutkan berdasarkan jarak persen paling dekat dengan MA
-                df_hasil = df_hasil.sort_values(by="Jarak (%)", ascending=True)
+                # Default urutan awal saat pertama load: Urutkan berdasarkan Kode Saham dari A ke Z
+                df_hasil = df_hasil.sort_values(by="Kode Saham", ascending=True)
                 
                 st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
                 
-                # Menggunakan st.table agar seluruh kolom langsung terhampar lebar tanpa scrollbar
-                st.table(df_hasil)
+                # Tampilkan tabel interaktif yang dipaksa lebar penuh tanpa scrollbar horizontal
+                st.dataframe(
+                    df_hasil,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Jarak (%)": st.column_config.NumberColumn(
+                            "Jarak (%)",
+                            format="+%.2f%%"  # Memasang logo plus dan persen secara visual saja tanpa merusak sistem angka sorting
+                        )
+                    }
+                )
             else:
                 st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
                 
