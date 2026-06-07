@@ -1,129 +1,163 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
+import pandas as pd
 import numpy as np
 import warnings
-from datetime import datetime
 
-# Set Konfigurasi Halaman Web Streamlit Anda
-st.set_page_config(
-    page_title="IHSG Intraday Momentum",
-    page_icon="📈",
-    layout="wide"
+warnings.filterwarnings('ignore')
+
+# ==============================================================================
+# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
+# ==============================================================================
+st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
+
+st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
+st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
+
+st.sidebar.header("⚙️ Parameter Sensor")
+
+# --- DROPDOWN 1: FILTER INTRADAY MOMENTUM VS OPEN ---
+FILTER_INTRADAY = st.sidebar.selectbox(
+    "1. Filter Pergerakan Hari Ini (Vs Open)",
+    options=[
+        "Intraday Momentum (>0%)",
+        "General"
+    ],
+    index=0,
+    help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
 )
 
-# Matikan notifikasi peringatan/warning agar output tabel bersih rapi
-warnings.filterwarnings('ignore', category=FutureWarning)
+# --- DROPDOWN 2: TIMEFRAME EKSEKUSI ---
+TF_PILIHAN = st.sidebar.selectbox(
+    "2. Pilih Timeframe Eksekusi",
+    options=["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"],
+    index=0  # Default otomatis diarahkan ke Harian (Daily)
+)
 
-st.title("📈 IHSG Intraday Momentum Screener")
-st.subheader("Live State-Tracking Architecture (NEW vs HOLD)")
+# Logika penyesuaian period & interval secara dinamis agar aman dari rate-limit
+if TF_PILIHAN == "Harian (Daily)":
+    interval_param = "1d"
+    period_param = "2y"       # 2 tahun data harian (Wajib untuk mengamankan SMA 200)
+    label_tf = "Daily"
+elif TF_PILIHAN == "1 Jam (1H)":
+    interval_param = "1h"
+    period_param = "1mo"      # 1 bulan data untuk timeframe 1 jam
+    label_tf = "1H"
+elif TF_PILIHAN == "30 Menit (30m)":
+    interval_param = "30m"
+    period_param = "7d"       # 7 hari data untuk timeframe 30 menit
+    label_tf = "30m"
+elif TF_PILIHAN == "15 Menit (15m)":
+    interval_param = "15m"
+    period_param = "7d"       # 7 hari data untuk timeframe 15 menit
+    label_tf = "15m"
+else:  # 5 Menit (5m)
+    interval_param = "5m"
+    period_param = "5d"       # 5 hari data menit aman & melimpah untuk SMA 50
+    label_tf = "5m"
+
+# --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
+MA_PERIODE = st.sidebar.selectbox(
+    "3. Periode Moving Average (MA) Eksekusi",
+    options=[5, 10, 20, 50, 200],
+    index=3  # Default otomatis mengarah ke MA 50
+)
 
 # --- LINK PERMANEN GOOGLE SHEETS ANDA ---
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 
-# Tombol Pemicu Scanning di Aplikasi Web
-if st.button("🚀 Mulai Scanning Market Live", use_container_width=True):
-    with st.spinner("Mengambil database saham dari GSheet & mendownload data Live dari Yahoo Finance..."):
+# Tombol "Start Screening"
+MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
+
+# Menampilkan status filter aktif di dashboard utama
+st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
+
+# ==============================================================================
+# 2. LOGIKA UTAMA SCREENER (DYNAMIC BULK DOWNLOAD ROUTINE)
+# ==============================================================================
+if MULAI_SCAN:
+    # Validasi Pengaman Khusus
+    if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
+        st.error(f"❌ Batasan Teknis: SMA 200 terlalu besar untuk Timeframe {TF_PILIHAN} pada mode unduh cepat. Silakan gunakan maksimal SMA 50 untuk timeframe menit ini, atau pindah ke timeframe 1 Jam / Daily jika ingin memakai SMA 200.")
+        st.stop()
+
+    with st.spinner("Mengunduh data pasar massal secara instan..."):
         try:
-            # Membaca hanya Kolom A (Quote) saja dari format tabel A1/A2 Anda
+            # Ambil database dari Google Sheets (Kolom A)
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             df_sheet.columns = ['Quote']
             df_sheet = df_sheet.dropna(subset=['Quote'])
-
+            
             watchlist_raw = df_sheet['Quote'].astype(str).str.strip().str.upper().tolist()
-
-            # Filter validasi kode saham 4 huruf
+            
             watchlist = []
             for kode in watchlist_raw:
                 if kode.isalpha() and len(kode) == 4 and kode != 'QUOTE':
                     watchlist.append(kode + ".JK")
-
+            
             if not watchlist:
-                st.error("❌ Gagal mendeteksi kode saham yang valid di Kolom A Google Sheets.")
-            else:
-                # BULK DOWNLOAD data Intraday 1 Jam (1H)
-                data_bulk = yf.download(watchlist, period="1mo", interval="1h", group_by='ticker', auto_adjust=False, progress=False)
-
-                hasil_screener = []
-
-                # Proses pengolahan data SMA 50 Jam
-                for ticker in watchlist:
-                    try:
-                        if len(watchlist) == 1:
-                            df_saham = data_bulk.copy()
-                        else:
-                            df_saham = data_bulk[ticker].copy()
-
-                        # Pastikan data esensial OHLC tidak kosong
-                        df_saham = df_saham.dropna(subset=['Close', 'Open', 'High', 'Low'])
-
-                        if not df_saham.empty and len(df_saham) >= 50:
-                            
-                            # 1. AMBIL SERI HARGA CLOSE STANDAR
-                            close_prices = df_saham['Close'].squeeze()
-                            
-                            # 2. KALKULASI SMA 50 JAM BERDASARKAN CLOSE STANDAR
-                            df_saham['SMA50'] = close_prices.rolling(window=50).mean()
-
-                            # Ambil data poin live/terakhir berbasis HARGA CLOSE STANDAR
-                            harga_terakhir_close = float(close_prices.iloc[-1])
-                            nilai_ma_sekarang = float(df_saham['SMA50'].iloc[-1])
-                            open_price = float(df_saham['Open'].iloc[-1])
-                            
-                            # 3. METRIK % CHANGE INTRADAY (Current Close / Open Price)
-                            persen_change = ((harga_terakhir_close - open_price) / open_price) * 100
-
-                            # Kondisi Seleksi Utama: Close Terakhir > SMA 50
-                            if harga_terakhir_close > nilai_ma_sekarang:
-                                jarak_persen = ((harga_terakhir_close - nilai_ma_sekarang) / nilai_ma_sekarang) * 100
-                                clean_ticker = ticker.replace(".JK", "")
-
-                                # --- LOGIKA PRICE ACTION ADAPTIF (POLA X ANTM) ---
-                                low_2_lalu = float(df_saham['Low'].iloc[-3])
-                                ma_2_lalu = float(df_saham['SMA50'].iloc[-3])
-                                high_1_lalu = float(df_saham['High'].iloc[-2])
-
-                                # Penentuan Status secara Dinamis
-                                if low_2_lalu <= ma_2_lalu and harga_terakhir_close > high_1_lalu:
-                                    status = "🟢 NEW"
-                                    keterangan = "🎯 Valid Memantul (Pola X) & Breakout High Lokal"
-                                else:
-                                    status = "🔵 HOLD"
-                                    keterangan = "Tren bertahan kokoh di atas SMA 50"
-
-                                hasil_screener.append({
-                                    "Kode Saham": clean_ticker,
-                                    "% Change": f"{persen_change:+.2f}%",
-                                    "Jarak ke SMA50": round(jarak_persen, 2),
-                                    "Status": status,
-                                    "Keterangan Setup": keterangan
-                                })
-                    except:
-                        pass 
-
-                # ==============================================================================
-                # TAMPILKAN REKAPITULASI HASIL DI STREAMLIT
-                # ==============================================================================
-                waktu_scan = datetime.now().strftime('%H:%M:%S')
+                st.error("Gagal mendeteksi kode saham yang valid di Google Sheets Anda.")
+                st.stop()
                 
-                if hasil_screener:
-                    df_hasil = pd.DataFrame(hasil_screener)
+            st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
+            
+            # --- DOWNLOAD DATA DAILY (Selalu ditarik untuk mengunci Filter Open Hari Ini) ---
+            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
+            
+            # --- DOWNLOAD DATA EKSEKUSI ---
+            if interval_param == "1d":
+                data_exec_bulk = data_daily_bulk
+            else:
+                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
+                
+            hasil_screener = []
+            
+            # Perulangan analisa di memori
+            for ticker in watchlist:
+                try:
+                    if len(watchlist) == 1:
+                        df_d = data_daily_bulk.copy()
+                        df_e = data_exec_bulk.copy()
+                    else:
+                        df_d = data_daily_bulk[ticker].copy()
+                        df_e = data_exec_bulk[ticker].copy()
+                        
+                    # Dapatkan data eksekusi
+                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
+                    df_e = df_e.dropna(subset=[kolom_close_e, 'Open', 'High', 'Low'])
+                    close_exec = df_e[kolom_close_e].squeeze()
                     
-                    # Urutkan agar status "🟢 NEW" selalu berada di baris paling atas
-                    df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
-                    df_hasil = df_hasil.sort_values(by=["is_new", "Jarak ke SMA50"], ascending=[False, True]).drop(columns=['is_new'])
+                    if df_e.empty or len(close_exec) < MA_PERIODE:
+                        continue
+                        
+                    harga_terakhir = float(close_exec.iloc[-1])
                     
-                    df_hasil['Jarak ke SMA50'] = df_hasil['Jarak ke SMA50'].apply(lambda x: f"+{x}%")
-                    df_hasil.index = range(1, len(df_hasil) + 1)
-
-                    st.success(f"🎯 Pemindaian Selesai! Waktu Scan: {waktu_scan} WIB | Total: {len(df_hasil)} Saham Lolos")
+                    # Dapatkan Harga Open harian dari database Daily
+                    if 'Open' in df_d.columns:
+                        open_series = df_d['Open'].dropna().squeeze()
+                        if not open_series.empty:
+                            open_hari_ini = float(open_series.iloc[-1])
+                        else:
+                            continue
+                    else:
+                        continue
                     
-                    # Tampilkan tabel interaktif bawaan Streamlit secara penuh
-                    st.dataframe(df_hasil, use_container_width=True)
-                else:
-                    st.info(f"ℹ️ Tidak ada saham yang saat ini bergerak di atas SMA 50 (1H). Waktu Scan: {waktu_scan} WIB")
-
-        except Exception as e:
-            st.error(f"❌ Terjadi kesalahan teknis: {e}")
-else:
-    st.write("👈 Klik tombol di atas untuk memulai pemindaian momentum intraday.")
+                    # --- 1. LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
+                    if FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                        if harga_terakhir < open_hari_ini:
+                            continue  # Singkirkan candle merah harian
+                                
+                    # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
+                    ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
+                    df_e['MA_Dynamic'] = ma_exec_series
+                    nilai_ma_exec = float(ma_exec_series.iloc[-1])
+                    
+                    if harga_terakhir > nilai_ma_exec:
+                        jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
+                        clean_ticker = ticker.replace(".JK", "")
+                        
+                        # REVISI: Hitung % Change Intraday (Harga saat ini dibanding Open harian)
+                        persen_change = ((harga_terakhir - open_hari_ini) / open_hari_ini) * 100
+                        
+                        # --- REVISI: LOGIKA PRICE ACTION UTK STATUS NEW VS HOLD (POLA X) ---
+                        # Mengambil data candle historis dari jangka waktu ek
