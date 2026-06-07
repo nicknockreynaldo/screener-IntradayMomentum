@@ -31,36 +31,36 @@ FILTER_INTRADAY = st.sidebar.selectbox(
 TF_PILIHAN = st.sidebar.selectbox(
     "2. Pilih Timeframe Eksekusi",
     options=["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"],
-    index=0  # Default otomatis diarahkan ke Harian (Daily)
+    index=0
 )
 
 # Logika penyesuaian period & interval secara dinamis agar aman dari rate-limit
 if TF_PILIHAN == "Harian (Daily)":
     interval_param = "1d"
-    period_param = "2y"       # 2 tahun data harian (Wajib untuk mengamankan SMA 200)
+    period_param = "2y"
     label_tf = "Daily"
 elif TF_PILIHAN == "1 Jam (1H)":
     interval_param = "1h"
-    period_param = "1mo"      # 1 bulan data untuk timeframe 1 jam
+    period_param = "1mo"
     label_tf = "1H"
 elif TF_PILIHAN == "30 Menit (30m)":
     interval_param = "30m"
-    period_param = "7d"       # 7 hari data untuk timeframe 30 menit
+    period_param = "7d"
     label_tf = "30m"
 elif TF_PILIHAN == "15 Menit (15m)":
     interval_param = "15m"
-    period_param = "7d"       # 7 hari data untuk timeframe 15 menit
+    period_param = "7d"
     label_tf = "15m"
-else:  # 5 Menit (5m)
+else:
     interval_param = "5m"
-    period_param = "5d"       # 5 hari data menit aman & melimpah untuk SMA 50
+    period_param = "5d"
     label_tf = "5m"
 
 # --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
-    index=3  # Default otomatis mengarah ke MA 50
+    index=3
 )
 
 # --- LINK PERMANEN GOOGLE SHEETS ANDA ---
@@ -145,7 +145,7 @@ if MULAI_SCAN:
                     # --- 1. LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
                     if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                         if harga_terakhir < open_hari_ini:
-                            continue  # Singkirkan candle merah harian
+                            continue
                                 
                     # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
                     ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
@@ -190,4 +190,29 @@ if MULAI_SCAN:
             if hasil_screener:
                 df_hasil = pd.DataFrame(hasil_screener)
                 
-                # Sortir agar status "🟢 NEW" selalu otomatis
+                # Sortir agar status NEW berada di baris teratas
+                df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
+                df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
+                
+                st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
+                
+                st.dataframe(
+                    df_hasil,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "% Change": st.column_config.NumberColumn(
+                            "% Change",
+                            format="%+.2f%%"
+                        ),
+                        "Jarak (%)": st.column_config.NumberColumn(
+                            "Jarak (%)",
+                            format="+%.2f%%"
+                        )
+                    }
+                )
+            else:
+                st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
+                
+        except Exception as e:
+            st.error(f"Terjadi kesalahan teknis utama: {e}")
