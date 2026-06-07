@@ -55,4 +55,36 @@ if st.sidebar.button("🚀 Start Screening"):
                 close = float(df['Close'].iloc[-1])
                 open_p = float(df['Open'].iloc[-1])
                 ma_val = float(df['Close'].rolling(MA_PERIODE).mean().iloc[-1])
-                dist
+                dist_ma = ((close - ma_val) / ma_val) * 100
+                
+                # Filter Intraday
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)" and close < open_p: continue
+                
+                # Simpan untuk cadangan
+                daftar_semua_saham.append({
+                    "Kode Saham": ticker.replace(".JK", ""), 
+                    "Price": round(close, 2), 
+                    "Jarak ke MA (%)": round(dist_ma, 2)
+                })
+                
+                # Logika Filter Utama
+                if close > ma_val:
+                    hasil_screener.append({
+                        "Kode Saham": ticker.replace(".JK", ""), 
+                        "Price": round(close, 2), 
+                        "Jarak ke MA (%)": round(dist_ma, 2)
+                    })
+            except: continue
+
+        if hasil_screener:
+            st.success(f"Ditemukan {len(hasil_screener)} saham di atas MA{MA_PERIODE}!")
+            st.dataframe(pd.DataFrame(hasil_screener), use_container_width=True, hide_index=True)
+        else:
+            st.warning("Tidak ada saham yang di atas MA. Menampilkan daftar saham terdekat ke MA:")
+            if daftar_semua_saham:
+                df_cadangan = pd.DataFrame(daftar_semua_saham)
+                # Sortir agar yang jaraknya paling kecil (paling dekat dengan MA) muncul di atas
+                df_cadangan = df_cadangan.sort_values("Jarak ke MA (%)", ascending=False).head(10)
+                st.dataframe(df_cadangan, use_container_width=True, hide_index=True)
+            else:
+                st.error("Data tidak tersedia untuk dianalisis.")
