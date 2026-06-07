@@ -14,7 +14,7 @@ st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
 
-# Mengunci memori lintas klik berdasarkan input filter apa pun yang dipilih di sidebar
+# Mengamankan memori lintas klik untuk melacak saham mana yang BARU LOLOS FILTER
 if 'saham_lolos_sebelumnya' not in st.session_state:
     st.session_state['saham_lolos_sebelumnya'] = []
 
@@ -23,7 +23,7 @@ st.sidebar.header("⚙️ Parameter Sensor")
 # --- DROPDOWN 1: FILTER INTRADAY MOMENTUM VS OPEN ---
 FILTER_INTRADAY = st.sidebar.selectbox(
     "1. Filter Pergerakan Hari Ini (Vs Open)",
-    options=["Intraday Momentum (>0%)", "General"],
+    options=["General", "Intraday Momentum (>0%)"],
     index=0
 )
 
@@ -59,7 +59,7 @@ else:
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
-    index=3  # Default ke MA 50
+    index=1  # Default langsung ke MA 10 agar pas pertama buka langsung match dengan col10 GSheet Anda
 )
 
 # --- DROPDOWN 4: FILTER TREN UTAMA ---
@@ -76,15 +76,12 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (ANTI BULK-DROPOUT LOGIC)
+# 2. LOGIKA UTAMA SCREENER (TOTAL AMAN & AMBIL DATA TOLERAN)
 # ==============================================================================
 if MULAI_SCAN:
-    if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
-        st.error(f"❌ Batasan Teknis: SMA 200 terlalu besar untuk Timeframe {TF_PILIHAN}. Gunakan maksimal SMA 50 untuk timeframe menit.")
-        st.stop()
-
     with st.spinner("Mengunduh data pasar massal secara instan..."):
         try:
+            # Ambil sheet kol_10
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             df_sheet.columns = ['Quote']
             df_sheet = df_sheet.dropna(subset=['Quote'])
@@ -102,14 +99,9 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # Trik Safetynet: Mengunduh dengan struktur group_by Ticker agar data terisolasi dengan aman
-            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
+            # Unduh data historis dasar secara aman tanpa perataan otomatis (auto_adjust=False)
+            data_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "3mo", interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
             
-            if interval_param == "1d":
-                data_exec_bulk = data_daily_bulk
-            else:
-                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
-                
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
             
@@ -117,86 +109,86 @@ if MULAI_SCAN:
             st.error(f"Terjadi kesalahan saat mengunduh data: {e}")
             st.stop()
 
-        # Perulangan analisa saham
+        # Perulangan analisa per saham
         for ticker in watchlist:
             try:
-                # Ambil sub-dataframe khusus untuk ticker ini secara independen
+                # Ambil sub-dataframe individual saham secara aman
                 if len(watchlist) == 1:
-                    df_d = data_daily_bulk.copy()
-                    df_e = data_exec_bulk.copy()
+                    df_saham = data_bulk.copy()
                 else:
-                    if ticker not in data_daily_bulk.columns.levels[0]:
+                    if ticker not in data_bulk.columns.levels[0]:
                         continue
-                    df_d = data_daily_bulk[ticker].copy()
-                    df_e = data_exec_bulk[ticker].copy()
+                    df_saham = data_bulk[ticker].copy()
                 
-                # Pembersihan toleran: Hanya drop jika baris Close benar-benar kosong
-                df_e = df_e.dropna(subset=['Close'])
-                if df_e.empty or len(df_e) < MA_PERIODE:
+                # Gunakan kolom 'Close' murni untuk mencocokkan harga penutupan teknikal
+                if 'Close' not in df_saham.columns:
                     continue
                     
-                harga_hari_ini = float(df_e['Close'].iloc[-1])
+                df_saham = df_saham.dropna(subset=['Close'])
+                if df_saham.empty or len(df_saham) < MA_PERIODE:
+                    continue
                 
-                # --- FILTER 1: POWER PLAY TREN UTAMA ---
-                if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
-                    df_d = df_d.dropna(subset=['Close'])
-                    if len(df_d) >= 10:
-                        dma_10_series = df_d['Close'].rolling(window=10).mean()
-                        if harga_hari_ini < float(dma_10_series.iloc[-1]):
-                            continue
-                    else:
-                        continue
+                # Dapatkan nilai harga terakhir dan runtun MA
+                harga_hari_ini = float(df_saham['Close'].iloc[-1])
+                ma_series = df_saham['Close'].rolling(window=MA_PERIODE).mean()
+                ma_hari_ini = float(ma_series.iloc[-1])
                 
-                # Ekstrak data harga Open hari ini secara aman untuk filter intraday
-                if 'Open' in df_d.columns and not df_d['Open'].dropna().empty:
-                    open_hari_ini = float(df_d['Open'].dropna().iloc[-1])
-                else:
-                    open_hari_ini = harga_hari_ini
+                # --- FILTER UTAMA BERDASARKAN INPUT FILTER SIDEBAR ---
+                # Kondisi Lolos 1: Harga > MA yang Anda pilih di Sidebar
+                if harga_hari_ini <= ma_hari_ini:
+                    continue
                 
-                # --- FILTER 2: INTRADAY MOMENTUM ---
-                if FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                # Kondisi Lolos 2: Filter Intraday (Hanya dijalankan jika user memilih "Intraday Momentum")
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)" and 'Open' in df_saham.columns:
+                    open_hari_ini = float(df_saham['Open'].iloc[-1])
                     if harga_hari_ini < open_hari_ini:
                         continue
-                            
-                # --- FILTER 3: UTAMA MOVING AVERAGE TIMEFRAME EKSEKUSI ---
-                ma_exec_series = df_e['Close'].rolling(window=MA_PERIODE).mean()
-                ma_exec_hari_ini = float(ma_exec_series.iloc[-1])
                 
-                # KONDISI UTAMA KELOLOSAN FILTER INPUT SIDEBAR
-                if harga_hari_ini > ma_exec_hari_ini:
-                    clean_ticker = ticker.replace(".JK", "")
-                    daftar_saham_lolos_sekarang.append(clean_ticker)
+                # Kondisi Lolos 3: Filter Tren Utama
+                if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                    ma_10_check = df_saham['Close'].rolling(window=10).mean()
+                    if harga_hari_ini < float(ma_10_check.iloc[-1]):
+                        continue
+
+                # JIKA LOLOS SEMUA KRITERIA FILTER AKTIF SIDEBAR DI ATAS, MASUKKAN KE TABEL:
+                clean_ticker = ticker.replace(".JK", "")
+                daftar_saham_lolos_sekarang.append(clean_ticker)
+                
+                # --- LOGIKA SAKRAL STATUS NEW VIA SESSION STATE ---
+                if clean_ticker not in st.session_state['saham_lolos_sebelumnya']:
+                    status = "🟢 NEW"
+                else:
+                    status = "🔵 HOLD"
+                
+                # Hitung Persentase Perubahan Tampilan
+                if 'Open' in df_saham.columns and pd.notna(df_saham['Open'].iloc[-1]):
+                    persen_change = ((harga_hari_ini - float(df_saham['Open'].iloc[-1])) / float(df_saham['Open'].iloc[-1])) * 100
+                else:
+                    persen_change = 0.0
                     
-                    # Logika Mengunci Session State lintas klik
-                    if clean_ticker not in st.session_state['saham_lolos_sebelumnya']:
-                        status = "🟢 NEW"
-                    else:
-                        status = "🔵 HOLD"
-                        
-                    jarak_persen = ((harga_hari_ini - ma_exec_hari_ini) / ma_exec_hari_ini) * 100
-                    persen_change = ((harga_hari_ini - open_hari_ini) / open_hari_ini) * 100
-                    
-                    hasil_screener.append({
-                        "Kode Saham": clean_ticker,
-                        "% Change": persen_change,
-                        "Jarak ke MA 50 (%)": round(jarak_persen, 2),
-                        "Status": status
-                    })
+                jarak_ma50 = ((harga_hari_ini - ma_hari_ini) / ma_hari_ini) * 100
+                
+                hasil_screener.append({
+                    "Kode Saham": clean_ticker,
+                    "% Change": persen_change,
+                    "Jarak ke MA 50 (%)": round(jarak_ma50, 2),
+                    "Status": status
+                })
             except:
                 pass
 
-        # Perbarui memori session state dengan hasil scanning detik ini
+        # Perbarui memori session state dengan hasil filter klik barusan
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
-        # 3. OUTPUT TABEL INTERAKTIF
+        # 3. OUTPUT DAN PENAMPILAN DATA TABEL
         # ==============================================================================
         st.success("🎯 Pemindaian Selesai!")
         
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
             
-            # Dorong status NEW ke atas tabel hasil
+            # Kelompokkan status NEW otomatis di bagian atas tabel agar mudah dilacak
             df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
             df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
             
@@ -212,4 +204,4 @@ if MULAI_SCAN:
                 }
             )
         else:
-            st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
+            st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria filter aktif saat ini.")
