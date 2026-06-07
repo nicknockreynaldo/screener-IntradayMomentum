@@ -5,36 +5,33 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
+st.set_page_config(page_title="IHSG Ultimate Power Screener", layout="wide")
 st.title("📈 IHSG Ultimate Power Screener")
 
+# Inisialisasi Session State
 if 'saham_lolos_sebelumnya' not in st.session_state:
     st.session_state['saham_lolos_sebelumnya'] = []
 
 st.sidebar.header("⚙️ Parameter Setup")
 PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Custom"])
 
-# --- Kondisional Tampilan Sidebar ---
 if PRESET == "Custom":
     TF_PILIHAN = st.sidebar.selectbox("Pilih Timeframe:", ["Daily", "1H", "30min", "15min", "5min"])
     MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200])
 else:
     TF_PILIHAN = "Daily"
-    MA_PERIODE = 50 # Sebagai referensi DMA50 untuk Grade A/B
+    MA_PERIODE = 50
 
 FILTER_INTRADAY = st.sidebar.selectbox("Filter Intraday:", ["General", "Intraday Momentum (>0%)"])
 
-MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
-
-# --- ENGINE ---
-if MULAI_SCAN:
+if st.sidebar.button("🚀 Start Screening"):
     with st.spinner("Menjalankan screening..."):
         URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
         df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
         watchlist = [kode.strip().upper() + ".JK" for kode in df_sheet.iloc[:, 0].dropna().astype(str) if len(kode.strip()) == 4]
         
         tf_map = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}
+        # Download dengan group_by='ticker' untuk mempermudah akses data
         data_bulk = yf.download(watchlist, period="1y", interval=tf_map[TF_PILIHAN], group_by='ticker', auto_adjust=False, progress=False)
         
         hasil_screener = []
@@ -42,22 +39,27 @@ if MULAI_SCAN:
         
         for ticker in watchlist:
             try:
+                # FIX: Ambil data saham dengan cara yang konsisten
                 df = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                if len(df) < 55: continue # Buffer untuk MA200
                 
-                # Perhitungan Data
-                close = float(df['Close'].iloc[-1])
-                open_p = float(df['Open'].iloc[-1])
+                # Pastikan df memiliki data dan kolom yang diperlukan
+                if df.empty or 'Close' not in df.columns: continue
+                
+                # Ambil baris terakhir
+                last_data = df.iloc[-1]
+                close = float(last_data['Close'])
+                open_p = float(last_data['Open'])
+                
+                # Hitung MA
                 ma10 = float(df['Close'].rolling(10).mean().iloc[-1])
                 ma50 = float(df['Close'].rolling(50).mean().iloc[-1])
                 ma_custom = float(df['Close'].rolling(MA_PERIODE).mean().iloc[-1])
                 tol_ma10 = 0.97 * ma10
                 
-                # --- LOGIKA FILTER ---
-                # 1. Filter Intraday
+                # Filter Intraday
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)" and close < open_p: continue
                 
-                # 2. Preset Logic
+                # Logika Preset
                 if PRESET == "Grade A Setup":
                     if not (close >= tol_ma10 and close > ma50): continue
                 elif PRESET == "Grade B Setup":
@@ -74,11 +76,12 @@ if MULAI_SCAN:
                 
                 hasil_screener.append({
                     "Kode Saham": clean_ticker, 
-                    "Price": close, 
+                    "Price": round(close, 2), 
                     "Jarak ke MA 50 (%)": round(jarak_ma50, 2), 
                     "Status": status
                 })
-            except: continue
+            except Exception as e:
+                continue
 
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
