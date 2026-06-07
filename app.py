@@ -2,72 +2,60 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# Konfigurasi halaman
+# Konfigurasi Halaman
 st.set_page_config(page_title="IHSG Power Screener", layout="wide")
 st.title("📈 IHSG Ultimate Power Screener")
 
-# Inisialisasi session state
-if 'saham_per_parameter' not in st.session_state:
-    st.session_state['saham_per_parameter'] = {}
-
+# --- SIDEBAR SETUP ---
 st.sidebar.header("⚙️ Parameter Setup")
+PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Custom"])
+FILTER_INTRADAY = st.sidebar.selectbox("Filter Intraday:", ["General", "Intraday Momentum (>0%)"])
 
-# 1. PRESET SELECTOR
-PRESET = st.sidebar.selectbox("Pilih Setup:", ["Custom", "Grade A Setup", "Grade B Setup"])
+# Penentuan parameter dinamis
+if PRESET == "Custom":
+    TF_PILIHAN = st.sidebar.selectbox("Timeframe:", ["1d", "1h", "30m", "15m", "5m"])
+    MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200])
+else:
+    TF_PILIHAN = "1d" # Force Daily untuk Grade A/B
+    MA_PERIODE = 50   # Force MA50 sebagai referensi
 
-# Logic untuk Auto-fill
-def get_preset_values(preset_name):
-    if preset_name == "Grade A Setup":
-        return {"TF": "Harian (Daily)", "MA": 50, "Intraday": "Intraday Momentum (>0%)"}
-    elif preset_name == "Grade B Setup":
-        return {"TF": "Harian (Daily)", "MA": 50, "Intraday": "Intraday Momentum (>0%)"}
-    return None
-
-defaults = get_preset_values(PRESET)
-
-# 2. DROPDOWN MANUAL (Default mengikuti preset)
-tf_options = ["1d", "1h"] # Sesuai kebutuhan Anda
-ma_options = [5, 10, 20, 50, 200]
-intra_options = ["General", "Intraday Momentum (>0%)"]
-
-TF_PILIHAN = st.sidebar.selectbox("Timeframe:", tf_options, index=0 if not defaults else tf_options.index("1d"))
-MA_PERIODE = st.sidebar.selectbox("Periode MA (sebagai referensi):", ma_options, index=3 if not defaults else ma_options.index(defaults["MA"]))
-FILTER_INTRADAY = st.sidebar.selectbox("Filter Intraday:", intra_options, index=1 if defaults else 0)
-
-# --- LOGIKA FILTER UTAMA ---
-def screening_logic(df, ma_period, preset):
+# --- LOGIKA SCREENING ---
+def run_screening(df, preset, ma_period, filter_intra):
     curr_price = df['Close'].iloc[-1]
     curr_open = df['Open'].iloc[-1]
     
-    # Hitung DMA
+    # Perhitungan Dasar
     dma10 = df['Close'].rolling(10).mean().iloc[-1]
     dma50 = df['Close'].rolling(ma_period).mean().iloc[-1]
+    tolerance = 0.97 * dma10 # Toleransi 3%
     
-    # Toleransi 3% dari DMA10
-    tolerance = 0.97 * dma10
-    
-    # Filter Intraday
-    if FILTER_INTRADAY == "Intraday Momentum (>0%)" and curr_price <= curr_open:
+    # Filter Intraday (Berlaku untuk semua mode)
+    if filter_intra == "Intraday Momentum (>0%)" and curr_price <= curr_open:
         return False
-    
-    # Filter Grade A & B
+        
+    # Logic Filtering
     if preset == "Grade A Setup":
-        # Price > dma50 DAN price > tolerance (3% di bawah dma10)
-        return curr_price > dma50 and curr_price >= tolerance
+        return curr_price >= tolerance and curr_price > dma50
     elif preset == "Grade B Setup":
-        # Price < dma50 DAN price > tolerance (3% di bawah dma10)
-        return curr_price < dma50 and curr_price >= tolerance
-    
-    return True # Default untuk Custom
+        return curr_price >= tolerance and curr_price < dma50
+    else: # Mode Custom (Logika bebas sesuai keinginan Anda)
+        return curr_price > dma10 and curr_price > dma50
 
+# --- PROSES EKSEKUSI ---
 if st.sidebar.button("🚀 Start Screening"):
-    st.write(f"Menjalankan: {PRESET}")
+    st.write(f"Menjalankan screening dengan: **{PRESET}**")
     
-    # KUNCI UNIK (Agar status NEW stabil)
-    kunci = f"{TF_PILIHAN}_{MA_PERIODE}_{FILTER_INTRADAY}_{PRESET}"
+    # Contoh list saham (bisa di-extend)
+    list_saham = ['BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK'] 
     
-    # ... Masukkan fungsi download dan screening Anda di sini ...
-    # Di dalam loop saham, panggil: 
-    # if screening_logic(df_saham, MA_PERIODE, PRESET): ...
+    results = []
+    for ticker in list_saham:
+        df = yf.download(ticker, period="1y", interval=TF_PILIHAN, progress=False)
+        if not df.empty:
+            if run_screening(df, PRESET, MA_PERIODE, FILTER_INTRADAY):
+                results.append(ticker)
     
-    st.success("Screening Selesai!")
+    if results:
+        st.success(f"Saham yang lolos: {', '.join(results)}")
+    else:
+        st.warning("Tidak ada saham yang memenuhi kriteria.")
