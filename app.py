@@ -79,4 +79,24 @@ if st.sidebar.button("🚀 Start Screening"):
                 if not is_valid: continue
                 
                 clean_ticker = ticker.replace(".JK", "")
-                daftar_saham_lolos
+                daftar_saham_lolos_sekarang.append(clean_ticker)
+                
+                status = "🟢 NEW" if clean_ticker not in st.session_state['saham_lolos_sebelumnya'] else "🔵 HOLD"
+                jarak_ma50 = ((close - ma50) / ma50) * 100
+                
+                hasil_screener.append({
+                    "Kode Saham": clean_ticker, 
+                    "Price": round(close, 2), 
+                    "Jarak ke MA 50 (%)": round(jarak_ma50, 2),
+                    "Status": status
+                })
+            except: continue
+
+        st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekolam = daftar_saham_lolos_sekarang
+
+        if hasil_screener:
+            df_res = pd.DataFrame(hasil_screener).sort_values("Status", ascending=False)
+            st.metric("Saham Lolos Kriteria", f"{len(df_res)} Saham")
+            st.dataframe(df_res, use_container_width=True, hide_index=True)
+        else:
+            st.warning("Tidak ada saham yang memenuhi kriteria. Coba ubah filter atau pastikan koneksi data stabil.")
