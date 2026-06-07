@@ -12,15 +12,21 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 
-if 'saham_lolos_sebelumnya' not in st.session_state:
-    st.session_state['saham_lolos_sebelumnya'] = []
+# Inisialisasi memori per preset (Dictionary)
+if 'memori_saham' not in st.session_state:
+    st.session_state['memori_saham'] = {
+        "Manual (Default)": [],
+        "Grade A Setup": [],
+        "Grade B Setup": [],
+        "Grade D (Market Merah Cari Alpha)": []
+    }
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
 # --- INPUT PRESET ---
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# Box Biru Gede sebagai keterangan
+# Box Info Biru
 if PRESET == "Grade A Setup":
     st.sidebar.info("Grade A: Price > DMA 10 AND Price > DMA 50")
 elif PRESET == "Grade B Setup":
@@ -70,25 +76,29 @@ if MULAI_SCAN:
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
-                # --- LOGIKA FILTER BERDASARKAN PRESET ---
                 is_lolos = False
                 if PRESET == "Grade A Setup":
                     is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup":
                     is_lolos = (close >= (ma10 * 0.97) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)":
-                    is_lolos = (close > ma20) # Sesuai request baru
-                else: # Manual
+                    is_lolos = (close > ma20)
+                else: 
                     is_lolos = (close > float(df_s['Close'].rolling(MA_PERIODE).mean().iloc[-1]))
                 
-                # Filter Intraday
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and 'Open' in df_s.columns:
                     if close < float(df_s['Open'].iloc[-1]): is_lolos = False
                 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    status = "🟢 NEW" if clean not in st.session_state['saham_lolos_sebelumnya'] else "🔵 HOLD"
+                    
+                    # Cek status berdasarkan memori preset yang sedang aktif
+                    if clean not in st.session_state['memori_saham'][PRESET]:
+                        status = "🟢 NEW"
+                    else:
+                        status = "🔵 HOLD"
+                        
                     hasil_screener.append({
                         "Kode Saham": clean,
                         "% Change": ((close - float(df_s['Open'].iloc[-1])) / float(df_s['Open'].iloc[-1])) * 100,
@@ -97,7 +107,8 @@ if MULAI_SCAN:
                     })
         except Exception as e: st.error(f"Error: {e}")
 
-        st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
+        # Update memori untuk preset yang sedang dipilih
+        st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
         # 3. OUTPUT
