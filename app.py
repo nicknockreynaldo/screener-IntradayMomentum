@@ -101,7 +101,7 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            # --- DOWNLOAD DATA DAILY (Selalu ditarik untuk mengunci Filter Open Hari Ini) ---
+            # --- DOWNLOAD DATA DAILY ---
             data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
             # --- DOWNLOAD DATA EKSEKUSI ---
@@ -113,51 +113,4 @@ if MULAI_SCAN:
             hasil_screener = []
             
             # Perulangan analisa di memori
-            for ticker in watchlist:
-                try:
-                    if len(watchlist) == 1:
-                        df_d = data_daily_bulk.copy()
-                        df_e = data_exec_bulk.copy()
-                    else:
-                        df_d = data_daily_bulk[ticker].copy()
-                        df_e = data_exec_bulk[ticker].copy()
-                        
-                    # Dapatkan data eksekusi
-                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
-                    df_e = df_e.dropna(subset=[kolom_close_e, 'Open', 'High', 'Low'])
-                    close_exec = df_e[kolom_close_e].squeeze()
-                    
-                    if df_e.empty or len(close_exec) < MA_PERIODE:
-                        continue
-                        
-                    harga_terakhir = float(close_exec.iloc[-1])
-                    
-                    # Dapatkan Harga Open harian dari database Daily
-                    if 'Open' in df_d.columns:
-                        open_series = df_d['Open'].dropna().squeeze()
-                        if not open_series.empty:
-                            open_hari_ini = float(open_series.iloc[-1])
-                        else:
-                            continue
-                    else:
-                        continue
-                    
-                    # --- 1. LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
-                    if FILTER_INTRADAY == "Intraday Momentum (>0%)":
-                        if harga_terakhir < open_hari_ini:
-                            continue  # Singkirkan candle merah harian
-                                
-                    # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
-                    ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
-                    df_e['MA_Dynamic'] = ma_exec_series
-                    nilai_ma_exec = float(ma_exec_series.iloc[-1])
-                    
-                    if harga_terakhir > nilai_ma_exec:
-                        jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
-                        clean_ticker = ticker.replace(".JK", "")
-                        
-                        # REVISI: Hitung % Change Intraday (Harga saat ini dibanding Open harian)
-                        persen_change = ((harga_terakhir - open_hari_ini) / open_hari_ini) * 100
-                        
-                        # --- REVISI: LOGIKA PRICE ACTION UTK STATUS NEW VS HOLD (POLA X) ---
-                        # Mengambil data candle historis dari jangka waktu ek
+            for ticker in watchlist
