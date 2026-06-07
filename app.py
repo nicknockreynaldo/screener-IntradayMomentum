@@ -16,7 +16,7 @@ if 'saham_lolos_sebelumnya' not in st.session_state:
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
-# --- TAMBAHAN PRESET ---
+# --- PARAMETER INPUT ---
 PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Custom"])
 
 if PRESET == "Custom":
@@ -25,7 +25,6 @@ if PRESET == "Custom":
     FILTER_INTRADAY = st.sidebar.selectbox("Filter Pergerakan Hari Ini (Vs Open):", ["General", "Intraday Momentum (>0%)"])
     FILTER_TREND = st.sidebar.selectbox("Filter Tren Utama (Akselerasi):", ["General", "Power Play Uptrend (Price > DMA 10)"])
 else:
-    # Logic preset otomatis
     if PRESET == "Grade D (Market Merah Cari Alpha)":
         TF_PILIHAN = "1 Jam (1H)"
         MA_PERIODE = 20
@@ -46,13 +45,13 @@ tf_map = {
 interval_param, period_param = tf_map[TF_PILIHAN]
 
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
-st.info(f"📋 **Kondisi:** Harga > SMA {MA_PERIODE} ({TF_PILIHAN}) | Intraday: **{FILTER_INTRADAY}**")
+st.info(f"📋 **Kondisi:** Harga > SMA {MA_PERIODE} ({TF_PILIHAN}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
 # 2. LOGIKA UTAMA
 # ==============================================================================
 if MULAI_SCAN:
-    st.cache_data.clear() # Pastikan data fresh
+    st.cache_data.clear()
     with st.spinner("Memproses data..."):
         URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
         df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
@@ -72,12 +71,18 @@ if MULAI_SCAN:
                 harga_hari_ini = float(df_saham['Close'].iloc[-1])
                 ma_hari_ini = float(df_saham['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
-                # Filter Utama
+                # --- FILTER UTAMA ---
                 if harga_hari_ini <= ma_hari_ini: continue
                 
-                # Filter Tambahan
-                if FILTER_INTRADAY == "Intraday Momentum (>0%)" and harga_hari_ini < float(df_saham['Open'].iloc[-1]): continue
-                if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and harga_hari_ini < float(df_saham['Close'].rolling(10).mean().iloc[-1]): continue
+                # --- FILTER INTRADAY MOMENTUM ---
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                    if 'Open' in df_saham.columns and harga_hari_ini < float(df_saham['Open'].iloc[-1]):
+                        continue
+                
+                # --- FILTER TREN AKSELERASI ---
+                if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                    if harga_hari_ini < float(df_saham['Close'].rolling(window=10).mean().iloc[-1]):
+                        continue
                 
                 clean_ticker = ticker.replace(".JK", "")
                 daftar_saham_lolos_sekarang.append(clean_ticker)
@@ -97,7 +102,7 @@ if MULAI_SCAN:
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
-        # 3. OUTPUT (Struktur kolom SAMA PERSIS dengan screener lama Anda)
+        # 3. OUTPUT
         # ==============================================================================
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
