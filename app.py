@@ -7,12 +7,16 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
+# 1. KONFIGURASI HALAMAN & INRESIALISASI SESSION STATE (MEMORI SCREENER)
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
+
+# Inisialisasi memori untuk menyimpan daftar saham yang lolos pada klik sebelumnya
+if 'saham_lolos_sebelumnya' not in st.session_state:
+    st.session_state['saham_lolos_sebelumnya'] = []
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
@@ -74,7 +78,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (MURNI SINKRON SHEETS)
+# 2. LOGIKA UTAMA SCREENER (SESSION MEMORY TRACKING)
 # ==============================================================================
 if MULAI_SCAN:
     if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
@@ -108,12 +112,13 @@ if MULAI_SCAN:
                 data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
                 
             hasil_screener = []
+            daftar_saham_lolos_sekarang = []
             
         except Exception as e:
             st.error(f"Terjadi kesalahan saat mengunduh data: {e}")
             st.stop()
 
-        # Perulangan analisa saham (Simpel & Straightforward)
+        # Perulangan analisa saham
         for ticker in watchlist:
             try:
                 if len(watchlist) == 1:
@@ -130,7 +135,7 @@ if MULAI_SCAN:
                 if df_e.empty or len(close_exec) < MA_PERIODE:
                     continue
                     
-                harga_terakhir = float(close_exec.iloc[-1])
+                harga_hari_ini = float(close_exec.iloc[-1])
                 
                 # --- FILTER 1: POWER PLAY UPTREND (PRICE > DMA 10) ---
                 if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
@@ -141,7 +146,7 @@ if MULAI_SCAN:
                     if len(close_daily) >= 10:
                         dma_10_series = close_daily.rolling(window=10).mean()
                         nilai_dma_10 = float(dma_10_series.iloc[-1])
-                        if harga_terakhir < nilai_dma_10:
+                        if harga_hari_ini < nilai_dma_10:
                             continue
                     else:
                         continue
@@ -158,36 +163,52 @@ if MULAI_SCAN:
                 
                 # --- FILTER 2: INTRADAY MOMENTUM ---
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)":
-                    if harga_terakhir < open_hari_ini:
+                    if harga_hari_ini < open_hari_ini:
                         continue
                             
                 # --- FILTER 3: UTAMA MOVING AVERAGE ---
                 ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
-                nilai_ma_exec = float(ma_exec_series.iloc[-1])
+                ma_exec_hari_ini = float(ma_exec_series.iloc[-1])
                 
-                # Kondisi Mutlak: Harga wajib di atas MA pilihan
-                if harga_terakhir > nilai_ma_exec:
-                    jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
+                # UJI UTAMA KELOLOSAN FILTER INPUT SAKRAL SIDEBAR
+                if harga_hari_ini > ma_exec_hari_ini:
                     clean_ticker = ticker.replace(".JK", "")
-                    persen_change = ((harga_terakhir - open_hari_ini) / open_hari_ini) * 100
+                    
+                    # Tambahkan kode ke penampung list lolos saat ini
+                    daftar_saham_lolos_sekarang.append(clean_ticker)
+                    
+                    # --- CEK STATE MEMORI UNTUK MENENTUKAN STATUS ---
+                    # Jika saham ini TIDAK ADA di memori hasil scan sebelumnya, status = NEW
+                    if clean_ticker not in st.session_state['saham_lolos_sebelumnya']:
+                        status = "🟢 NEW"
+                    else:
+                        status = "🔵 HOLD"
+                        
+                    jarak_persen = ((harga_hari_ini - ma_exec_hari_ini) / ma_exec_hari_ini) * 100
+                    persen_change = ((harga_hari_ini - open_hari_ini) / open_hari_ini) * 100
                     
                     hasil_screener.append({
                         "Kode Saham": clean_ticker,
                         "% Change": persen_change,
                         "Jarak (%)": round(jarak_persen, 2),
-                        "Status": "🟢 BULLISH"
+                        "Status": status
                     })
             except:
                 pass
 
+        # Ganti data memori lama dengan daftar saham yang baru lolos detik ini
+        st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
+
         # ==============================================================================
-        # 3. OUTPUT INTERAKTIF FULL WIDTH
+        # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY STATUS NEW TERATAS)
         # ==============================================================================
         st.success("🎯 Pemindaian Selesai!")
         
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
-            df_hasil = df_hasil.sort_values(by=["Kode Saham"], ascending=True)
+            
+            df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
+            df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
             
             st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
             
