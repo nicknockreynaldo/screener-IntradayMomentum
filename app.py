@@ -26,16 +26,14 @@ else:
     TF_PILIHAN = "Daily" # Force Daily untuk Grade A/B
     MA_PERIODE = 50      # Default referensi DMA50
 
-# --- LOGIKA SCREENING ---
+# --- LOGIKA SCREENING (DENGAN FIX ERROR) ---
 def run_screening(df, preset, ma_period, filter_intra):
-    curr_price = df['Close'].iloc[-1]
-    curr_open = df['Open'].iloc[-1]
+    # Memastikan nilai adalah float tunggal agar tidak error saat perbandingan
+    curr_price = float(df['Close'].iloc[-1])
+    curr_open = float(df['Open'].iloc[-1])
     
-    # Mapping label ke parameter yfinance
-    tf_map = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}
-    
-    dma10 = df['Close'].rolling(10).mean().iloc[-1]
-    dma50 = df['Close'].rolling(ma_period).mean().iloc[-1]
+    dma10 = float(df['Close'].rolling(10).mean().iloc[-1])
+    dma50 = float(df['Close'].rolling(ma_period).mean().iloc[-1])
     tolerance = 0.97 * dma10 # Toleransi 3%
     
     # Filter Intraday
@@ -58,12 +56,14 @@ if st.sidebar.button("🚀 Start Screening"):
     list_saham = ['BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK'] 
     
     results = []
+    # Mapping label ke parameter yfinance
+    tf_param = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}[TF_PILIHAN]
+    
     for ticker in list_saham:
-        # Menggunakan tf_map untuk konversi label ke parameter yfinance
-        tf_param = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}[TF_PILIHAN]
         df = yf.download(ticker, period="1y", interval=tf_param, progress=False)
         
-        if not df.empty:
+        # Validasi apakah data cukup untuk menghitung MA
+        if not df.empty and len(df) >= MA_PERIODE:
             if run_screening(df, PRESET, MA_PERIODE, FILTER_INTRADAY):
                 results.append(ticker)
     
