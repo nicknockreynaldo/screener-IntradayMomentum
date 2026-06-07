@@ -98,70 +98,90 @@ if MULAI_SCAN:
                 
             hasil_screener = []
             
-            for ticker in watchlist:
-                try:
-                    if len(watchlist) == 1:
-                        df_d = data_daily_bulk.copy()
-                        df_e = data_exec_bulk.copy()
-                    else:
-                        df_d = data_daily_bulk[ticker].copy()
-                        df_e = data_exec_bulk[ticker].copy()
-                        
-                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
-                    df_e = df_e.dropna(subset=[kolom_close_e, 'Open', 'High', 'Low'])
-                    close_exec = df_e[kolom_close_e].squeeze()
+        except Exception as e:
+            st.error(f"Terjadi kesalahan saat mengunduh data: {e}")
+            st.stop()
+
+        # Perulangan analisa saham dipisah total dari blok download agar aman dari pergeseran indentasi
+        for ticker in watchlist:
+            try:
+                if len(watchlist) == 1:
+                    df_d = data_daily_bulk.copy()
+                    df_e = data_exec_bulk.copy()
+                else:
+                    df_d = data_daily_bulk[ticker].copy()
+                    df_e = data_exec_bulk[ticker].copy()
                     
-                    if df_e.empty or len(close_exec) < MA_PERIODE:
-                        continue
-                        
-                    harga_terakhir = float(close_exec.iloc[-1])
-                    
-                    if 'Open' in df_d.columns:
-                        open_series = df_d['Open'].dropna().squeeze()
-                        if not open_series.empty:
-                            open_hari_ini = float(open_series.iloc[-1])
-                        else:
-                            continue
-                    else:
-                        continue
-                    
-                    if FILTER_INTRADAY == "Intraday Momentum (>0%)":
-                        if harga_terakhir < open_hari_ini:
-                            continue
-                                
-                    ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
-                    df_e['MA_Dynamic'] = ma_exec_series
-                    nilai_ma_exec = float(ma_exec_series.iloc[-1])
-                    
-                    if harga_terakhir > nilai_ma_exec:
-                        jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
-                        clean_ticker = ticker.replace(".JK", "")
-                        persen_change = ((harga_terakhir - open_hari_ini) / open_hari_ini) * 100
-                        
-                        low_2_lalu = float(df_e['Low'].iloc[-3])
-                        ma_2_lalu = float(df_e['MA_Dynamic'].iloc[-3])
-                        high_1_lalu = float(df_e['High'].iloc[-2])
-                        
-                        if low_2_lalu <= ma_2_lalu and harga_terakhir > high_1_lalu:
-                            status = "🟢 NEW"
-                        else:
-                            status = "🔵 HOLD"
-                                
-                        hasil_screener.append({
-                            "Kode Saham": clean_ticker,
-                            "% Change": persen_change,
-                            "Jarak (%)": round(jarak_persen, 2),
-                            "Status": status
-                        })
-                except:
-                    pass
-                    
-            # ==============================================================================
-            # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY STATUS NEW TERATAS)
-            # ==============================================================================
-            st.success("🎯 Pemindaian Selesai!")
-            
-            if hasil_screener:
-                df_hasil = pd.DataFrame(hasil_screener)
+                kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
+                df_e = df_e.dropna(subset=[kolom_close_e, 'Open', 'High', 'Low'])
+                close_exec = df_e[kolom_close_e].squeeze()
                 
-                df_hasil['is_new']
+                if df_e.empty or len(close_exec) < MA_PERIODE:
+                    continue
+                    
+                harga_terakhir = float(close_exec.iloc[-1])
+                
+                if 'Open' in df_d.columns:
+                    open_series = df_d['Open'].dropna().squeeze()
+                    if not open_series.empty:
+                        open_hari_ini = float(open_series.iloc[-1])
+                    else:
+                        continue
+                else:
+                    continue
+                
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                    if harga_terakhir < open_hari_ini:
+                        continue
+                            
+                ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
+                df_e['MA_Dynamic'] = ma_exec_series
+                nilai_ma_exec = float(ma_exec_series.iloc[-1])
+                
+                if harga_terakhir > nilai_ma_exec:
+                    jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
+                    clean_ticker = ticker.replace(".JK", "")
+                    persen_change = ((harga_terakhir - open_hari_ini) / open_hari_ini) * 100
+                    
+                    low_2_lalu = float(df_e['Low'].iloc[-3])
+                    ma_2_lalu = float(df_e['MA_Dynamic'].iloc[-3])
+                    high_1_lalu = float(df_e['High'].iloc[-2])
+                    
+                    if low_2_lalu <= ma_2_lalu and harga_terakhir > high_1_lalu:
+                        status = "🟢 NEW"
+                    else:
+                        status = "🔵 HOLD"
+                            
+                    hasil_screener.append({
+                        "Kode Saham": clean_ticker,
+                        "% Change": persen_change,
+                        "Jarak (%)": round(jarak_persen, 2),
+                        "Status": status
+                    })
+            except:
+                pass
+
+        # ==============================================================================
+        # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY STATUS NEW TERATAS)
+        # ==============================================================================
+        st.success("🎯 Pemindaian Selesai!")
+        
+        if hasil_screener:
+            df_hasil = pd.DataFrame(hasil_screener)
+            
+            df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
+            df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
+            
+            st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
+            
+            st.dataframe(
+                df_hasil,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "% Change": st.column_config.NumberColumn("% Change", format="%+.2f%%"),
+                    "Jarak (%)": st.column_config.NumberColumn("Jarak (%)", format="+%.2f%%")
+                }
+            )
+        else:
+            st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
