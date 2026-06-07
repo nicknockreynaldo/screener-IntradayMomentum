@@ -1,88 +1,65 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import warnings
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="IHSG Power Screener", layout="wide")
+warnings.filterwarnings('ignore')
+
+st.set_page_config(page_title="IHSG Power Screener", page_icon="📈", layout="wide")
 st.title("📈 IHSG Ultimate Power Screener")
 
-# --- SIDEBAR SETUP ---
 st.sidebar.header("⚙️ Parameter Setup")
-PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Custom"])
-
-if PRESET == "Grade A Setup":
-    st.sidebar.info("Grade A: Price > DMA10 (tol. 3%) AND Price > DMA50")
-elif PRESET == "Grade B Setup":
-    st.sidebar.info("Grade B: Price > DMA10 (tol. 3%) AND Price < DMA50")
-
+SETUP = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup"])
 FILTER_INTRADAY = st.sidebar.selectbox("Filter Intraday:", ["General", "Intraday Momentum (>0%)"])
 
-if PRESET == "Custom":
-    TF_PILIHAN = st.sidebar.selectbox("Timeframe:", ["Daily", "1H", "30min", "15min", "5min"])
-    MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200])
+# Info panduan tetap muncul agar Anda tidak lupa aturan main
+if SETUP == "Grade A Setup":
+    st.sidebar.info("Grade A: Price > DMA10 (tol. 3%) AND Price > DMA50")
 else:
-    TF_PILIHAN = "Daily"
-    MA_PERIODE = 50
+    st.sidebar.info("Grade B: Price > DMA10 (tol. 3%) AND Price < DMA50")
 
-# --- ENGINE SCREENING ---
-def run_screening(df, preset, ma_period, filter_intra, debug=False):
-    if df.empty or len(df) < ma_period:
-        return False
-    
-    try:
-        last_row = df.iloc[-1]
-        curr_price = float(last_row['Close'])
-        curr_open = float(last_row['Open'])
-        
-        dma10 = float(df['Close'].rolling(10).mean().iloc[-1])
-        dma50 = float(df['Close'].rolling(ma_period).mean().iloc[-1])
-        
-        if pd.isna(dma10) or pd.isna(dma50):
-            return False
-            
-        # Logika Toleransi 3%
-        tolerance = 0.97 * dma10
-        
-        # Debugging: Tampilkan perbandingan di layar
-        if debug:
-            st.write(f"--- Debug --- | Harga: {curr_price:.0f} | DMA10: {dma10:.0f} | DMA50: {dma50:.0f} | Tol: {tolerance:.0f}")
+URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 
-    except Exception:
-        return False
-    
-    # Filter Intraday
-    if filter_intra == "Intraday Momentum (>0%)" and curr_price <= curr_open:
-        return False
-        
-    # Logic Filtering
-    if preset == "Grade A Setup":
-        return curr_price >= tolerance and curr_price > dma50
-    elif preset == "Grade B Setup":
-        return curr_price >= tolerance and curr_price < dma50
-    else:
-        return curr_price > dma10 and curr_price > dma50
-
-# --- EKSEKUSI ---
 if st.sidebar.button("🚀 Start Screening"):
-    st.write(f"Menjalankan screening dengan: **{PRESET}**")
+    # 1. Ambil Watchlist
+    df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
+    watchlist = [kode + ".JK" for kode in df_sheet.iloc[:, 0].dropna().astype(str) if len(kode) == 4]
     
-    # Tambahkan ticker yang ingin Anda cek (contoh MDKA.JK)
-    list_saham = ['BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK', 'MDKA.JK'] 
-    results = []
+    hasil_screener = []
     
-    tf_map = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}
-    tf_param = tf_map[TF_PILIHAN]
+    # 2. Download Data Bulk (Interval Daily sesuai GSheet)
+    data_bulk = yf.download(watchlist, period="1y", interval="1d", group_by='ticker', progress=False)
     
-    for ticker in list_saham:
+    # 3. Screening Loop
+    for ticker in watchlist:
         try:
-            df = yf.download(ticker, period="1y", interval=tf_param, progress=False)
-            # Jalankan dengan debug=True untuk melihat angka per saham
-            if run_screening(df, PRESET, MA_PERIODE, FILTER_INTRADAY, debug=True):
-                results.append(ticker)
-        except Exception:
-            continue
-    
-    if results:
-        st.success(f"Saham yang lolos: {', '.join(results)}")
+            df = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
+            if len(df) < 50: continue
+            
+            # Harga & Indikator
+            close = df['Close'].iloc[-1]
+            ma10 = df['Close'].rolling(10).mean().iloc[-1]
+            ma50 = df['Close'].rolling(50).mean().iloc[-1]
+            tol_dma10 = 0.97 * ma10
+            
+            # Logika Intraday
+            open_price = df['Open'].iloc[-1]
+            if FILTER_INTRADAY == "Intraday Momentum (>0%)" and close < open_price:
+                continue
+                
+            # Logika Grade A / B (Tanpa Filter Tren Tambahan)
+            if SETUP == "Grade A Setup":
+                if not (close >= tol_dma10 and close > ma50): continue
+            else: # Grade B
+                if not (close >= tol_dma10 and close < ma50): continue
+            
+            hasil_screener.append({"Kode": ticker.replace(".JK", ""), "Price": close, "MA50": ma50})
+            
+        except: continue
+        
+    # 4. Tampil Hasil
+    if hasil_screener:
+        st.success(f"Ditemukan {len(hasil_screener)} saham!")
+        st.dataframe(pd.DataFrame(hasil_screener))
     else:
         st.warning("Tidak ada saham yang memenuhi kriteria.")
