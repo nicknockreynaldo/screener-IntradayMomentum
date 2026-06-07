@@ -7,14 +7,14 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & INISIALISASI SESSION STATE (MEMORI SCREENER)
+# 1. KONFIGURASI HALAMAN & INRESIALISASI SESSION STATE (MEMORI SCREENER)
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
 
-# Mengamankan memori lintas klik untuk mendeteksi kemunculan saham baru berdasarkan input filter
+# Mengunci memori lintas klik berdasarkan input filter apa pun yang dipilih di sidebar
 if 'saham_lolos_sebelumnya' not in st.session_state:
     st.session_state['saham_lolos_sebelumnya'] = []
 
@@ -24,8 +24,7 @@ st.sidebar.header("⚙️ Parameter Sensor")
 FILTER_INTRADAY = st.sidebar.selectbox(
     "1. Filter Pergerakan Hari Ini (Vs Open)",
     options=["Intraday Momentum (>0%)", "General"],
-    index=0,
-    help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
+    index=0
 )
 
 # --- DROPDOWN 2: TIMEFRAME EKSEKUSI ---
@@ -60,15 +59,14 @@ else:
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
-    index=3  # Default ke MA 50 sesuai rekues visual Anda
+    index=3  # Default ke MA 50
 )
 
 # --- DROPDOWN 4: FILTER TREN UTAMA ---
 FILTER_TREND = st.sidebar.selectbox(
     "4. Filter Tren Utama (Akselerasi)",
     options=["General", "Power Play Uptrend (Price > DMA 10)"],
-    index=0,
-    help="Power Play Uptrend: Wajib mengunci harga terakhir di atas Daily MA 10. General: Tanpa batasan DMA 10."
+    index=0
 )
 
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
@@ -78,7 +76,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (TOTAL RECONCILIATION WITH MEMORY STATE)
+# 2. LOGIKA UTAMA SCREENER (ANTI BULK-DROPOUT LOGIC)
 # ==============================================================================
 if MULAI_SCAN:
     if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
@@ -104,6 +102,7 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
+            # Trik Safetynet: Mengunduh dengan struktur group_by Ticker agar data terisolasi dengan aman
             data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
             if interval_param == "1d":
@@ -121,58 +120,54 @@ if MULAI_SCAN:
         # Perulangan analisa saham
         for ticker in watchlist:
             try:
+                # Ambil sub-dataframe khusus untuk ticker ini secara independen
                 if len(watchlist) == 1:
                     df_d = data_daily_bulk.copy()
                     df_e = data_exec_bulk.copy()
                 else:
+                    if ticker not in data_daily_bulk.columns.levels[0]:
+                        continue
                     df_d = data_daily_bulk[ticker].copy()
                     df_e = data_exec_bulk[ticker].copy()
-                    
-                kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
-                df_e = df_e.dropna(subset=[kolom_close_e])
-                close_exec = df_e[kolom_close_e].squeeze()
                 
-                if df_e.empty or len(close_exec) < MA_PERIODE:
+                # Pembersihan toleran: Hanya drop jika baris Close benar-benar kosong
+                df_e = df_e.dropna(subset=['Close'])
+                if df_e.empty or len(df_e) < MA_PERIODE:
                     continue
                     
-                harga_hari_ini = float(close_exec.iloc[-1])
+                harga_hari_ini = float(df_e['Close'].iloc[-1])
                 
-                # --- FILTER TREN UTAMA (POWER PLAY) ---
+                # --- FILTER 1: POWER PLAY TREN UTAMA ---
                 if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
-                    kolom_close_d = 'Close' if 'Close' in df_d.columns else 'Adj Close'
-                    df_d = df_d.dropna(subset=[kolom_close_d])
-                    close_daily = df_d[kolom_close_d].squeeze()
-                    
-                    if len(close_daily) >= 10:
-                        dma_10_series = close_daily.rolling(window=10).mean()
-                        nilai_dma_10 = float(dma_10_series.iloc[-1])
-                        if harga_hari_ini < nilai_dma_10:
+                    df_d = df_d.dropna(subset=['Close'])
+                    if len(df_d) >= 10:
+                        dma_10_series = df_d['Close'].rolling(window=10).mean()
+                        if harga_hari_ini < float(dma_10_series.iloc[-1]):
                             continue
                     else:
                         continue
                 
-                # Ekstrak data open harian untuk filter intraday momentum & % Change harian
-                if 'Open' in df_d.columns:
-                    open_series = df_d['Open'].dropna().squeeze()
-                    open_hari_ini = float(open_series.iloc[-1]) if not open_series.empty else harga_hari_ini
+                # Ekstrak data harga Open hari ini secara aman untuk filter intraday
+                if 'Open' in df_d.columns and not df_d['Open'].dropna().empty:
+                    open_hari_ini = float(df_d['Open'].dropna().iloc[-1])
                 else:
                     open_hari_ini = harga_hari_ini
                 
-                # --- FILTER INTRADAY MOMENTUM ---
+                # --- FILTER 2: INTRADAY MOMENTUM ---
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                     if harga_hari_ini < open_hari_ini:
                         continue
                             
-                # --- FILTER UTAMA MOVING AVERAGE TIMEFRAME EKSEKUSI ---
-                ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
+                # --- FILTER 3: UTAMA MOVING AVERAGE TIMEFRAME EKSEKUSI ---
+                ma_exec_series = df_e['Close'].rolling(window=MA_PERIODE).mean()
                 ma_exec_hari_ini = float(ma_exec_series.iloc[-1])
                 
-                # Kondisi mutlak masuk tabel hasil screening
+                # KONDISI UTAMA KELOLOSAN FILTER INPUT SIDEBAR
                 if harga_hari_ini > ma_exec_hari_ini:
                     clean_ticker = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean_ticker)
                     
-                    # Cek session state: Apakah di klik-an sebelumnya saham ini sudah ada?
+                    # Logika Mengunci Session State lintas klik
                     if clean_ticker not in st.session_state['saham_lolos_sebelumnya']:
                         status = "🟢 NEW"
                     else:
@@ -181,31 +176,27 @@ if MULAI_SCAN:
                     jarak_persen = ((harga_hari_ini - ma_exec_hari_ini) / ma_exec_hari_ini) * 100
                     persen_change = ((harga_hari_ini - open_hari_ini) / open_hari_ini) * 100
                     
-                    label_kolom_jarak = f"Jarak ke MA {MA_PERIODE} (%)"
-                    
                     hasil_screener.append({
                         "Kode Saham": clean_ticker,
                         "% Change": persen_change,
-                        label_kolom_jarak: round(jarak_persen, 2),
+                        "Jarak ke MA 50 (%)": round(jarak_persen, 2),
                         "Status": status
                     })
             except:
                 pass
 
-        # Update memori session state dengan hasil pemindaian terbaru detik ini
+        # Perbarui memori session state dengan hasil scanning detik ini
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
-        # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY STATUS NEW TERATAS)
+        # 3. OUTPUT TABEL INTERAKTIF
         # ==============================================================================
         st.success("🎯 Pemindaian Selesai!")
         
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
             
-            # Kolom jarak dinamis sesuai MA pilihan
-            nama_kolom_jarak_dinamis = f"Jarak ke MA {MA_PERIODE} (%)"
-            
+            # Dorong status NEW ke atas tabel hasil
             df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
             df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
             
@@ -217,7 +208,7 @@ if MULAI_SCAN:
                 hide_index=True,
                 column_config={
                     "% Change": st.column_config.NumberColumn("% Change", format="%+.2f%%"),
-                    nama_kolom_jarak_dinamis: st.column_config.NumberColumn(nama_kolom_jarak_dinamis, format="+%.2f%%")
+                    "Jarak ke MA 50 (%)": st.column_config.NumberColumn("Jarak ke MA 50 (%)", format="+%.2f%%")
                 }
             )
         else:
