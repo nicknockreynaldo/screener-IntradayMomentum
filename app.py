@@ -16,6 +16,7 @@ st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Mo
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
+# --- DROPDOWN 1: FILTER INTRADAY MOMENTUM VS OPEN ---
 FILTER_INTRADAY = st.sidebar.selectbox(
     "1. Filter Pergerakan Hari Ini (Vs Open)",
     options=["Intraday Momentum (>0%)", "General"],
@@ -23,6 +24,7 @@ FILTER_INTRADAY = st.sidebar.selectbox(
     help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
 )
 
+# --- DROPDOWN 2: TIMEFRAME EKSEKUSI ---
 TF_PILIHAN = st.sidebar.selectbox(
     "2. Pilih Timeframe Eksekusi",
     options=["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"],
@@ -50,17 +52,26 @@ else:
     period_param = "5d"
     label_tf = "5m"
 
+# --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
     index=3
 )
 
+# --- DROPDOWN 4: FILTER TREN MOMENTUM (POWER PLAY VS GENERAL) ---
+FILTER_TREND = st.sidebar.selectbox(
+    "4. Filter Tren Utama (Akselerasi)",
+    options=["General", "Power Play Uptrend (Price > DMA 10)"],
+    index=0,
+    help="Power Play Uptrend: Wajib mengunci harga terakhir di atas Daily MA 10 (Tren Harian Kuat). General: Tanpa batasan DMA 10."
+)
+
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
-st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
+st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
 # 2. LOGIKA UTAMA SCREENER (DYNAMIC BULK DOWNLOAD ROUTINE)
@@ -89,7 +100,8 @@ if MULAI_SCAN:
                 
             st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
             
-            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
+            # Kita selalu download data harian (Daily) minimal 50 hari untuk mengamankan perhitungan DMA 10 secara akurat
+            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "3mo", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
             
             if interval_param == "1d":
                 data_exec_bulk = data_daily_bulk
@@ -102,7 +114,7 @@ if MULAI_SCAN:
             st.error(f"Terjadi kesalahan saat mengunduh data: {e}")
             st.stop()
 
-        # Perulangan analisa saham dipisah total dari blok download agar aman dari pergeseran indentasi
+        # Perulangan analisa saham
         for ticker in watchlist:
             try:
                 if len(watchlist) == 1:
@@ -121,6 +133,23 @@ if MULAI_SCAN:
                     
                 harga_terakhir = float(close_exec.iloc[-1])
                 
+                # Ekstrak data close harian dari database Daily untuk proteksi DMA 10
+                kolom_close_d = 'Close' if 'Close' in df_d.columns else 'Adj Close'
+                df_d = df_d.dropna(subset=[kolom_close_d])
+                close_daily = df_d[kolom_close_d].squeeze()
+                
+                # --- VALIDASI FILTER 1: POWER PLAY UPTREND (PRICE > DMA 10) ---
+                if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                    if len(close_daily) < 10:
+                        continue
+                    # Hitung MA 10 dari runtun data harian (Daily)
+                    dma_10_series = close_daily.rolling(window=10).mean()
+                    nilai_dma_10 = float(dma_10_series.iloc[-1])
+                    
+                    if harga_terakhir < nilai_dma_10:
+                        continue  # Otomatis out jika di bawah DMA 10 harian
+                
+                # Ekstrak Harga Open Harian untuk filter intraday momentum
                 if 'Open' in df_d.columns:
                     open_series = df_d['Open'].dropna().squeeze()
                     if not open_series.empty:
@@ -130,10 +159,12 @@ if MULAI_SCAN:
                 else:
                     continue
                 
+                # --- VALIDASI FILTER 2: INTRADAY MOMENTUM ---
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                     if harga_terakhir < open_hari_ini:
                         continue
                             
+                # --- VALIDASI FILTER 3: UTAMA MOVING AVERAGE TIMEFRAME PILIHAN ---
                 ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
                 df_e['MA_Dynamic'] = ma_exec_series
                 nilai_ma_exec = float(ma_exec_series.iloc[-1])
