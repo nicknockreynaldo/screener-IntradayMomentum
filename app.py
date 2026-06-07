@@ -25,29 +25,30 @@ else:
     MA_PERIODE = 50
 
 # --- ENGINE SCREENING ---
-def run_screening(df, preset, ma_period, filter_intra):
-    # Validasi awal data
+def run_screening(df, preset, ma_period, filter_intra, debug=False):
     if df.empty or len(df) < ma_period:
         return False
     
     try:
-        # Mengambil nilai untuk perbandingan
         last_row = df.iloc[-1]
         curr_price = float(last_row['Close'])
         curr_open = float(last_row['Open'])
         
-        # Hitung MA sebagai angka tunggal
         dma10 = float(df['Close'].rolling(10).mean().iloc[-1])
         dma50 = float(df['Close'].rolling(ma_period).mean().iloc[-1])
         
         if pd.isna(dma10) or pd.isna(dma50):
             return False
             
+        # Logika Toleransi 3%
+        tolerance = 0.97 * dma10
+        
+        # Debugging: Tampilkan perbandingan di layar
+        if debug:
+            st.write(f"--- Debug --- | Harga: {curr_price:.0f} | DMA10: {dma10:.0f} | DMA50: {dma50:.0f} | Tol: {tolerance:.0f}")
+
     except Exception:
         return False
-    
-    # Toleransi 3%
-    tolerance = 0.97 * dma10
     
     # Filter Intraday
     if filter_intra == "Intraday Momentum (>0%)" and curr_price <= curr_open:
@@ -65,7 +66,8 @@ def run_screening(df, preset, ma_period, filter_intra):
 if st.sidebar.button("🚀 Start Screening"):
     st.write(f"Menjalankan screening dengan: **{PRESET}**")
     
-    list_saham = ['BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK'] 
+    # Tambahkan ticker yang ingin Anda cek (contoh MDKA.JK)
+    list_saham = ['BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK', 'MDKA.JK'] 
     results = []
     
     tf_map = {"Daily": "1d", "1H": "1h", "30min": "30m", "15min": "15m", "5min": "5m"}
@@ -74,7 +76,8 @@ if st.sidebar.button("🚀 Start Screening"):
     for ticker in list_saham:
         try:
             df = yf.download(ticker, period="1y", interval=tf_param, progress=False)
-            if run_screening(df, PRESET, MA_PERIODE, FILTER_INTRADAY):
+            # Jalankan dengan debug=True untuk melihat angka per saham
+            if run_screening(df, PRESET, MA_PERIODE, FILTER_INTRADAY, debug=True):
                 results.append(ticker)
         except Exception:
             continue
