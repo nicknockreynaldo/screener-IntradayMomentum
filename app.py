@@ -1,6 +1,4 @@
 # 1. Install/Update library yfinance versi terbaru secara senyap
-!pip install yfinance -q
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
