@@ -42,7 +42,7 @@ if st.sidebar.button("🚀 Start Screening"):
         data_bulk = fetch_data(tuple(watchlist), current_period, tf_map[TF_PILIHAN])
         
         hasil_screener = []
-        daftar_semua_saham = [] # Untuk daftar cadangan
+        daftar_semua_saham = []
         
         for ticker in watchlist:
             try:
@@ -53,24 +53,6 @@ if st.sidebar.button("🚀 Start Screening"):
                 if len(df) < max(55, MA_PERIODE): continue
                 
                 close = float(df['Close'].iloc[-1])
+                open_p = float(df['Open'].iloc[-1])
                 ma_val = float(df['Close'].rolling(MA_PERIODE).mean().iloc[-1])
-                dist_ma = ((close - ma_val) / ma_val) * 100
-                
-                # Logika Filter utama
-                is_valid = (close > ma_val)
-                
-                # Simpan untuk cadangan (Top 10 terdekat ke MA)
-                daftar_semua_saham.append({"Kode Saham": ticker.replace(".JK", ""), "Price": close, "Jarak ke MA (%)": round(dist_ma, 2)})
-                
-                if not is_valid: continue
-                
-                hasil_screener.append({"Kode Saham": ticker.replace(".JK", ""), "Price": round(close, 2), "Jarak ke MA (%)": round(dist_ma, 2)})
-            except: continue
-
-        if hasil_screener:
-            st.success(f"Ditemukan {len(hasil_screener)} saham di atas MA{MA_PERIODE}!")
-            st.dataframe(pd.DataFrame(hasil_screener), use_container_width=True)
-        else:
-            st.warning("Tidak ada saham yang di atas MA. Menampilkan daftar saham terdekat ke MA:")
-            df_cadangan = pd.DataFrame(daftar_semua_saham).sort_values("Jarak ke MA (%)", ascending=False).head(10)
-            st.dataframe(df_cadangan, use_container_width=True)
+                dist
