@@ -7,14 +7,14 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==============================================================================
-# 1. KONFIGURASI HALAMAN & INRESIALISASI SESSION STATE (MEMORI SCREENER)
+# 1. KONFIGURASI HALAMAN & INISIALISASI SESSION STATE (MEMORI SCREENER)
 # ==============================================================================
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
 
-# Inisialisasi memori untuk menyimpan daftar saham yang lolos pada klik sebelumnya
+# Mengamankan memori lintas klik untuk mendeteksi kemunculan saham baru berdasarkan input filter
 if 'saham_lolos_sebelumnya' not in st.session_state:
     st.session_state['saham_lolos_sebelumnya'] = []
 
@@ -60,7 +60,7 @@ else:
 MA_PERIODE = st.sidebar.selectbox(
     "3. Periode Moving Average (MA) Eksekusi",
     options=[5, 10, 20, 50, 200],
-    index=3
+    index=3  # Default ke MA 50 sesuai rekues visual Anda
 )
 
 # --- DROPDOWN 4: FILTER TREN UTAMA ---
@@ -78,7 +78,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
 
 # ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (SESSION MEMORY TRACKING)
+# 2. LOGIKA UTAMA SCREENER (TOTAL RECONCILIATION WITH MEMORY STATE)
 # ==============================================================================
 if MULAI_SCAN:
     if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
@@ -137,7 +137,7 @@ if MULAI_SCAN:
                     
                 harga_hari_ini = float(close_exec.iloc[-1])
                 
-                # --- FILTER 1: POWER PLAY UPTREND (PRICE > DMA 10) ---
+                # --- FILTER TREN UTAMA (POWER PLAY) ---
                 if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
                     kolom_close_d = 'Close' if 'Close' in df_d.columns else 'Adj Close'
                     df_d = df_d.dropna(subset=[kolom_close_d])
@@ -151,34 +151,28 @@ if MULAI_SCAN:
                     else:
                         continue
                 
-                # Ekstrak Harga Open Harian untuk filter intraday
+                # Ekstrak data open harian untuk filter intraday momentum & % Change harian
                 if 'Open' in df_d.columns:
                     open_series = df_d['Open'].dropna().squeeze()
-                    if not open_series.empty:
-                        open_hari_ini = float(open_series.iloc[-1])
-                    else:
-                        continue
+                    open_hari_ini = float(open_series.iloc[-1]) if not open_series.empty else harga_hari_ini
                 else:
-                    continue
+                    open_hari_ini = harga_hari_ini
                 
-                # --- FILTER 2: INTRADAY MOMENTUM ---
+                # --- FILTER INTRADAY MOMENTUM ---
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                     if harga_hari_ini < open_hari_ini:
                         continue
                             
-                # --- FILTER 3: UTAMA MOVING AVERAGE ---
+                # --- FILTER UTAMA MOVING AVERAGE TIMEFRAME EKSEKUSI ---
                 ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
                 ma_exec_hari_ini = float(ma_exec_series.iloc[-1])
                 
-                # UJI UTAMA KELOLOSAN FILTER INPUT SAKRAL SIDEBAR
+                # Kondisi mutlak masuk tabel hasil screening
                 if harga_hari_ini > ma_exec_hari_ini:
                     clean_ticker = ticker.replace(".JK", "")
-                    
-                    # Tambahkan kode ke penampung list lolos saat ini
                     daftar_saham_lolos_sekarang.append(clean_ticker)
                     
-                    # --- CEK STATE MEMORI UNTUK MENENTUKAN STATUS ---
-                    # Jika saham ini TIDAK ADA di memori hasil scan sebelumnya, status = NEW
+                    # Cek session state: Apakah di klik-an sebelumnya saham ini sudah ada?
                     if clean_ticker not in st.session_state['saham_lolos_sebelumnya']:
                         status = "🟢 NEW"
                     else:
@@ -187,16 +181,18 @@ if MULAI_SCAN:
                     jarak_persen = ((harga_hari_ini - ma_exec_hari_ini) / ma_exec_hari_ini) * 100
                     persen_change = ((harga_hari_ini - open_hari_ini) / open_hari_ini) * 100
                     
+                    label_kolom_jarak = f"Jarak ke MA {MA_PERIODE} (%)"
+                    
                     hasil_screener.append({
                         "Kode Saham": clean_ticker,
                         "% Change": persen_change,
-                        "Jarak (%)": round(jarak_persen, 2),
+                        label_kolom_jarak: round(jarak_persen, 2),
                         "Status": status
                     })
             except:
                 pass
 
-        # Ganti data memori lama dengan daftar saham yang baru lolos detik ini
+        # Update memori session state dengan hasil pemindaian terbaru detik ini
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
@@ -206,6 +202,9 @@ if MULAI_SCAN:
         
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
+            
+            # Kolom jarak dinamis sesuai MA pilihan
+            nama_kolom_jarak_dinamis = f"Jarak ke MA {MA_PERIODE} (%)"
             
             df_hasil['is_new'] = df_hasil['Status'].apply(lambda x: 1 if "NEW" in x else 0)
             df_hasil = df_hasil.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
@@ -218,7 +217,7 @@ if MULAI_SCAN:
                 hide_index=True,
                 column_config={
                     "% Change": st.column_config.NumberColumn("% Change", format="%+.2f%%"),
-                    "Jarak (%)": st.column_config.NumberColumn("Jarak (%)", format="+%.2f%%")
+                    nama_kolom_jarak_dinamis: st.column_config.NumberColumn(nama_kolom_jarak_dinamis, format="+%.2f%%")
                 }
             )
         else:
