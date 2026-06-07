@@ -73,11 +73,18 @@ if MULAI_SCAN:
                 # --- LOGIKA FILTER BERDASARKAN PRESET ---
                 is_lolos = False
                 if PRESET == "Grade A Setup":
+                    # Kriteria: Price > MA10 DAN Price > MA50
                     is_lolos = (close > ma10 and close > ma50)
+                
                 elif PRESET == "Grade B Setup":
-                    is_lolos = (close > ma10 and close < ma50)
+                    # Kriteria: Price > (MA10 * 0.97) DAN Price < MA50
+                    # Toleransi 3% dari MA10 ditambahkan di sini
+                    is_lolos = (close >= (ma10 * 0.97) and close < ma50)
+                
                 elif PRESET == "Grade D (Market Merah Cari Alpha)":
+                    # Kriteria: Price > MA10 (Timeframe 1H)
                     is_lolos = (close > ma10)
+                
                 else: # Manual
                     is_lolos = (close > float(df_s['Close'].rolling(MA_PERIODE).mean().iloc[-1]))
                 
