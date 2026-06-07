@@ -16,23 +16,24 @@ if 'saham_lolos_sebelumnya' not in st.session_state:
 
 st.sidebar.header("⚙️ Parameter Sensor")
 
-# --- PARAMETER INPUT ---
+# --- SEMUA DROPDOWN MUNCUL PERMANEN ---
 PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Custom"])
 
-if PRESET == "Custom":
-    TF_PILIHAN = st.sidebar.selectbox("Pilih Timeframe:", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
-    MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200], index=1)
-    FILTER_INTRADAY = st.sidebar.selectbox("Filter Pergerakan Hari Ini (Vs Open):", ["General", "Intraday Momentum (>0%)"])
-    FILTER_TREND = st.sidebar.selectbox("Filter Tren Utama (Akselerasi):", ["General", "Power Play Uptrend (Price > DMA 10)"])
+# Nilai default berdasarkan preset, tapi tetap bisa diubah oleh user
+if PRESET == "Grade D (Market Merah Cari Alpha)":
+    default_tf = "1 Jam (1H)"
+    default_ma = 20
+elif PRESET == "Grade A Setup" or PRESET == "Grade B Setup":
+    default_tf = "Harian (Daily)"
+    default_ma = 50
 else:
-    if PRESET == "Grade D (Market Merah Cari Alpha)":
-        TF_PILIHAN = "1 Jam (1H)"
-        MA_PERIODE = 20
-    else:
-        TF_PILIHAN = "Harian (Daily)"
-        MA_PERIODE = 50
-    FILTER_INTRADAY = "General"
-    FILTER_TREND = "General"
+    default_tf = "Harian (Daily)"
+    default_ma = 10
+
+TF_PILIHAN = st.sidebar.selectbox("Pilih Timeframe:", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"], index=["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"].index(default_tf))
+MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200], index=[5, 10, 20, 50, 200].index(default_ma))
+FILTER_INTRADAY = st.sidebar.selectbox("Filter Pergerakan Hari Ini (Vs Open):", ["General", "Intraday Momentum (>0%)"])
+FILTER_TREND = st.sidebar.selectbox("Filter Tren Utama (Akselerasi):", ["General", "Power Play Uptrend (Price > DMA 10)"])
 
 # Konfigurasi TF
 tf_map = {
@@ -45,7 +46,7 @@ tf_map = {
 interval_param, period_param = tf_map[TF_PILIHAN]
 
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
-st.info(f"📋 **Kondisi:** Harga > SMA {MA_PERIODE} ({TF_PILIHAN}) | Intraday: **{FILTER_INTRADAY}** | Tren: **{FILTER_TREND}**")
+st.info(f"📋 **Kondisi:** Harga > SMA {MA_PERIODE} ({TF_PILIHAN}) | Intraday: **{FILTER_INTRADAY}**")
 
 # ==============================================================================
 # 2. LOGIKA UTAMA
@@ -71,15 +72,15 @@ if MULAI_SCAN:
                 harga_hari_ini = float(df_saham['Close'].iloc[-1])
                 ma_hari_ini = float(df_saham['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
-                # --- FILTER UTAMA ---
+                # Filter Utama
                 if harga_hari_ini <= ma_hari_ini: continue
                 
-                # --- FILTER INTRADAY MOMENTUM ---
+                # Filter Intraday Momentum
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)":
                     if 'Open' in df_saham.columns and harga_hari_ini < float(df_saham['Open'].iloc[-1]):
                         continue
                 
-                # --- FILTER TREN AKSELERASI ---
+                # Filter Tren
                 if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
                     if harga_hari_ini < float(df_saham['Close'].rolling(window=10).mean().iloc[-1]):
                         continue
@@ -102,7 +103,7 @@ if MULAI_SCAN:
         st.session_state['saham_lolos_sebelumnya'] = daftar_saham_lolos_sekarang
 
         # ==============================================================================
-        # 3. OUTPUT
+        # 3. OUTPUT (Struktur kolom SAMA PERSIS dengan screener lama)
         # ==============================================================================
         if hasil_screener:
             df_hasil = pd.DataFrame(hasil_screener)
