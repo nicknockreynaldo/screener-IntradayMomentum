@@ -1,188 +1,84 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import warnings
 
 warnings.filterwarnings('ignore')
 
-# ==============================================================================
-# 1. KONFIGURASI HALAMAN & SIDEBAR INTERAKTIF LEAN & CLEAN
-# ==============================================================================
-st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
+st.set_page_config(page_title="IHSG Ultimate Power Screener", layout="wide")
+st.title("📈 IHSG Ultimate Power Screener")
 
-st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
-st.write("Saring momentum saham andalan Anda berdasarkan kombinasi Timeframe, Moving Average, dan pergerakan Intraday.")
+# Fungsi untuk menarik data dari Google Sheets
+@st.cache_data(ttl=600)
+def get_watchlist():
+    URL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
+    df = pd.read_csv(URL, usecols=[0], nrows=200)
+    return [kode.strip().upper() + ".JK" for kode in df.iloc[:, 0].dropna().astype(str) if len(kode.strip()) == 4]
 
-st.sidebar.header("⚙️ Parameter Sensor")
+# --- Sidebar ---
+st.sidebar.header("⚙️ Parameter Setup")
+PRESET = st.sidebar.selectbox("Pilih Setup:", ["Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Custom"])
 
-# --- DROPDOWN 1: FILTER INTRADAY MOMENTUM VS OPEN ---
-FILTER_INTRADAY = st.sidebar.selectbox(
-    "1. Filter Pergerakan Hari Ini (Vs Open)",
-    options=[
-        "Intraday Momentum (>0%)",
-        "General"
-    ],
-    index=0,
-    help="Intraday Momentum (>0%): Wajib lebih tinggi dari harga Open hari ini (Candle Hijau). General: Bebas mencakup semua saham."
-)
+if PRESET == "Custom":
+    TF_PILIHAN = st.sidebar.selectbox("Pilih Timeframe:", ["Daily", "1H"])
+    MA_PERIODE = st.sidebar.selectbox("Periode MA:", [5, 10, 20, 50, 200])
+elif PRESET == "Grade D (Market Merah Cari Alpha)":
+    TF_PILIHAN = "1H"
+    MA_PERIODE = 20
+else:
+    TF_PILIHAN = "Daily"
+    MA_PERIODE = 50
 
-# --- DROPDOWN 2: TIMEFRAME EKSEKUSI (REVISI: SINKRONISASI TOTAL TERMASUK 30M) ---
-TF_PILIHAN = st.sidebar.selectbox(
-    "2. Pilih Timeframe Eksekusi",
-    options=["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"],
-    index=0  # Default otomatis diarahkan ke Harian (Daily)
-)
+FILTER_INTRADAY = st.sidebar.selectbox("Filter Intraday:", ["General", "Intraday Momentum (>0%)"])
 
-# Logika penyesuaian period & interval secara dinamis agar aman dari rate-limit
-if TF_PILIHAN == "Harian (Daily)":
-    interval_param = "1d"
-    period_param = "2y"       # 2 tahun data harian (Wajib untuk mengamankan SMA 200)
-    label_tf = "Daily"
-elif TF_PILIHAN == "1 Jam (1H)":
-    interval_param = "1h"
-    period_param = "1mo"      # 1 bulan data untuk timeframe 1 jam
-    label_tf = "1H"
-elif TF_PILIHAN == "30 Menit (30m)":
-    interval_param = "30m"
-    period_param = "7d"       # 7 hari data untuk timeframe 30 menit (Sangat aman untuk SMA 50)
-    label_tf = "30m"
-elif TF_PILIHAN == "15 Menit (15m)":
-    interval_param = "15m"
-    period_param = "7d"       # 7 hari data untuk timeframe 15 menit
-    label_tf = "15m"
-else:  # 5 Menit (5m)
-    interval_param = "5m"
-    period_param = "5d"       # 5 hari data menit aman & melimpah untuk SMA 50
-    label_tf = "5m"
-
-# --- DROPDOWN 3: PERIODE MA KUSTOM SAKRAL ---
-MA_PERIODE = st.sidebar.selectbox(
-    "3. Periode Moving Average (MA) Eksekusi",
-    options=[5, 10, 20, 50, 200],
-    index=3  # Default otomatis mengarah ke MA 50
-)
-
-# --- LINK PERMANEN GOOGLE SHEETS ANDA ---
-URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
-
-# Tombol "Start Screening"
-MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
-
-# Menampilkan status filter aktif di dashboard utama
-st.info(f"📋 **Kondisi Aktif:** Harga > SMA {MA_PERIODE} ({label_tf}) | Filter Intraday: **{FILTER_INTRADAY}**")
-
-# ==============================================================================
-# 2. LOGIKA UTAMA SCREENER (DYNAMIC BULK DOWNLOAD ROUTINE)
-# ==============================================================================
-if MULAI_SCAN:
-    # Validasi Pengaman Khusus: Cegah user memilih SMA 200 di timeframe menit kecil karena datanya tidak akan cukup
-    if interval_param in ["5m", "15m", "30m"] and MA_PERIODE == 200:
-        st.error(f"❌ Batasan Teknis: SMA 200 terlalu besar untuk Timeframe {TF_PILIHAN} pada mode unduh cepat. Silakan gunakan maksimal SMA 50 untuk timeframe menit ini, atau pindah ke timeframe 1 Jam / Daily jika ingin memakai SMA 200.")
-        st.stop()
-
-    with st.spinner("Mengunduh data pasar massal secara instan..."):
-        try:
-            # Ambil database dari Google Sheets (Kolom A)
-            df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
-            df_sheet.columns = ['Quote']
-            df_sheet = df_sheet.dropna(subset=['Quote'])
-            
-            watchlist_raw = df_sheet['Quote'].astype(str).str.strip().str.upper().tolist()
-            
-            watchlist = []
-            for kode in watchlist_raw:
-                if kode.isalpha() and len(kode) == 4 and kode != 'QUOTE':
-                    watchlist.append(kode + ".JK")
-            
-            if not watchlist:
-                st.error("Gagal mendeteksi kode saham yang valid di Google Sheets Anda.")
-                st.stop()
+# --- Eksekusi ---
+if st.sidebar.button("🚀 Start Screening"):
+    # 1. Bersihkan Cache Data agar tidak bentrok dengan sesi sebelumnya
+    st.cache_data.clear()
+    
+    with st.spinner("Menarik data terbaru dari bursa..."):
+        watchlist = get_watchlist()
+        period = "5d" if TF_PILIHAN == "1H" else "1y"
+        interval = "1h" if TF_PILIHAN == "1H" else "1d"
+        
+        # Tarik data
+        data_bulk = yf.download(watchlist, period=period, interval=interval, group_by='ticker', auto_adjust=True, progress=False)
+        
+        hasil_utama = []
+        hasil_cadangan = []
+        
+        for ticker in watchlist:
+            try:
+                df = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
+                if df.empty or 'Close' not in df.columns: continue
                 
-            st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
-            
-            # --- DOWNLOAD DATA DAILY (Selalu ditarik untuk mengunci Filter Open Hari Ini) ---
-            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
-            
-            # --- DOWNLOAD DATA EKSEKUSI ---
-            if interval_param == "1d":
-                data_exec_bulk = data_daily_bulk
-            else:
-                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
+                # Pembersihan wajib
+                df = df.ffill().bfill().dropna()
+                if len(df) < MA_PERIODE: continue
                 
-            hasil_screener = []
-            
-            # Perulangan analisa di memori
-            for ticker in watchlist:
-                try:
-                    if len(watchlist) == 1:
-                        df_d = data_daily_bulk.copy()
-                        df_e = data_exec_bulk.copy()
-                    else:
-                        df_d = data_daily_bulk[ticker].copy()
-                        df_e = data_exec_bulk[ticker].copy()
-                        
-                    # Dapatkan Harga Terakhir dari data eksekusi
-                    kolom_close_e = 'Close' if 'Close' in df_e.columns else 'Adj Close'
-                    close_exec = df_e[kolom_close_e].dropna().squeeze()
-                    
-                    if close_exec.empty:
-                        continue
-                    harga_terakhir = float(close_exec.iloc[-1])
-                    
-                    # --- 1. LOGIKA FILTER INTRADAY MOMENTUM VS OPEN ---
-                    if FILTER_INTRADAY == "Intraday Momentum (>0%)":
-                        if 'Open' in df_d.columns:
-                            open_series = df_d['Open'].dropna().squeeze()
-                            if not open_series.empty:
-                                open_hari_ini = float(open_series.iloc[-1])
-                                if harga_terakhir < open_hari_ini:
-                                    continue  # Singkirkan candle merah harian
-                                
-                    # --- 2. LOGIKA FILTER UTAMA MOVING AVERAGE ---
-                    if len(close_exec) >= MA_PERIODE:
-                        ma_exec_series = close_exec.rolling(window=MA_PERIODE).mean()
-                        nilai_ma_exec = float(ma_exec_series.iloc[-1])
-                        
-                        if harga_terakhir > nilai_ma_exec:
-                            jarak_persen = ((harga_terakhir - nilai_ma_exec) / nilai_ma_exec) * 100
-                            clean_ticker = ticker.replace(".JK", "")
-                                    
-                            hasil_screener.append({
-                                "Kode Saham": clean_ticker,
-                                "Harga Terakhir": int(harga_terakhir) if harga_terakhir >= 1 else round(harga_terakhir, 2),
-                                f"Nilai SMA {MA_PERIODE}": round(nilai_ma_exec, 2),
-                                "Jarak (%)": round(jarak_persen, 2)
-                            })
-                except:
-                    pass
-                    
-            # ==============================================================================
-            # 3. OUTPUT INTERAKTIF FULL WIDTH (SORT BY KODE SAHAM)
-            # ==============================================================================
-            st.success("🎯 Pemindaian Selesai!")
-            
-            if hasil_screener:
-                df_hasil = pd.DataFrame(hasil_screener)
+                close = float(df['Close'].iloc[-1])
+                ma_val = float(df['Close'].rolling(MA_PERIODE).mean().iloc[-1])
+                dist_ma = ((close - ma_val) / ma_val) * 100
                 
-                # Default awal: Urut berdasarkan Kode Saham dari A ke Z
-                df_hasil = df_hasil.sort_values(by="Kode Saham", ascending=True)
+                # Filter Intraday (Opsional)
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)" and close < float(df['Open'].iloc[-1]): continue
                 
-                st.metric(label="Saham Lolos Kriteria", value=f"{len(df_hasil)} Saham")
+                data_item = {"Kode": ticker.replace(".JK", ""), "Price": close, "Jarak MA (%)": round(dist_ma, 2)}
                 
-                st.dataframe(
-                    df_hasil,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Jarak (%)": st.column_config.NumberColumn(
-                            "Jarak (%)",
-                            format="+%.2f%%"
-                        )
-                    }
-                )
-            else:
-                st.warning("Tidak ada saham dari database Anda yang memenuhi kriteria di atas.")
+                # Logika Filter
+                if close > ma_val:
+                    hasil_utama.append(data_item)
                 
-        except Exception as e:
-            st.error(f"Terjadi kesalahan teknis utama: {e}")
+                hasil_cadangan.append(data_item)
+            except: continue
+
+        # Tampilkan Hasil
+        if hasil_utama:
+            st.success(f"Ditemukan {len(hasil_utama)} saham!")
+            st.dataframe(pd.DataFrame(hasil_utama).sort_values("Jarak MA (%)", ascending=False), use_container_width=True, hide_index=True)
+        elif hasil_cadangan:
+            st.warning("Tidak ada saham di atas MA. Berikut 10 saham terdekat ke MA:")
+            df_c = pd.DataFrame(hasil_cadangan).sort_values("Jarak MA (%)", ascending=False).head(10)
+            st.dataframe(df_c, use_container_width=True, hide_index=True)
+        else:
+            st.error("Gagal memproses data. Coba lagi.")
