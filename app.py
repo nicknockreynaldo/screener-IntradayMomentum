@@ -23,7 +23,7 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 if PRESET == "Grade A Setup":
     st.sidebar.caption("Grade A - Price Above DMA 10 AND DMA 50")
 elif PRESET == "Grade B Setup":
-    st.sidebar.caption("Grade B - Price Above DMA 10 But Below DMA 50")
+    st.sidebar.caption("Grade B - Price Above DMA 10 (3% Tol.) But Below DMA 50")
 elif PRESET == "Grade D (Market Merah Cari Alpha)":
     st.sidebar.caption("Grade D - 1H Price Above MA10")
 
@@ -36,12 +36,10 @@ if PRESET == "Manual (Default)":
     MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
     FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 else:
-    # Set default untuk Preset agar logika di bawah bisa berjalan
     TF_PILIHAN = "1 Jam (1H)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
     MA_PERIODE = 20 if PRESET == "Grade D (Market Merah Cari Alpha)" else 50
     FILTER_TREND = "General"
 
-# Mapping TF
 tf_map = {"Harian (Daily)": ("1d", "2y"), "1 Jam (1H)": ("1h", "1mo"), "30 Menit (30m)": ("30m", "7d"), "15 Menit (15m)": ("15m", "7d"), "5 Menit (5m)": ("5m", "5d")}
 interval_param, period_param = tf_map[TF_PILIHAN]
 
@@ -49,7 +47,7 @@ URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEym
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
 # ==============================================================================
-# 2. LOGIKA UTAMA (INTEGRASI GRADE A, B, D)
+# 2. LOGIKA UTAMA
 # ==============================================================================
 if MULAI_SCAN:
     with st.spinner("Memproses data..."):
@@ -73,18 +71,12 @@ if MULAI_SCAN:
                 # --- LOGIKA FILTER BERDASARKAN PRESET ---
                 is_lolos = False
                 if PRESET == "Grade A Setup":
-                    # Kriteria: Price > MA10 DAN Price > MA50
                     is_lolos = (close > ma10 and close > ma50)
-                
                 elif PRESET == "Grade B Setup":
-                    # Kriteria: Price > (MA10 * 0.97) DAN Price < MA50
-                    # Toleransi 3% dari MA10 ditambahkan di sini
+                    # Toleransi 3% DMA 10
                     is_lolos = (close >= (ma10 * 0.97) and close < ma50)
-                
                 elif PRESET == "Grade D (Market Merah Cari Alpha)":
-                    # Kriteria: Price > MA10 (Timeframe 1H)
                     is_lolos = (close > ma10)
-                
                 else: # Manual
                     is_lolos = (close > float(df_s['Close'].rolling(MA_PERIODE).mean().iloc[-1]))
                 
@@ -113,7 +105,14 @@ if MULAI_SCAN:
             df_h = pd.DataFrame(hasil_screener)
             df_h['is_new'] = df_h['Status'].apply(lambda x: 1 if "NEW" in x else 0)
             df_h = df_h.sort_values(by=["is_new", "Kode Saham"], ascending=[False, True]).drop(columns=['is_new'])
-            st.success(f"🎯 Pemindaian Selesai! {len(df_h)} saham lolos.")
-            st.dataframe(df_h, use_container_width=True, hide_index=True)
+            
+            st.success("🎯 Pemindaian Selesai!")
+            # TULISAN GEDE KEMBALI
+            st.metric(label="Saham Lolos Kriteria", value=f"{len(df_h)} Saham")
+            
+            st.dataframe(df_h, use_container_width=True, hide_index=True, column_config={
+                "% Change": st.column_config.NumberColumn("% Change", format="%+.2f%%"),
+                "Jarak ke MA 50 (%)": st.column_config.NumberColumn("Jarak ke MA 50 (%)", format="+%.2f%%")
+            })
         else:
             st.warning("Tidak ada saham yang memenuhi kriteria.")
