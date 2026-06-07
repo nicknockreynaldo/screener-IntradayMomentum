@@ -81,36 +81,4 @@ if MULAI_SCAN:
         st.error(f"❌ Batasan Teknis: SMA 200 terlalu besar untuk Timeframe {TF_PILIHAN} pada mode unduh cepat. Silakan gunakan maksimal SMA 50 untuk timeframe menit ini, atau pindah ke timeframe 1 Jam / Daily jika ingin memakai SMA 200.")
         st.stop()
 
-    with st.spinner("Mengunduh data pasar massal secara instan..."):
-        try:
-            # Ambil database dari Google Sheets (Kolom A)
-            df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
-            df_sheet.columns = ['Quote']
-            df_sheet = df_sheet.dropna(subset=['Quote'])
-            
-            watchlist_raw = df_sheet['Quote'].astype(str).str.strip().str.upper().tolist()
-            
-            watchlist = []
-            for kode in watchlist_raw:
-                if kode.isalpha() and len(kode) == 4 and kode != 'QUOTE':
-                    watchlist.append(kode + ".JK")
-            
-            if not watchlist:
-                st.error("Gagal mendeteksi kode saham yang valid di Google Sheets Anda.")
-                st.stop()
-                
-            st.write(f"🔍 Memproses data untuk **{len(watchlist)} saham**...")
-            
-            # --- DOWNLOAD DATA DAILY ---
-            data_daily_bulk = yf.download(watchlist, period="2y" if interval_param == "1d" else "5d", interval="1d", group_by='ticker', auto_adjust=False, progress=False)
-            
-            # --- DOWNLOAD DATA EKSEKUSI ---
-            if interval_param == "1d":
-                data_exec_bulk = data_daily_bulk
-            else:
-                data_exec_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
-                
-            hasil_screener = []
-            
-            # Perulangan analisa di memori
-            for ticker in watchlist
+    with st.spinner("Mengunduh data pasar massal secara
