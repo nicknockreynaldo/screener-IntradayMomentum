@@ -30,7 +30,7 @@ FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev C
 # Penyesuaian Timeframe & MA
 if PRESET == "Manual (Default)":
     TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
-    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
+    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=3) # Default ke 50
     FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 else:
     TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
@@ -64,6 +64,7 @@ if MULAI_SCAN:
                 df_i = data_intra[ticker].sort_index().dropna(subset=['Close'])
                 if df_d.empty or df_i.empty or len(df_d) < 50: continue
                 
+                # Kalkulasi Data
                 dma10 = float(df_d['Close'].rolling(10).mean().iloc[-1])
                 dma50 = float(df_d['Close'].rolling(50).mean().iloc[-1])
                 prev_close = float(df_d['Close'].iloc[-2])
@@ -71,15 +72,26 @@ if MULAI_SCAN:
                 close = float(df_i['Close'].iloc[-1])
                 change_pct = ((close - prev_close) / prev_close) * 100
                 
-                ma10_intra = float(df_i['Close'].rolling(10).mean().iloc[-1]) if len(df_i) >= 10 else close
-                ma20_intra = float(df_i['Close'].rolling(20).mean().iloc[-1]) if len(df_i) >= 20 else close
-                ma50_intra = float(df_i['Close'].rolling(50).mean().iloc[-1]) if len(df_i) >= 50 else close
+                # Kalkulasi MA Intraday yang dipilih di Sidebar
+                ma_target = float(df_i['Close'].rolling(MA_PERIODE).mean().iloc[-1])
+                ma10_intra = float(df_i['Close'].rolling(10).mean().iloc[-1])
+                ma20_intra = float(df_i['Close'].rolling(20).mean().iloc[-1])
+                ma50_intra = float(df_i['Close'].rolling(50).mean().iloc[-1])
                 
+                # --- LOGIKA FILTER PEMBENAHAN ---
                 is_lolos = True
+                
+                # 1. Filter Preset
                 if PRESET == "Grade A Setup": is_lolos = (close > dma10 and close > dma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (dma10 * 0.95) and close < dma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50_intra)
                 
+                # 2. Filter Manual: Harus di atas MA yang dipilih di sidebar
+                if PRESET == "Manual (Default)":
+                    if close <= ma_target:
+                        is_lolos = False
+                
+                # 3. Filter Momentum & Tren Tambahan
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0: is_lolos = False
                 if PRESET == "Manual (Default)" and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and close <= dma10: is_lolos = False
                 
@@ -102,5 +114,5 @@ if MULAI_SCAN:
                 st.success("🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
-            else: st.warning("Tidak ada saham yang memenuhi kriteria.")
+            else: st.warning("Tidak ada saham yang memenuhi kriteria (coba periksa apakah harga sudah di atas MA yang dipilih).")
         except Exception as e: st.error(f"Error: {e}")
