@@ -17,14 +17,6 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# Keterangan Preset
-if PRESET == "Grade A Setup":
-    st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
-elif PRESET == "Grade B Setup":
-    st.sidebar.info("Grade B:\n\n- Price Above DMA 10 BUT Below DMA 50\n- Fast Trade Play")
-elif PRESET == "Grade D (Market Merah Cari Alpha)":
-    st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
-
 DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug (Cek Akurasi MA vs GSheet)", value=False)
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
@@ -34,7 +26,6 @@ if PRESET == "Manual (Default)":
     MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
     FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 else:
-    # BUG FIX: Grade A dan Grade B menggunakan data Harian (Daily), Grade D menggunakan 5 Menit
     TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
     MA_PERIODE = 50 
     FILTER_TREND = "General"
@@ -88,12 +79,13 @@ if MULAI_SCAN:
                             "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                         })
                     else:
+                        # Judul kolom diubah sesuai permintaan Anda
                         hasil_screener.append({
                             "Kode Saham": clean,
                             "Price": f"Rp{close:,.0f}",
-                            "Jarak ke MA 10 (%)": f"{((close - ma10) / ma10) * 100:.2f}%",
-                            "Jarak ke MA 20 (%)": f"{((close - ma20) / ma20) * 100:.2f}%",
-                            "Jarak ke MA 50 (%)": f"{((close - ma50) / ma50) * 100:.2f}%",
+                            "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
+                            "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
+                            "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
                             "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                         })
             
@@ -101,6 +93,9 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
+                # Urutkan berdasarkan Kode Saham secara abjad
+                df_h = df_h.sort_values(by="Kode Saham")
+                
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
