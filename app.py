@@ -17,7 +17,7 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# Mengembalikan keterangan Preset di bawah dropdown
+# Keterangan Preset
 if PRESET == "Grade A Setup":
     st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
 elif PRESET == "Grade B Setup":
@@ -60,13 +60,15 @@ if MULAI_SCAN:
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close'])
-                if df_s.empty or len(df_s) < 60: continue
+                jumlah_data = len(df_s)
+                if df_s.empty or jumlah_data < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
+                # Logika Filter
                 if PRESET == "Manual (Default)": is_lolos = True
                 elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -75,25 +77,31 @@ if MULAI_SCAN:
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    hasil_screener.append({
-                        "Kode Saham": clean,
-                        "Price": f"Rp{close:,.0f}",
-                        "Jarak ke MA 10 (%)": f"{((close - ma10) / ma10) * 100:.2f}%",
-                        "Jarak ke MA 20 (%)": f"{((close - ma20) / ma20) * 100:.2f}%",
-                        "Jarak ke MA 50 (%)": f"{((close - ma50) / ma50) * 100:.2f}%",
-                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
-                    })
+                    
+                    if DEBUG_MODE:
+                        hasil_screener.append({
+                            "Kode Saham": clean,
+                            "Price": f"Rp{close:,.0f}",
+                            "MA 50 (Python)": f"Rp{ma50:,.0f}",
+                            "Data Count": jumlah_data,
+                            "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
+                        })
+                    else:
+                        hasil_screener.append({
+                            "Kode Saham": clean,
+                            "Price": f"Rp{close:,.0f}",
+                            "Jarak ke MA 10 (%)": f"{((close - ma10) / ma10) * 100:.2f}%",
+                            "Jarak ke MA 20 (%)": f"{((close - ma20) / ma20) * 100:.2f}%",
+                            "Jarak ke MA 50 (%)": f"{((close - ma50) / ma50) * 100:.2f}%",
+                            "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
+                        })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                
-                # Mengembalikan Box Hijau
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
-                
-                # Menampilkan tabel tanpa modifikasi kolom agar tampil apa adanya
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else: 
                 st.warning("Tidak ada saham yang memenuhi kriteria.")
