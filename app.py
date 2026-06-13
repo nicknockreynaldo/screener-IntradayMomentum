@@ -16,6 +16,15 @@ if 'memori_saham' not in st.session_state:
 # Sidebar Parameter
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
+
+# Mengembalikan keterangan Preset di bawah dropdown
+if PRESET == "Grade A Setup":
+    st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
+elif PRESET == "Grade B Setup":
+    st.sidebar.info("Grade B:\n\n- Price Above DMA 10 BUT Below DMA 50\n- Fast Trade Play")
+elif PRESET == "Grade D (Market Merah Cari Alpha)":
+    st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
+
 DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug", value=False)
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
@@ -84,7 +93,7 @@ if MULAI_SCAN:
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 
-                # Menampilkan tabel tanpa modifikasi kolom (Data Mentah)
+                # Menampilkan tabel tanpa modifikasi kolom agar tampil apa adanya
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else: 
                 st.warning("Tidak ada saham yang memenuhi kriteria.")
