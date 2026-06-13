@@ -25,7 +25,7 @@ elif PRESET == "Grade B Setup":
 elif PRESET == "Grade D (Market Merah Cari Alpha)":
     st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
 
-DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug", value=False)
+DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug (Cek Akurasi MA vs GSheet)", value=False)
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Timeframe & MA
@@ -82,8 +82,7 @@ if MULAI_SCAN:
                         hasil_screener.append({
                             "Kode Saham": clean,
                             "Price": f"Rp{close:,.0f}",
-                            "MA 50 (Python)": f"Rp{ma50:,.0f}",
-                            "Data Count": jumlah_data,
+                            "MA 50 (Python)": f"Rp{ma50:,.0f}", # DITAMBAHKAN UNTUK CEK
                             "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                         })
                     else:
