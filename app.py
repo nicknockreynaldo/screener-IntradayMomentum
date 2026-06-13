@@ -82,7 +82,8 @@ if MULAI_SCAN:
                         hasil_screener.append({
                             "Kode Saham": clean,
                             "Price": f"Rp{close:,.0f}",
-                            "MA 50 (Python)": f"Rp{ma50:,.0f}", # DITAMBAHKAN UNTUK CEK
+                            "MA 10 (Python)": f"Rp{ma10:,.0f}", # KOLOM BARU
+                            "MA 50 (Python)": f"Rp{ma50:,.0f}",
                             "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                         })
                     else:
