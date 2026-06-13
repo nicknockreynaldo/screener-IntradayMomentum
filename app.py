@@ -17,10 +17,8 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# --- DEBUG MODE DI-HIDE (KODE TETAP ADA) ---
-# DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug (Cek Akurasi MA vs GSheet)", value=False)
+# Debug Mode di-hide (kode tetap ada)
 DEBUG_MODE = False 
-# -------------------------------------------
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
@@ -55,11 +53,14 @@ if MULAI_SCAN:
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close'])
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Open'])
                 jumlah_data = len(df_s)
                 if df_s.empty or jumlah_data < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
+                open_price = float(df_s['Open'].iloc[-1])
+                change_pct = ((close - open_price) / open_price) * 100
+                
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
@@ -77,6 +78,7 @@ if MULAI_SCAN:
                     hasil_screener.append({
                         "Kode Saham": clean,
                         "Price": f"Rp{close:,.0f}",
+                        "Change %": f"{change_pct:+.2f}%", # Kolom Baru
                         "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
                         "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
                         "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
