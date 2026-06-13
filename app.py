@@ -28,7 +28,7 @@ elif PRESET == "Grade D (Market Merah Cari Alpha)":
 # Debug Mode di-hide
 DEBUG_MODE = False 
 
-FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
+FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Close)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Timeframe & MA
 if PRESET == "Manual (Default)":
@@ -61,12 +61,14 @@ if MULAI_SCAN:
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Open'])
+                df_s = df_s.sort_index().dropna(subset=['Close'])
+                
+                # Memerlukan setidaknya data hari ini dan kemarin untuk prev_close
                 if df_s.empty or len(df_s) < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
-                open_price = float(df_s['Open'].iloc[-1])
-                change_pct = ((close - open_price) / open_price) * 100
+                prev_close = float(df_s['Close'].iloc[-2]) # Data penutupan hari sebelumnya
+                change_pct = ((close - prev_close) / prev_close) * 100
                 
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
@@ -80,7 +82,7 @@ if MULAI_SCAN:
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
                 
-                # Filter Intraday Momentum
+                # Filter Intraday Momentum vs Previous Close
                 if FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
                     is_lolos = False
                 
