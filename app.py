@@ -17,7 +17,7 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# --- KETERANGAN PRESET (DIPERBAIKI) ---
+# Keterangan Preset
 if PRESET == "Grade A Setup":
     st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
 elif PRESET == "Grade B Setup":
@@ -62,8 +62,7 @@ if MULAI_SCAN:
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Open'])
-                jumlah_data = len(df_s)
-                if df_s.empty or jumlah_data < 50: continue
+                if df_s.empty or len(df_s) < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
                 open_price = float(df_s['Open'].iloc[-1])
@@ -73,11 +72,17 @@ if MULAI_SCAN:
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
-                # Logika Filter
-                if PRESET == "Manual (Default)": is_lolos = True
-                elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
+                # --- LOGIKA FILTER ---
+                is_lolos = True
+                
+                # Preset Filter
+                if PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
+                
+                # Filter Intraday Momentum
+                if FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
+                    is_lolos = False
                 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
@@ -96,9 +101,7 @@ if MULAI_SCAN:
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
-                df_h = pd.DataFrame(hasil_screener)
-                df_h = df_h.sort_values(by="Kode Saham")
-                
+                df_h = pd.DataFrame(hasil_screener).sort_values(by="Kode Saham")
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
