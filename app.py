@@ -17,7 +17,15 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-# Debug Mode di-hide (kode tetap ada)
+# --- KETERANGAN PRESET (DIPERBAIKI) ---
+if PRESET == "Grade A Setup":
+    st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
+elif PRESET == "Grade B Setup":
+    st.sidebar.info("Grade B:\n\n- Price Above DMA 10 BUT Below DMA 50\n- Fast Trade Play")
+elif PRESET == "Grade D (Market Merah Cari Alpha)":
+    st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
+
+# Debug Mode di-hide
 DEBUG_MODE = False 
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
@@ -78,7 +86,7 @@ if MULAI_SCAN:
                     hasil_screener.append({
                         "Kode Saham": clean,
                         "Price": f"Rp{close:,.0f}",
-                        "Change %": f"{change_pct:+.2f}%", # Kolom Baru
+                        "Change %": f"{change_pct:+.2f}%",
                         "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
                         "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
                         "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
