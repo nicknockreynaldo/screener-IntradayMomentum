@@ -17,7 +17,11 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)"])
 
-DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug (Cek Akurasi MA vs GSheet)", value=False)
+# --- DEBUG MODE DI-HIDE (KODE TETAP ADA) ---
+# DEBUG_MODE = st.sidebar.checkbox("Aktifkan Mode Debug (Cek Akurasi MA vs GSheet)", value=False)
+DEBUG_MODE = False 
+# -------------------------------------------
+
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Timeframe & MA
@@ -70,30 +74,19 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     
-                    if DEBUG_MODE:
-                        hasil_screener.append({
-                            "Kode Saham": clean,
-                            "Price": f"Rp{close:,.0f}",
-                            "MA 10 (Python)": f"Rp{ma10:,.0f}",
-                            "MA 50 (Python)": f"Rp{ma50:,.0f}",
-                            "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
-                        })
-                    else:
-                        # Judul kolom diubah sesuai permintaan Anda
-                        hasil_screener.append({
-                            "Kode Saham": clean,
-                            "Price": f"Rp{close:,.0f}",
-                            "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
-                            "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
-                        })
+                    hasil_screener.append({
+                        "Kode Saham": clean,
+                        "Price": f"Rp{close:,.0f}",
+                        "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
+                        "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
+                        "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
+                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
+                    })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                # Urutkan berdasarkan Kode Saham secara abjad
                 df_h = df_h.sort_values(by="Kode Saham")
                 
                 st.success(f"🎯 Pemindaian Selesai!")
