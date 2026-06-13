@@ -34,7 +34,8 @@ if PRESET == "Manual (Default)":
     MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
     FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 else:
-    TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "1 Jam (1H)"
+    # BUG FIX: Grade A dan Grade B menggunakan data Harian (Daily), Grade D menggunakan 5 Menit
+    TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
     MA_PERIODE = 50 
     FILTER_TREND = "General"
 
@@ -82,7 +83,7 @@ if MULAI_SCAN:
                         hasil_screener.append({
                             "Kode Saham": clean,
                             "Price": f"Rp{close:,.0f}",
-                            "MA 10 (Python)": f"Rp{ma10:,.0f}", # KOLOM BARU
+                            "MA 10 (Python)": f"Rp{ma10:,.0f}",
                             "MA 50 (Python)": f"Rp{ma50:,.0f}",
                             "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                         })
