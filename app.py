@@ -38,18 +38,14 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 
-# Fungsi Styling Ringan (Hanya Bold untuk Kode Saham)
 def apply_styles(df):
-    return df.style.set_properties(
-        subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'}
-    )
+    return df.style.set_properties(subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'})
 
 if MULAI_SCAN:
     with st.spinner("Menjalankan Analisis..."):
         try:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
-            
             data_daily = yf.download(watchlist, period="2y", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
             data_intra = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             
@@ -62,15 +58,21 @@ if MULAI_SCAN:
                 if df_d.empty or df_i.empty or len(df_d) < 50: continue
                 
                 close = float(df_i['Close'].iloc[-1])
+                volume = float(df_i['Volume'].iloc[-1])
+                value_miliar = (close * volume) / 1_000_000_000
                 prev_close = float(df_d['Close'].iloc[-2])
-                ma_target = float(df_i['Close'].rolling(MA_PERIODE).mean().iloc[-1])
+                
                 dma10 = float(df_d['Close'].rolling(10).mean().iloc[-1])
                 dma50 = float(df_d['Close'].rolling(50).mean().iloc[-1])
+                ma_target = float(df_i['Close'].rolling(MA_PERIODE).mean().iloc[-1])
+                ma10_intra = float(df_i['Close'].rolling(10).mean().iloc[-1])
+                ma20_intra = float(df_i['Close'].rolling(20).mean().iloc[-1])
+                ma50_intra = float(df_i['Close'].rolling(50).mean().iloc[-1])
                 
                 is_lolos = True
                 if PRESET == "Grade A Setup": is_lolos = (close > dma10 and close > dma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (dma10 * 0.95) and close < dma50)
-                elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > float(df_i['Close'].rolling(50).mean().iloc[-1]))
+                elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50_intra)
                 elif PRESET == "Manual (Default)":
                     if close <= ma_target: is_lolos = False
                     if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and close <= dma10: is_lolos = False
@@ -83,15 +85,17 @@ if MULAI_SCAN:
                     hasil_screener.append({
                         "Kode Saham": clean_code,
                         "Price": f"Rp{close:,.0f}",
+                        "Value (Miliar)": round(value_miliar, 2),
                         "Change %": f"{((close - prev_close) / prev_close) * 100:+.2f}%",
-                        "% Jarak ke MA10 (1H)": f"{((close - df_i['Close'].rolling(10).mean().iloc[-1]) / df_i['Close'].rolling(10).mean().iloc[-1]) * 100:.2f}%",
-                        "% Jarak ke MA50 (1H)": f"{((close - ma_target) / ma_target) * 100:.2f}%",
+                        "% Jarak ke MA10 (1H)": f"{((close - ma10_intra) / ma10_intra) * 100:.2f}%",
+                        "% Jarak ke MA20 (1H)": f"{((close - ma20_intra) / ma20_intra) * 100:.2f}%",
+                        "% Jarak ke MA50 (1H)": f"{((close - ma50_intra) / ma50_intra) * 100:.2f}%",
                         "Status": "🟢 NEW" if clean_code not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             if hasil_screener:
-                df_h = pd.DataFrame(hasil_screener).sort_values(by="Kode Saham")
+                df_h = pd.DataFrame(hasil_screener).sort_values(by="Value (Miliar)", ascending=False)
                 st.success("🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 st.dataframe(apply_styles(df_h), use_container_width=True, hide_index=True)
