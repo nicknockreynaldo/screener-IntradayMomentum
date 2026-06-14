@@ -115,9 +115,19 @@ if MULAI_SCAN:
                 st.success(f"🎯 Pemindaian Selesai!")
                 
                 # Terapkan Style
-                styled_df = df_h.style.applymap(highlight_ma50, subset=['% Jarak ke MA50 (1H)']).set_properties(
-                    subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'}
-                )
+              # 1. Update fungsi highlight (gunakan .map di dalam Styler)
+def apply_styles(df):
+    def highlight_ma50(val):
+        try:
+            # Membersihkan string untuk konversi ke float
+            clean_val = float(str(val).replace('%', ''))
+            return 'background-color: #d4edda' if -3.0 <= clean_val <= 3.0 else ''
+        except: return ''
+    
+    # Gunakan .map() alih-alih .applymap() untuk pandas versi terbaru
+    return df.style.map(highlight_ma50, subset=['% Jarak ke MA50 (1H)']).set_properties(
+        subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'}
+    )
                 
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 st.dataframe(styled_df, use_container_width=True, hide_index=True)
