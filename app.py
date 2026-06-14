@@ -46,12 +46,17 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
 st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 
-# Fungsi Styling Baru
-def highlight_ma50(val):
-    try:
-        clean_val = float(str(val).replace('%', ''))
-        return 'background-color: #d4edda' if -3.0 <= clean_val <= 3.0 else ''
-    except: return ''
+# Fungsi Styling Baru (Menggunakan .map untuk pandas 2.1+)
+def apply_styles(df):
+    def highlight_ma50(val):
+        try:
+            clean_val = float(str(val).replace('%', ''))
+            return 'background-color: #d4edda' if -3.0 <= clean_val <= 3.0 else ''
+        except: return ''
+    
+    return df.style.map(highlight_ma50, subset=['% Jarak ke MA50 (1H)']).set_properties(
+        subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'}
+    )
 
 if MULAI_SCAN:
     with st.spinner("Menjalankan Analisis Multi-Timeframe... Mohon tunggu..."):
@@ -114,23 +119,8 @@ if MULAI_SCAN:
                 df_h = pd.DataFrame(hasil_screener).sort_values(by="Kode Saham")
                 st.success(f"🎯 Pemindaian Selesai!")
                 
-                # Terapkan Style
-              # 1. Update fungsi highlight (gunakan .map di dalam Styler)
-def apply_styles(df):
-    def highlight_ma50(val):
-        try:
-            # Membersihkan string untuk konversi ke float
-            clean_val = float(str(val).replace('%', ''))
-            return 'background-color: #d4edda' if -3.0 <= clean_val <= 3.0 else ''
-        except: return ''
-    
-    # Gunakan .map() alih-alih .applymap() untuk pandas versi terbaru
-    return df.style.map(highlight_ma50, subset=['% Jarak ke MA50 (1H)']).set_properties(
-        subset=['Kode Saham'], **{'font-weight': 'bold', 'font-size': '16px'}
-    )
-                
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                st.dataframe(apply_styles(df_h), use_container_width=True, hide_index=True)
             else: 
                 st.warning("Tidak ada saham yang memenuhi kriteria saat ini.")
         except Exception as e: 
