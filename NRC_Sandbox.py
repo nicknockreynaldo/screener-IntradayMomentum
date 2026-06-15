@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import warnings
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date) + Value Filter")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -20,9 +20,11 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# Keterangan Preset
+# Keterangan & Parameter Tambahan Preset
 if PRESET == "Hot Start":
     st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
+    MIN_VALUE_M = st.sidebar.number_input("Min. Value Pagi (Miliar Rp)", value=5, step=1)
+    MIN_VALUE = MIN_VALUE_M * 1_000_000_000
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
 
@@ -66,28 +68,25 @@ if MULAI_SCAN:
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
+                val_pagi = 0
                 
                 if PRESET == "Hot Start":
-                    # --- LOGIKA BENAR: IDENTIFIKASI HARI INI ---
                     hari_ini = df_s.index[-1].date()
                     df_hari_ini = df_s[df_s.index.date == hari_ini]
                     
                     if len(df_hari_ini) >= 2:
-                        # 1. Volume 30 menit pertama HARI INI
                         vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
+                        harga_avg_pagi = df_hari_ini['Close'].iloc[0:2].mean()
+                        val_pagi = vol_pagi * harga_avg_pagi
                         
-                        # 2. Cari Timestamp candle jam 09.30 HARI INI (index ke-1 hari ini)
                         waktu_kunci = df_hari_ini.index[1]
-                        
-                        # 3. Hitung rata-rata 10 candle terakhir, lalu ambil nilainya tepat di waktu_kunci
                         rolling_mean_series = df_s['Volume'].rolling(window=10).mean()
                         vol_rata = rolling_mean_series.loc[waktu_kunci]
                         
                         if pd.isna(vol_rata) or vol_rata == 0: 
                             vol_rata = df_hari_ini['Volume'].iloc[0]
                         
-                        # 4. Bandingkan
-                        if vol_pagi > (vol_rata * 2.0):
+                        if vol_pagi > (vol_rata * 2.0) and val_pagi >= MIN_VALUE:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
                 else:
@@ -103,7 +102,6 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
-                # Filter Final
                 prev_daily_close = float(df_d['Close'].iloc[-2])
                 close = float(df_s['Close'].iloc[-1])
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
@@ -113,12 +111,24 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
-                    hasil_screener.append({"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan})
+                    
+                    # Menambahkan data ke hasil sesuai kebutuhan
+                    item = {"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan}
+                    if PRESET == "Hot Start":
+                        item["Value Pagi (M)"] = round(val_pagi / 1_000_000_000, 1)
+                    
+                    hasil_screener.append(item)
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
-                df_h = pd.DataFrame(hasil_screener).sort_values(by="Kode Saham")
+                df_h = pd.DataFrame(hasil_screener)
+                # Jika Hot Start, sort berdasarkan Value Pagi
+                if PRESET == "Hot Start":
+                    df_h = df_h.sort_values(by="Value Pagi (M)", ascending=False)
+                else:
+                    df_h = df_h.sort_values(by="Kode Saham")
+                    
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
