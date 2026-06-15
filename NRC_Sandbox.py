@@ -28,7 +28,7 @@ elif PRESET == "Grade B Setup":
 elif PRESET == "Grade D (Market Merah Cari Alpha)":
     st.sidebar.info("Grade D:\n\n- 5min Price Above MA50")
 elif PRESET == "Hot Start":
-    st.sidebar.info("Hot Start:\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.5x rata-rata 2.5 jam terakhir.")
+    st.sidebar.info("Hot Start:\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.0x rata-rata 2.5 jam terakhir.")
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
@@ -82,7 +82,8 @@ if MULAI_SCAN:
                     if len(df_s) >= 2:
                         vol_pagi = df_s['Volume'].iloc[0:2].sum()
                         vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[-1]
-                        if vol_pagi > (vol_rata * 2.5):
+                        # Sensitivitas 2x
+                        if vol_pagi > (vol_rata * 2.0):
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
                 
@@ -113,8 +114,12 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                st.success(f"🎯 Pemindaian Selesai!")
-                st.dataframe(df_h.sort_values(by="Kode Saham"), use_container_width=True, hide_index=True)
+                df_h = df_h.sort_values(by="Kode Saham")
+                
+                # Menampilkan jumlah dan tabel memanjang
+                st.subheader(f"Total: {len(df_h)} Saham yang memenuhi kriteria")
+                tabel_height = (len(df_h) * 35) + 40
+                st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else:
                 st.warning("Tidak ada saham yang memenuhi kriteria.")
         except Exception as e: st.error(f"Error: {e}")
