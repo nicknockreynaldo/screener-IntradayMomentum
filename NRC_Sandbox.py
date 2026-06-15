@@ -21,13 +21,44 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# Keterangan Preset (DIPULIHKAN SEPERTI SEMULA)
-if PRESET == "Hot Start":
+# KETERANGAN PRESET (Restorasi Tampilan)
+if PRESET == "Grade A Setup":
+    st.sidebar.markdown("""
+    <div style="background-color: #d4edda; padding: 10px; border-radius: 5px; color: #155724;">
+    <strong>Grade A:</strong><br>
+    <ul>
+    <li>Power Play Uptrend</li>
+    <li>Price Above DMA 10 and 50</li>
+    <li>Swing Play</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+elif PRESET == "Grade B Setup":
+    st.sidebar.markdown("""
+    <div style="background-color: #d1ecf1; padding: 10px; border-radius: 5px; color: #0c5460;">
+    <strong>Grade B:</strong><br>
+    <ul>
+    <li>Price Above DMA 10 BUT Below DMA 50</li>
+    <li>Fast Trade Play</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+elif PRESET == "Grade D (Market Merah Cari Alpha)":
+    st.sidebar.markdown("""
+    <div style="background-color: #f8d7da; padding: 10px; border-radius: 5px; color: #721c24;">
+    <strong>Grade D:</strong><br>
+    <ul>
+    <li>5min Price Above MA50</li>
+    <li>Scalp Play</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
+elif PRESET == "Hot Start":
     st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
     MIN_VALUE_M = st.sidebar.number_input("Min. Value Pagi (Miliar Rp)", value=5, step=1)
     MIN_VALUE = MIN_VALUE_M * 1_000_000_000
 
-FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
+FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Otomatis Parameter
 if PRESET == "Manual (Default)":
@@ -108,30 +139,24 @@ if MULAI_SCAN:
                     daftar_saham_lolos_sekarang.append(clean)
                     change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                     
-                    # Simpan hasil untuk sorting
                     hasil_screener.append({
                         "Kode Saham": clean, 
                         "Price": f"Rp{close:,.0f}", 
                         "Change %": f"{change_pct:+.2f}%", 
                         "Status": status_keterangan,
-                        "val_helper": val_pagi,
-                        "close_helper": close
+                        "val_helper": val_pagi
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                
-                # Logic Sorting
                 if PRESET == "Hot Start":
                     df_h = df_h.sort_values(by="val_helper", ascending=False)
                 else:
                     df_h = df_h.sort_values(by="Kode Saham")
                 
-                # Bersihkan kolom helper sebelum tampil
-                df_h = df_h.drop(columns=["val_helper", "close_helper"])
-                
+                df_h = df_h.drop(columns=["val_helper"])
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
