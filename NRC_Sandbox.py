@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import warnings
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.00-09.30 (Terkunci)")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -22,17 +22,20 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 
 # Keterangan Preset
 if PRESET == "Hot Start":
-    st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama (09.00-09.30) dengan rata-rata volume di periode yang sama saja.")
+    st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Otomatis Parameter
-if PRESET == "Hot Start":
+if PRESET == "Manual (Default)":
+    TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
+    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
+elif PRESET == "Hot Start":
     TF_PILIHAN = "15 Menit (15m)"
     MA_PERIODE = 50
 else:
-    TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
-    MA_PERIODE = 50
+    TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
+    MA_PERIODE = 50 
 
 tf_map = {"Harian (Daily)": ("1d", "2y"), "1 Jam (1H)": ("1h", "1mo"), "30 Menit (30m)": ("30m", "1mo"), "15 Menit (15m)": ("15m", "1mo"), "5 Menit (5m)": ("5m", "1mo")}
 interval_param, period_param = tf_map[TF_PILIHAN]
@@ -58,26 +61,35 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
                 
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Open', 'Volume'])
-                if df_s.empty or len(df_s) < 2 or df_d.empty: continue
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
+                if df_s.empty or len(df_s) < 10 or df_d.empty: continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
                 
                 if PRESET == "Hot Start":
-                    # LOGIKA SNAPSHOT TERKUNCI
-                    # 1. Ambil data 30 menit pertama saja
-                    df_locked = df_s.iloc[0:2] 
+                    # --- LOGIKA BENAR: IDENTIFIKASI HARI INI ---
+                    hari_ini = df_s.index[-1].date()
+                    df_hari_ini = df_s[df_s.index.date == hari_ini]
                     
-                    # 2. Total volume 09.00 - 09.30
-                    vol_pagi = df_locked['Volume'].sum()
-                    
-                    # 3. Rata-rata dari 30 menit itu (sebagai baseline)
-                    vol_rata = df_locked['Volume'].mean()
-                    
-                    if vol_rata > 0 and (vol_pagi / (vol_rata * 2)) > 1:
-                        is_lolos = True
-                        status_keterangan = "🔥 HOT START"
+                    if len(df_hari_ini) >= 2:
+                        # 1. Volume 30 menit pertama HARI INI
+                        vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
+                        
+                        # 2. Cari Timestamp candle jam 09.30 HARI INI (index ke-1 hari ini)
+                        waktu_kunci = df_hari_ini.index[1]
+                        
+                        # 3. Hitung rata-rata 10 candle terakhir, lalu ambil nilainya tepat di waktu_kunci
+                        rolling_mean_series = df_s['Volume'].rolling(window=10).mean()
+                        vol_rata = rolling_mean_series.loc[waktu_kunci]
+                        
+                        if pd.isna(vol_rata) or vol_rata == 0: 
+                            vol_rata = df_hari_ini['Volume'].iloc[0]
+                        
+                        # 4. Bandingkan
+                        if vol_pagi > (vol_rata * 2.0):
+                            is_lolos = True
+                            status_keterangan = "🔥 HOT START"
                 else:
                     close = float(df_s['Close'].iloc[-1])
                     ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
