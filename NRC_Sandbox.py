@@ -22,7 +22,7 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 
 # Keterangan Preset
 if PRESET == "Hot Start":
-    st.sidebar.info("Hot Start:\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.0x rata-rata 2.5 jam terakhir.")
+    st.sidebar.info("Hot Start (Snapshot Pagi):\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.0x baseline rata-rata volume di jam 09.30.")
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
 
@@ -51,7 +51,6 @@ if MULAI_SCAN:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
-            # Download data interval pilihan dan data harian (2 hari) untuk referensi close kemarin
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             data_daily = yf.download(watchlist, period="2d", interval="1d", group_by='ticker', progress=False)
             
@@ -66,7 +65,7 @@ if MULAI_SCAN:
                 if df_s.empty or len(df_s) < 10 or df_d.empty: continue
                 
                 close = float(df_s['Close'].iloc[-1])
-                prev_daily_close = float(df_d['Close'].iloc[-2]) # Close hari bursa sebelumnya
+                prev_daily_close = float(df_d['Close'].iloc[-2])
                 change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                 
                 is_lolos = False
@@ -74,8 +73,15 @@ if MULAI_SCAN:
                 
                 if PRESET == "Hot Start":
                     if len(df_s) >= 2:
+                        # 1. Total volume 09.00 - 09.30
                         vol_pagi = df_s['Volume'].iloc[0:2].sum()
-                        vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[-1]
+                        
+                        # 2. Snapshot Rata-rata Volume (Dikunci di jam 09.30)
+                        vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[1]
+                        
+                        # Fallback jika data rata-rata masih kosong
+                        if pd.isna(vol_rata): vol_rata = df_s['Volume'].iloc[0]
+                        
                         if vol_pagi > (vol_rata * 2.0):
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
