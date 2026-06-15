@@ -117,7 +117,7 @@ if MULAI_SCAN:
                 df_h = df_h.sort_values(by="Kode Saham")
                 
                 # Menampilkan jumlah dan tabel memanjang
-                st.subheader(f"Total: {len(df_h)} Saham yang memenuhi kriteria")
+                st.subheader(f"Total: {len(df_h)} Saham")
                 tabel_height = (len(df_h) * 35) + 40
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else:
