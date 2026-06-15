@@ -2,9 +2,9 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import warnings
-import math # Diperlukan untuk math.ceil
+import math
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci + Value Filter (Rounding Up)")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -21,7 +21,7 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# Keterangan & Parameter Tambahan Preset
+# Keterangan Preset (DIPULIHKAN SEPERTI SEMULA)
 if PRESET == "Hot Start":
     st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
     MIN_VALUE_M = st.sidebar.number_input("Min. Value Pagi (Miliar Rp)", value=5, step=1)
@@ -65,7 +65,11 @@ if MULAI_SCAN:
                 df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
                 
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
-                if df_s.empty or len(df_s) < 10 or df_d.empty: continue
+                if df_s.empty or len(df_s) < 50 or df_d.empty: continue
+                
+                close = float(df_s['Close'].iloc[-1])
+                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
@@ -77,24 +81,16 @@ if MULAI_SCAN:
                     
                     if len(df_hari_ini) >= 2:
                         vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
-                        harga_avg_pagi = df_hari_ini['Close'].iloc[0:2].mean()
-                        val_pagi = vol_pagi * harga_avg_pagi
-                        
+                        val_pagi = vol_pagi * df_hari_ini['Close'].iloc[0:2].mean()
                         waktu_kunci = df_hari_ini.index[1]
-                        rolling_mean_series = df_s['Volume'].rolling(window=10).mean()
-                        vol_rata = rolling_mean_series.loc[waktu_kunci]
+                        vol_rata = df_s['Volume'].rolling(window=10).mean().loc[waktu_kunci]
                         
-                        if pd.isna(vol_rata) or vol_rata == 0: 
-                            vol_rata = df_hari_ini['Volume'].iloc[0]
+                        if pd.isna(vol_rata) or vol_rata == 0: vol_rata = df_hari_ini['Volume'].iloc[0]
                         
                         if vol_pagi > (vol_rata * 2.0) and val_pagi >= MIN_VALUE:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
                 else:
-                    close = float(df_s['Close'].iloc[-1])
-                    ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                    ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                    
                     if PRESET == "Manual (Default)": is_lolos = True
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -104,7 +100,6 @@ if MULAI_SCAN:
                         status_keterangan = "🔵 HOLD"
 
                 prev_daily_close = float(df_d['Close'].iloc[-2])
-                close = float(df_s['Close'].iloc[-1])
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
                     is_lolos = False
 
@@ -113,22 +108,30 @@ if MULAI_SCAN:
                     daftar_saham_lolos_sekarang.append(clean)
                     change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                     
-                    item = {"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan}
-                    if PRESET == "Hot Start":
-                        # Pembulatan ke atas tanpa desimal
-                        item["Value Pagi (M)"] = math.ceil(val_pagi / 1_000_000_000)
-                    
-                    hasil_screener.append(item)
+                    # Simpan hasil untuk sorting
+                    hasil_screener.append({
+                        "Kode Saham": clean, 
+                        "Price": f"Rp{close:,.0f}", 
+                        "Change %": f"{change_pct:+.2f}%", 
+                        "Status": status_keterangan,
+                        "val_helper": val_pagi,
+                        "close_helper": close
+                    })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
+                
+                # Logic Sorting
                 if PRESET == "Hot Start":
-                    df_h = df_h.sort_values(by="Value Pagi (M)", ascending=False)
+                    df_h = df_h.sort_values(by="val_helper", ascending=False)
                 else:
                     df_h = df_h.sort_values(by="Kode Saham")
-                    
+                
+                # Bersihkan kolom helper sebelum tampil
+                df_h = df_h.drop(columns=["val_helper", "close_helper"])
+                
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
