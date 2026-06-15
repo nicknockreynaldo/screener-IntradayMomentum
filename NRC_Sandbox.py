@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import warnings
 
-st.warning("⚠️ MODE SANDBOX - Fitur Eksperimental - Jangan untuk Trading")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.00-09.30 (Terkunci)")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -22,20 +22,17 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 
 # Keterangan Preset
 if PRESET == "Hot Start":
-    st.sidebar.info("Hot Start (Snapshot Pagi):\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.0x baseline rata-rata volume di jam 09.30.")
+    st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama (09.00-09.30) dengan rata-rata volume di periode yang sama saja.")
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Otomatis Parameter
-if PRESET == "Manual (Default)":
-    TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
-    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
-elif PRESET == "Hot Start":
+if PRESET == "Hot Start":
     TF_PILIHAN = "15 Menit (15m)"
     MA_PERIODE = 50
 else:
-    TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
-    MA_PERIODE = 50 
+    TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
+    MA_PERIODE = 50
 
 tf_map = {"Harian (Daily)": ("1d", "2y"), "1 Jam (1H)": ("1h", "1mo"), "30 Menit (30m)": ("30m", "1mo"), "15 Menit (15m)": ("15m", "1mo"), "5 Menit (5m)": ("5m", "1mo")}
 interval_param, period_param = tf_map[TF_PILIHAN]
@@ -43,7 +40,7 @@ interval_param, period_param = tf_map[TF_PILIHAN]
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
-st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
+st.title("📈 IHSG Ultimate Power Screener")
 
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
@@ -62,34 +59,30 @@ if MULAI_SCAN:
                 df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
                 
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Open', 'Volume'])
-                if df_s.empty or len(df_s) < 10 or df_d.empty: continue
-                
-                close = float(df_s['Close'].iloc[-1])
-                prev_daily_close = float(df_d['Close'].iloc[-2])
-                change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
+                if df_s.empty or len(df_s) < 2 or df_d.empty: continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
                 
                 if PRESET == "Hot Start":
-                    if len(df_s) >= 2:
-                        vol_pagi = df_s['Volume'].iloc[0:2].sum()
-                        
-                        # Snapshot Rata-rata Volume (Dikunci di candle 09:30)
-                        try:
-                            idx_0930 = df_s.index.indexer_at_time('09:30')[0]
-                            vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[idx_0930]
-                        except:
-                            vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[1]
-                        
-                        if pd.isna(vol_rata): vol_rata = df_s['Volume'].iloc[0]
-                        
-                        if vol_pagi > (vol_rata * 2.0):
-                            is_lolos = True
-                            status_keterangan = "🔥 HOT START"
+                    # LOGIKA SNAPSHOT TERKUNCI
+                    # 1. Ambil data 30 menit pertama saja
+                    df_locked = df_s.iloc[0:2] 
+                    
+                    # 2. Total volume 09.00 - 09.30
+                    vol_pagi = df_locked['Volume'].sum()
+                    
+                    # 3. Rata-rata dari 30 menit itu (sebagai baseline)
+                    vol_rata = df_locked['Volume'].mean()
+                    
+                    if vol_rata > 0 and (vol_pagi / (vol_rata * 2)) > 1:
+                        is_lolos = True
+                        status_keterangan = "🔥 HOT START"
                 else:
+                    close = float(df_s['Close'].iloc[-1])
                     ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                     ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
+                    
                     if PRESET == "Manual (Default)": is_lolos = True
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -98,13 +91,16 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
-                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)":
-                    if close <= prev_daily_close:
-                        is_lolos = False
+                # Filter Final
+                prev_daily_close = float(df_d['Close'].iloc[-2])
+                close = float(df_s['Close'].iloc[-1])
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
+                    is_lolos = False
 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
+                    change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                     hasil_screener.append({"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan})
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
@@ -112,7 +108,7 @@ if MULAI_SCAN:
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener).sort_values(by="Kode Saham")
                 st.subheader(f"Total: {len(df_h)} Saham")
-                st.dataframe(df_h, use_container_width=True, hide_index=True, height=(len(df_h) * 35) + 40)
+                st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
                 st.warning("Tidak ada saham yang memenuhi kriteria.")
         except Exception as e: st.error(f"Error: {e}")
