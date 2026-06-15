@@ -73,13 +73,15 @@ if MULAI_SCAN:
                 
                 if PRESET == "Hot Start":
                     if len(df_s) >= 2:
-                        # 1. Total volume 09.00 - 09.30
                         vol_pagi = df_s['Volume'].iloc[0:2].sum()
                         
-                        # 2. Snapshot Rata-rata Volume (Dikunci di jam 09.30)
-                        vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[1]
+                        # Snapshot Rata-rata Volume (Dikunci di candle 09:30)
+                        try:
+                            idx_0930 = df_s.index.indexer_at_time('09:30')[0]
+                            vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[idx_0930]
+                        except:
+                            vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[1]
                         
-                        # Fallback jika data rata-rata masih kosong
                         if pd.isna(vol_rata): vol_rata = df_s['Volume'].iloc[0]
                         
                         if vol_pagi > (vol_rata * 2.0):
@@ -96,7 +98,6 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
-                # Filter Final: Momentum vs Prev Daily Close
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)":
                     if close <= prev_daily_close:
                         is_lolos = False
