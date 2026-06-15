@@ -2,8 +2,9 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import warnings
+import math # Diperlukan untuk math.ceil
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date) + Value Filter")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci + Value Filter (Rounding Up)")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -112,10 +113,10 @@ if MULAI_SCAN:
                     daftar_saham_lolos_sekarang.append(clean)
                     change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                     
-                    # Menambahkan data ke hasil sesuai kebutuhan
                     item = {"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan}
                     if PRESET == "Hot Start":
-                        item["Value Pagi (M)"] = round(val_pagi / 1_000_000_000, 1)
+                        # Pembulatan ke atas tanpa desimal
+                        item["Value Pagi (M)"] = math.ceil(val_pagi / 1_000_000_000)
                     
                     hasil_screener.append(item)
             
@@ -123,7 +124,6 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                # Jika Hot Start, sort berdasarkan Value Pagi
                 if PRESET == "Hot Start":
                     df_h = df_h.sort_values(by="Value Pagi (M)", ascending=False)
                 else:
