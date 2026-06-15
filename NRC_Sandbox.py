@@ -30,7 +30,7 @@ elif PRESET == "Grade D (Market Merah Cari Alpha)":
 elif PRESET == "Hot Start":
     st.sidebar.info("Hot Start:\n\n- Mencari lonjakan volume 30 menit pertama (09.00-09.30) > 2.0x rata-rata 2.5 jam terakhir.")
 
-FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
+FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Close)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Otomatis Parameter berdasarkan Preset
 if PRESET == "Manual (Default)":
@@ -71,8 +71,8 @@ if MULAI_SCAN:
                 if df_s.empty or len(df_s) < 10: continue
                 
                 close = float(df_s['Close'].iloc[-1])
-                open_price = float(df_s['Open'].iloc[-1])
-                change_pct = ((close - open_price) / open_price) * 100
+                prev_close = float(df_s['Close'].iloc[-2])
+                change_pct = ((close - prev_close) / prev_close) * 100
                 
                 # --- LOGIKA HOT START ---
                 is_lolos = False
@@ -82,7 +82,6 @@ if MULAI_SCAN:
                     if len(df_s) >= 2:
                         vol_pagi = df_s['Volume'].iloc[0:2].sum()
                         vol_rata = df_s['Volume'].rolling(window=10).mean().iloc[-1]
-                        # Sensitivitas 2x
                         if vol_pagi > (vol_rata * 2.0):
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
@@ -100,6 +99,11 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
+                # --- PENYARING FINAL (INTRADAY MOMENTUM VS PREV CLOSE) ---
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                    if close <= prev_close:
+                        is_lolos = False
+
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
@@ -116,7 +120,6 @@ if MULAI_SCAN:
                 df_h = pd.DataFrame(hasil_screener)
                 df_h = df_h.sort_values(by="Kode Saham")
                 
-                # Menampilkan jumlah dan tabel memanjang
                 st.subheader(f"Total: {len(df_h)} Saham")
                 tabel_height = (len(df_h) * 35) + 40
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
