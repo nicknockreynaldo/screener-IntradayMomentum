@@ -4,8 +4,6 @@ import pandas as pd
 import warnings
 import math
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci + Value Filter (Hidden)")
-
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
@@ -21,10 +19,15 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# Parameter Khusus Hot Start (Filter tetap aktif tapi Value di-hide nanti)
+# KETERANGAN PRESET (Dibalikin)
 if PRESET == "Hot Start":
+    st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
     MIN_VALUE_M = st.sidebar.number_input("Min. Value Pagi (Miliar Rp)", value=5, step=1)
     MIN_VALUE = MIN_VALUE_M * 1_000_000_000
+elif PRESET == "Grade A Setup":
+    st.sidebar.info("Grade A: Mencari saham yang sedang uptrend (Harga > MA10 & > MA50).")
+elif PRESET == "Grade B Setup":
+    st.sidebar.info("Grade B: Mencari saham yang berada di area support (Harga > MA10 tapi < MA50).")
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Prev Daily Close)", ["General", "Intraday Momentum (>0%)"])
 
@@ -48,7 +51,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 st.title("📈 IHSG Ultimate Power Screener")
 
 if MULAI_SCAN:
-    with st.spinner("Mengambil data terbaru..."):
+    with st.spinner("Mengolah data..."):
         try:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
@@ -64,17 +67,17 @@ if MULAI_SCAN:
                 df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
                 
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
-                if df_s.empty or len(df_s) < 10 or df_d.empty: continue
+                if df_s.empty or len(df_s) < 50: continue
+                
+                close = float(df_s['Close'].iloc[-1])
+                prev_daily_close = float(df_d['Close'].iloc[-2])
+                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
+                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
                 val_pagi = 0
-                
-                # Hitung MA untuk semua preset
-                close = float(df_s['Close'].iloc[-1])
-                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
-                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
                 if PRESET == "Hot Start":
                     hari_ini = df_s.index[-1].date()
@@ -84,7 +87,6 @@ if MULAI_SCAN:
                         val_pagi = vol_pagi * df_hari_ini['Close'].iloc[0:2].mean()
                         waktu_kunci = df_hari_ini.index[1]
                         vol_rata = df_s['Volume'].rolling(window=10).mean().loc[waktu_kunci]
-                        if pd.isna(vol_rata) or vol_rata == 0: vol_rata = df_hari_ini['Volume'].iloc[0]
                         if vol_pagi > (vol_rata * 2.0) and val_pagi >= MIN_VALUE:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
@@ -94,45 +96,38 @@ if MULAI_SCAN:
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                     elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
                     
-                    if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
+                    if is_lolos and (ticker.replace(".JK", "") in st.session_state['memori_saham'][PRESET]):
                         status_keterangan = "🔵 HOLD"
 
-                prev_daily_close = float(df_d['Close'].iloc[-2])
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
                     is_lolos = False
 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
+                    change = ((close - prev_daily_close) / prev_daily_close) * 100
                     
-                    # Data dictionary untuk sorting
-                    item = {
+                    # Simpan data dengan helper untuk sorting
+                    hasil_screener.append({
                         "Kode Saham": clean, 
                         "Price": f"Rp{close:,.0f}", 
-                        "Change %": f"{change_pct:+.2f}%", 
-                        "% Jarak MA50": (close - ma50) / ma50 * 100, # Tambahkan ini untuk sorting
+                        "Change %": f"{change:+.2f}%", 
+                        "% Jarak ke MA10": (close - ma10) / ma10 * 100,
+                        "% Jarak ke MA20": (close - ma20) / ma20 * 100,
+                        "% Jarak ke MA50": (close - ma50) / ma50 * 100,
                         "Status": status_keterangan,
-                        "Val_Sort": val_pagi # Hidden value untuk sorting Hot Start
-                    }
-                    hasil_screener.append(item)
+                        "Sort_Val": val_pagi if PRESET == "Hot Start" else (close - ma50) / ma50 * 100
+                    })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
-                df_h = pd.DataFrame(hasil_screener)
-                
-                # Sorting
-                if PRESET == "Hot Start":
-                    df_h = df_h.sort_values(by="Val_Sort", ascending=False)
-                else:
-                    # Sort berdasarkan Jarak ke MA50 (paling dekat/positif di atas)
-                    df_h = df_h.sort_values(by="% Jarak MA50", ascending=False)
-                
-                # Format tampilan agar rapi
-                df_h["% Jarak MA50"] = df_h["% Jarak MA50"].apply(lambda x: f"{x:.2f}%")
-                # Hapus kolom helper
-                df_h = df_h.drop(columns=["Val_Sort"])
+                df_h = pd.DataFrame(hasil_screener).sort_values(by="Sort_Val", ascending=False)
+                # Formating setelah di-sort
+                df_h["% Jarak ke MA10"] = df_h["% Jarak ke MA10"].apply(lambda x: f"{x:.2f}%")
+                df_h["% Jarak ke MA20"] = df_h["% Jarak ke MA20"].apply(lambda x: f"{x:.2f}%")
+                df_h["% Jarak ke MA50"] = df_h["% Jarak ke MA50"].apply(lambda x: f"{x:.2f}%")
+                df_h = df_h.drop(columns=["Sort_Val"])
                 
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
