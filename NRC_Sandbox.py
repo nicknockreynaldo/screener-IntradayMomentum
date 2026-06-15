@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 import warnings
 
+st.warning("⚠️ MODE SANDBOX - Fitur Eksperimental - Jangan untuk Trading")
+
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
