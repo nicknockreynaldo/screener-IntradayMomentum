@@ -19,12 +19,12 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 
 # --- KETERANGAN PRESET ---
 if PRESET == "Grade A Setup":
-    st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
+    st.sidebar.success("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
 elif PRESET == "Grade B Setup":
     st.sidebar.info("Grade B:\n\n- Price Above DMA 10 BUT Below DMA 50\n- Fast Trade Play")
 elif PRESET == "Grade D (Market Merah Cari Alpha)":
-    st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
-
+    st.sidebar.error("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
+    
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Timeframe & MA
