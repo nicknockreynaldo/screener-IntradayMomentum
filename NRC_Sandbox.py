@@ -2,9 +2,9 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import warnings
-import math # Diperlukan untuk math.ceil
+import math
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci + Value Filter (Rounding Up)")
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci + Value Filter (Hidden)")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
@@ -21,9 +21,8 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# Keterangan & Parameter Tambahan Preset
+# Parameter Khusus Hot Start (Filter tetap aktif tapi Value di-hide nanti)
 if PRESET == "Hot Start":
-    st.sidebar.info("Hot Start (Snapshot Pagi Terkunci):\n\n- Membandingkan volume 30 menit pertama HARI INI > 2x lipat dari rata-rata volume 10 candle terakhir (terkunci di jam 09.30).")
     MIN_VALUE_M = st.sidebar.number_input("Min. Value Pagi (Miliar Rp)", value=5, step=1)
     MIN_VALUE = MIN_VALUE_M * 1_000_000_000
 
@@ -71,30 +70,25 @@ if MULAI_SCAN:
                 status_keterangan = "🟢 NEW"
                 val_pagi = 0
                 
+                # Hitung MA untuk semua preset
+                close = float(df_s['Close'].iloc[-1])
+                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
+                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
+                
                 if PRESET == "Hot Start":
                     hari_ini = df_s.index[-1].date()
                     df_hari_ini = df_s[df_s.index.date == hari_ini]
-                    
                     if len(df_hari_ini) >= 2:
                         vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
-                        harga_avg_pagi = df_hari_ini['Close'].iloc[0:2].mean()
-                        val_pagi = vol_pagi * harga_avg_pagi
-                        
+                        val_pagi = vol_pagi * df_hari_ini['Close'].iloc[0:2].mean()
                         waktu_kunci = df_hari_ini.index[1]
-                        rolling_mean_series = df_s['Volume'].rolling(window=10).mean()
-                        vol_rata = rolling_mean_series.loc[waktu_kunci]
-                        
-                        if pd.isna(vol_rata) or vol_rata == 0: 
-                            vol_rata = df_hari_ini['Volume'].iloc[0]
-                        
+                        vol_rata = df_s['Volume'].rolling(window=10).mean().loc[waktu_kunci]
+                        if pd.isna(vol_rata) or vol_rata == 0: vol_rata = df_hari_ini['Volume'].iloc[0]
                         if vol_pagi > (vol_rata * 2.0) and val_pagi >= MIN_VALUE:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
                 else:
-                    close = float(df_s['Close'].iloc[-1])
-                    ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                    ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                    
                     if PRESET == "Manual (Default)": is_lolos = True
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -104,7 +98,6 @@ if MULAI_SCAN:
                         status_keterangan = "🔵 HOLD"
 
                 prev_daily_close = float(df_d['Close'].iloc[-2])
-                close = float(df_s['Close'].iloc[-1])
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
                     is_lolos = False
 
@@ -113,22 +106,34 @@ if MULAI_SCAN:
                     daftar_saham_lolos_sekarang.append(clean)
                     change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
                     
-                    item = {"Kode Saham": clean, "Price": f"Rp{close:,.0f}", "Change %": f"{change_pct:+.2f}%", "Status": status_keterangan}
-                    if PRESET == "Hot Start":
-                        # Pembulatan ke atas tanpa desimal
-                        item["Value Pagi (M)"] = math.ceil(val_pagi / 1_000_000_000)
-                    
+                    # Data dictionary untuk sorting
+                    item = {
+                        "Kode Saham": clean, 
+                        "Price": f"Rp{close:,.0f}", 
+                        "Change %": f"{change_pct:+.2f}%", 
+                        "% Jarak MA50": (close - ma50) / ma50 * 100, # Tambahkan ini untuk sorting
+                        "Status": status_keterangan,
+                        "Val_Sort": val_pagi # Hidden value untuk sorting Hot Start
+                    }
                     hasil_screener.append(item)
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
+                
+                # Sorting
                 if PRESET == "Hot Start":
-                    df_h = df_h.sort_values(by="Value Pagi (M)", ascending=False)
+                    df_h = df_h.sort_values(by="Val_Sort", ascending=False)
                 else:
-                    df_h = df_h.sort_values(by="Kode Saham")
-                    
+                    # Sort berdasarkan Jarak ke MA50 (paling dekat/positif di atas)
+                    df_h = df_h.sort_values(by="% Jarak MA50", ascending=False)
+                
+                # Format tampilan agar rapi
+                df_h["% Jarak MA50"] = df_h["% Jarak MA50"].apply(lambda x: f"{x:.2f}%")
+                # Hapus kolom helper
+                df_h = df_h.drop(columns=["Val_Sort"])
+                
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
