@@ -81,6 +81,12 @@ interval_param, period_param = tf_map[TF_PILIHAN]
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
+# JUDUL DINAMIS
+if PRESET == "Hot Start":
+    st.title("📈 IHSG Ultimate Power Screener")
+else:
+    st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
+
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
         try:
@@ -90,11 +96,19 @@ if MULAI_SCAN:
             # 1. Download Data UTAMA berdasarkan Timeframe Eksekusi pilihan (No. 2)
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             
-            # 2. Download Data HARIAN terpisah untuk benteng pertahanan terakhir (jika TF eksekusinya intraday)
+            # 2. Download Data HARIAN terpisah untuk benteng pertahanan terakhir (Power Play)
             data_daily_bulk = None
             if PRESET == "Manual (Default)" and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and TF_PILIHAN != "Harian (Daily)":
-                data_daily_bulk = yf.download(watchlist, period="1mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
             
+            # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display tabel (jika TF eksekusi bukan 1H)
+            data_1h_bulk = None
+            if PRESET != "Hot Start":
+                if TF_PILIHAN == "1 Jam (1H)":
+                    data_1h_bulk = data_bulk
+                else:
+                    data_1h_bulk = yf.download(watchlist, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
             
@@ -112,12 +126,9 @@ if MULAI_SCAN:
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
                 
-                # Menghitung Indikator Berdasarkan TF Eksekusi Terpilih (No.2 & No.3)
-                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
-                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                
-                # Ambil MA Eksekusi Dinamis sesuai pilihan No. 3
+                # Perhitungan MA Internal untuk Filter Eksekusi sesuai TF Pilihan (No. 2 & No. 3)
+                ma10_internal = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                ma50_internal = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 ma_eksekusi_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
                 # Logic Hot Start
@@ -140,35 +151,33 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic Preset Manual (Default) dengan Sistem Benteng Pertahanan 4 tingkat
+                    # Logic Preset Manual (Default) & Pre-built Setup
                     if PRESET == "Manual (Default)": 
-                        # SYARAT UTAMA: Wajib di atas MA Eksekusi Terpilih (No. 2 & No. 3)
+                        # LAYER EKSEKUSI (No. 2 & No. 3): Wajib di atas MA pilihan pada TF pilihan
                         if close >= ma_eksekusi_dinamis:
                             is_lolos = True
                         
-                        # SYARAT BENTENG TERAKHIR (No. 4): Jika diaktifkan, ketatkan dengan Daily > DMA10
+                        # LAYER BENTENG TERAKHIR (No. 4): Konfirmasi Daily > DMA10 (Toleransi 3%)
                         if is_lolos and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
                             if TF_PILIHAN == "Harian (Daily)":
-                                dma10_kunci = ma10
+                                dma10_kunci = ma10_internal
                                 d_close = close
                             else:
-                                # Jika TF Eksekusi Intraday, periksa chart harian aslinya
                                 df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
                                 df_d = df_d.sort_index().dropna(subset=['Close'])
                                 if not df_d.empty and len(df_d) >= 10:
                                     dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
                                     d_close = float(df_d['Close'].iloc[-1])
                                 else:
-                                    dma10_kunci = ma10
+                                    dma10_kunci = ma10_internal
                                     d_close = close
                                     
-                            # Syarat pengetatan benteng terakhir harian
                             if d_close < (dma10_kunci * 0.97):
                                 is_lolos = False
                             
-                    elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
-                    elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
-                    elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
+                    elif PRESET == "Grade A Setup": is_lolos = (close > ma10_internal and close > ma50_internal)
+                    elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10_internal * 0.95) and close < ma50_internal)
+                    elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50_internal)
                     
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
@@ -181,20 +190,33 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     
-                    suffix = "Daily" if TF_PILIHAN == "Harian (Daily)" else TF_PILIHAN.split()[-1].replace("(", "").replace(")", "")
-                    
                     item_data = {
                         "Kode Saham": clean, 
                         "Price": f"Rp{close:,.0f}", 
                         "Change %": f"{change_pct:+.2f}%",
                     }
                     
+                    # HITUNG DISTANCE BERDASARKAN TIMEFRAME 1 JAM (1H) SECARA MURNI UNTUK KOLOM TABEL
                     if PRESET != "Hot Start":
-                        item_data.update({
-                            f"% Jarak ke MA10 ({suffix})": f"{((close - ma10) / ma10) * 100:+.2f}%",
-                            f"% Jarak ke MA20 ({suffix})": f"{((close - ma20) / ma20) * 100:+.2f}%",
-                            f"% Jarak ke MA50 ({suffix})": f"{((close - ma50) / ma50) * 100:+.2f}%"
-                        })
+                        df_1h = data_1h_bulk[ticker] if len(watchlist) > 1 else data_1h_bulk
+                        df_1h = df_1h.sort_index().dropna(subset=['Close'])
+                        
+                        if not df_1h.empty and len(df_1h) >= 50:
+                            ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                            ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                            ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                            
+                            item_data.update({
+                                "% Jarak ke MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                                "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                                "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
+                            })
+                        else:
+                            item_data.update({
+                                "% Jarak ke MA10 (1H)": "N/A",
+                                "% Jarak ke MA20 (1H)": "N/A",
+                                "% Jarak ke MA50 (1H)": "N/A"
+                            })
                         
                     item_data.update({
                         "Status": status_keterangan,
