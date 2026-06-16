@@ -4,6 +4,9 @@ import pandas as pd
 import warnings
 import math
 
+# --- KETERANGAN MODE ---
+st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
+
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
@@ -100,19 +103,11 @@ if MULAI_SCAN:
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
                 if df_s.empty or len(df_s) < 50 or df_d.empty: continue
                 
-                # LOGIKA PENGAMAN: Jika Hot Start dan data terakhir bukan data hari ini, lewati
-                if PRESET == "Hot Start" and df_s.index[-1].date() < pd.Timestamp.now().date():
-                    continue
-                
-                close = float(df_s['Close'].iloc[-1])
-                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                
-                is_lolos = False
-                status_keterangan = "🟢 NEW"
-                val_pagi = 0
-                
+                # PENGAMAN ANTI-LIBUR (PISAH LOGIKA)
                 if PRESET == "Hot Start":
+                    if df_s.index[-1].date() < pd.Timestamp.now().date():
+                        continue
+                    
                     hari_ini = df_s.index[-1].date()
                     df_hari_ini = df_s[df_s.index.date == hari_ini]
                     
@@ -122,46 +117,75 @@ if MULAI_SCAN:
                         waktu_kunci = df_hari_ini.index[1]
                         vol_rata = df_s['Volume'].rolling(window=10).mean().loc[waktu_kunci]
                         
-                        if pd.isna(vol_rata) or vol_rata == 0: vol_rata = df_hari_ini['Volume'].iloc[0]
+                        if pd.isna(vol_rata) or vol_rata == 0: 
+                            vol_rata = df_hari_ini['Volume'].iloc[0]
                         
                         if vol_pagi > (vol_rata * 2.0) and val_pagi >= MIN_VALUE:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
+                            # Tambahan helper untuk sorting
+                            val_pagi_helper = val_pagi
+                        else:
+                            is_lolos = False
+                    else:
+                        is_lolos = False
+                        
                 else:
-                    if PRESET == "Manual (Default)": is_lolos = True
-                    elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
-                    elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
-                    elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
+                    # LOGIKA MANUAL / GRADE LAIN
+                    close = float(df_s['Close'].iloc[-1])
+                    ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                    ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                     
+                    if PRESET == "Manual (Default)": 
+                        is_lolos = True
+                    elif PRESET == "Grade A Setup": 
+                        is_lolos = (close > ma10 and close > ma50)
+                    elif PRESET == "Grade B Setup": 
+                        is_lolos = (close >= (ma10 * 0.95) and close < ma50)
+                    elif PRESET == "Grade D (Market Merah Cari Alpha)": 
+                        is_lolos = (close > ma50)
+                    
+                    # Cek Hold
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
+                    else:
+                        status_keterangan = "🟢 NEW"
+                    
+                    val_pagi_helper = 0 # Tidak dipakai di preset lain
 
+                # Filter Intraday Momentum
                 prev_daily_close = float(df_d['Close'].iloc[-2])
-                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and close <= prev_daily_close:
-                    is_lolos = False
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)":
+                    if float(df_s['Close'].iloc[-1]) <= prev_daily_close:
+                        is_lolos = False
 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    change_pct = ((close - prev_daily_close) / prev_daily_close) * 100
+                    change_pct = ((float(df_s['Close'].iloc[-1]) - prev_daily_close) / prev_daily_close) * 100
                     
                     hasil_screener.append({
                         "Kode Saham": clean, 
-                        "Price": f"Rp{close:,.0f}", 
+                        "Price": f"Rp{float(df_s['Close'].iloc[-1]):,.0f}", 
                         "Change %": f"{change_pct:+.2f}%", 
                         "Status": status_keterangan,
-                        "val_helper": val_pagi
+                        "val_helper": val_pagi_helper
                     })
             
+            # Simpan state
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                # Sort berdasarkan Value untuk Hot Start, atau Kode Saham untuk lainnya
-                df_h = df_h.sort_values(by="val_helper", ascending=False) if PRESET == "Hot Start" else df_h.sort_values(by="Kode Saham")
+                if PRESET == "Hot Start":
+                    df_h = df_h.sort_values(by="val_helper", ascending=False)
+                else:
+                    df_h = df_h.sort_values(by="Kode Saham")
+                
                 df_h = df_h.drop(columns=["val_helper"])
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
                 st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e: 
+            st.error(f"Error: {e}")
