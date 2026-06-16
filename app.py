@@ -19,12 +19,12 @@ PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade
 
 # --- KETERANGAN PRESET ---
 if PRESET == "Grade A Setup":
-    st.sidebar.success("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
+    st.sidebar.info("Grade A:\n\n- Power Play Uptrend\n- Price Above DMA 10 and 50\n- Swing Play")
 elif PRESET == "Grade B Setup":
     st.sidebar.info("Grade B:\n\n- Price Above DMA 10 BUT Below DMA 50\n- Fast Trade Play")
 elif PRESET == "Grade D (Market Merah Cari Alpha)":
-    st.sidebar.error("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
-    
+    st.sidebar.info("Grade D:\n\n- 5min Price Above MA50\n- Scalp Play")
+
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
 # Penyesuaian Timeframe & MA
@@ -58,13 +58,18 @@ if MULAI_SCAN:
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Open'])
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Open', 'Volume']) # Proteksi pembersihan data volume kosong
+                
                 jumlah_data = len(df_s)
                 if df_s.empty or jumlah_data < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
+                
+                # --- KALKULASI VALUE TRANSAKSI INTRADAY DI BACKGROUND ---
+                volume_sekarang = float(df_s['Volume'].iloc[-1])
+                value_miliar = (volume_sekarang * close) / 1_000_000_000
                 
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
@@ -75,6 +80,10 @@ if MULAI_SCAN:
                 elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
+                
+                # Filter Intraday Momentum terhadap Open (Menjaga kecocokan filter manual)
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
+                    is_lolos = False
                 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
@@ -87,14 +96,20 @@ if MULAI_SCAN:
                         "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
                         "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
                         "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
-                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
+                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD",
+                        "Value_Hidden": value_miliar # Menyimpan instans float murni untuk diurutkan
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                df_h = df_h.sort_values(by="Kode Saham")
+                
+                # --- PROSES URUTKAN BERDASARKAN VALUE TERBESAR (DESCENDING) ---
+                df_h = df_h.sort_values(by="Value_Hidden", ascending=False)
+                
+                # --- SEMBUNYIKAN KOLOM VALUE SEBELUM DI-RENDER ---
+                df_h = df_h.drop(columns=["Value_Hidden"])
                 
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
@@ -103,5 +118,5 @@ if MULAI_SCAN:
                 tabel_height = (len(df_h) + 1) * 35
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else: 
-                st.warning("Tidak ada saham yang memenuhi kriteria.")
+                st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
         except Exception as e: st.error(f"Error: {e}")
