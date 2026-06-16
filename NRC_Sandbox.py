@@ -65,12 +65,15 @@ FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)"
 if PRESET == "Manual (Default)":
     TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
     MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
+    FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 elif PRESET == "Hot Start":
     TF_PILIHAN = "15 Menit (15m)"
     MA_PERIODE = 50
+    FILTER_TREND = "General"
 else:
     TF_PILIHAN = "5 Menit (5m)" if PRESET == "Grade D (Market Merah Cari Alpha)" else "Harian (Daily)"
     MA_PERIODE = 50 
+    FILTER_TREND = "General"
 
 tf_map = {"Harian (Daily)": ("1d", "2y"), "1 Jam (1H)": ("1h", "1mo"), "30 Menit (30m)": ("30m", "1mo"), "15 Menit (15m)": ("15m", "1mo"), "5 Menit (5m)": ("5m", "1mo")}
 interval_param, period_param = tf_map[TF_PILIHAN]
@@ -82,7 +85,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 if PRESET == "Hot Start":
     st.title("📈 IHSG Ultimate Power Screener")
 else:
-    st.title("📈 IHSG Ultimate Multi-Timeframe Screener")
+    st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
@@ -92,26 +95,27 @@ if MULAI_SCAN:
             
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             
-            # --- MODIFIKASI 1: UBAH period KE "5d" AGAR TIDAK PATAH SAAT LONG WEEKEND ---
-            data_daily = yf.download(watchlist, period="5d", interval="1d", group_by='ticker', progress=False)
-            
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
-                
-                # --- MODIFIKASI 2: PENGAMAN FILTER AWAL (BERSIHKAN DATA HARIAN DARI NaN) ---
-                if df_s.empty or len(df_s) < 50 or df_d.empty: continue
-                df_d_clean = df_d['Close'].dropna()
-                if df_d_clean.empty: continue
+                if df_s.empty or len(df_s) < 50: continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
                 val_pagi = 0
+                
+                close = float(df_s['Close'].iloc[-1])
+                open_price = float(df_s['Open'].iloc[-1])
+                change_pct = ((close - open_price) / open_price) * 100
+                
+                # Menghitung Moving Averages Utama
+                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
+                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
+                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 
                 # Logic Hot Start
                 if PRESET == "Hot Start":
@@ -133,12 +137,13 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic lainnya
-                    close = float(df_s['Close'].iloc[-1])
-                    ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                    ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                    
-                    if PRESET == "Manual (Default)": is_lolos = True
+                    # Logic preset utama
+                    if PRESET == "Manual (Default)": 
+                        is_lolos = True
+                        # Aturan Toleransi Akselerasi Trend 3% di bawah DMA10
+                        if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and close < (ma10 * 0.97):
+                            is_lolos = False
+                            
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                     elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
@@ -146,28 +151,35 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
-                # --- MODIFIKASI 3: PENENTUAN PREVIOUS CLOSE SECARA DINAMIS & AMAN ---
-                if len(df_d_clean) >= 2:
-                    prev_daily_close = float(df_d_clean.iloc[-2]) # Ambil hari bursa sebelumnya
-                else:
-                    prev_daily_close = float(df_d_clean.iloc[-1]) # Fallback jika data terpotong libur
-
-                # Filter Intraday Momentum
-                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and float(df_s['Close'].iloc[-1]) <= prev_daily_close:
+                # Filter Intraday Momentum terhadap Harga Open Hari Ini
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
                     is_lolos = False
 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    change_pct = ((float(df_s['Close'].iloc[-1]) - prev_daily_close) / prev_daily_close) * 100
                     
-                    hasil_screener.append({
+                    # Membuat visualisasi nama kolom dinamis sesuai dengan Timeframe eksekusi
+                    suffix = "Daily" if TF_PILIHAN == "Harian (Daily)" else TF_PILIHAN.split()[-1].replace("(", "").replace(")", "")
+                    
+                    item_data = {
                         "Kode Saham": clean, 
-                        "Price": f"Rp{float(df_s['Close'].iloc[-1]):,.0f}", 
-                        "Change %": f"{change_pct:+.2f}%", 
+                        "Price": f"Rp{close:,.0f}", 
+                        "Change %": f"{change_pct:+.2f}%",
+                    }
+                    
+                    if PRESET != "Hot Start":
+                        item_data.update({
+                            f"% Jarak ke MA10 ({suffix})": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                            f"% Jarak ke MA20 ({suffix})": f"{((close - ma20) / ma20) * 100:+.2f}%",
+                            f"% Jarak ke MA50 ({suffix})": f"{((close - ma50) / ma50) * 100:+.2f}%"
+                        })
+                        
+                    item_data.update({
                         "Status": status_keterangan,
                         "val_helper": val_pagi
                     })
+                    hasil_screener.append(item_data)
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
@@ -179,8 +191,12 @@ if MULAI_SCAN:
                     df_h = df_h.sort_values(by="Kode Saham")
                 
                 df_h = df_h.drop(columns=["val_helper"])
-                st.subheader(f"Total: {len(df_h)} Saham")
-                st.dataframe(df_h, use_container_width=True, hide_index=True)
+                
+                st.success("🎯 Pemindaian Selesai!")
+                st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
+                
+                tabel_height = (len(df_h) + 1) * 35
+                st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else:
-                st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
+                st.warning("Tidak ada saham yang memenuhi kriteria.")
         except Exception as e: st.error(f"Error: {e}")
