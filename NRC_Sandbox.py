@@ -61,7 +61,7 @@ elif PRESET == "Hot Start":
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
-# Penyesuaian Otomatis Parameter Sidebar
+# Penyesuaian Otomatis Parameter
 if PRESET == "Manual (Default)":
     TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
     MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
@@ -102,7 +102,7 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
-                # Memastikan jumlah data cukup untuk menghitung MA dinamis yang dipilih
+                # Memastikan data cukup untuk MA berapapun yang dipilih (termasuk MA 200)
                 if df_s.empty or len(df_s) < max(50, MA_PERIODE): continue
                 
                 is_lolos = False
@@ -113,7 +113,7 @@ if MULAI_SCAN:
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
                 
-                # Menghitung Moving Averages Utama untuk keperluan data kolom tabel luar
+                # Menghitung Moving Averages Utama untuk kolom luar tabel
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
@@ -138,16 +138,16 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic preset utama (Manual & Pre-built Grade)
+                    # Logic preset utama
                     if PRESET == "Manual (Default)": 
                         
-                        # 1. KONDISI GENERAL: Mengikuti TF pilihan (No. 2) dan MA periode pilihan (No. 3) secara dinamis
+                        # FIX LOGIKA GENERAL: Dinamis mengikuti parameter No. 3 tanpa toleransi bawaan
                         if FILTER_TREND == "General":
-                            ma_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
-                            if close >= ma_dinamis:
+                            ma_pilihan = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
+                            if close >= ma_pilihan:
                                 is_lolos = True
                         
-                        # 2. KONDISI POWER PLAY: Mengunci mutlak ke MA10 pada TF eksekusi dengan toleransi 3% Anda
+                        # FIX LOGIKA POWER PLAY: Tetap terkunci ke MA10 dengan toleransi 3% bawaan Anda
                         elif FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
                             if close >= (ma10 * 0.97):
                                 is_lolos = True
