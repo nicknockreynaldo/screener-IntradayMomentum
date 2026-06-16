@@ -58,18 +58,13 @@ if MULAI_SCAN:
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Open', 'Volume']) # Proteksi pembersihan data volume kosong
-                
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Open'])
                 jumlah_data = len(df_s)
                 if df_s.empty or jumlah_data < 50: continue
                 
                 close = float(df_s['Close'].iloc[-1])
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
-                
-                # --- KALKULASI VALUE TRANSAKSI INTRADAY DI BACKGROUND ---
-                volume_sekarang = float(df_s['Volume'].iloc[-1])
-                value_miliar = (volume_sekarang * close) / 1_000_000_000
                 
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
@@ -80,10 +75,6 @@ if MULAI_SCAN:
                 elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
-                
-                # Filter Intraday Momentum terhadap Open (Menjaga kecocokan filter manual)
-                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
-                    is_lolos = False
                 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
@@ -96,20 +87,14 @@ if MULAI_SCAN:
                         "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
                         "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
                         "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
-                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD",
-                        "Value_Hidden": value_miliar # Menyimpan instans float murni untuk diurutkan
+                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                
-                # --- PROSES URUTKAN BERDASARKAN VALUE TERBESAR (DESCENDING) ---
-                df_h = df_h.sort_values(by="Value_Hidden", ascending=False)
-                
-                # --- SEMBUNYIKAN KOLOM VALUE SEBELUM DI-RENDER ---
-                df_h = df_h.drop(columns=["Value_Hidden"])
+                df_h = df_h.sort_values(by="Kode Saham")
                 
                 st.success(f"🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
@@ -118,5 +103,5 @@ if MULAI_SCAN:
                 tabel_height = (len(df_h) + 1) * 35
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else: 
-                st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
+                st.warning("Tidak ada saham yang memenuhi kriteria.")
         except Exception as e: st.error(f"Error: {e}")
