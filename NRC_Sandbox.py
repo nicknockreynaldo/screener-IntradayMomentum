@@ -91,7 +91,9 @@ if MULAI_SCAN:
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
-            data_daily = yf.download(watchlist, period="2d", interval="1d", group_by='ticker', progress=False)
+            
+            # --- MODIFIKASI 1: UBAH period KE "5d" AGAR TIDAK PATAH SAAT LONG WEEKEND ---
+            data_daily = yf.download(watchlist, period="5d", interval="1d", group_by='ticker', progress=False)
             
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
@@ -102,9 +104,10 @@ if MULAI_SCAN:
                 
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
                 
-                # --- PENGAMAN ANTI-ERROR HARI LIBUR (DIREVISI DISINI) ---
-                # Mengganti df_d.empty dengan len(df_d) < 2 agar aman dari iloc[-2]
-                if df_s.empty or len(df_s) < 50 or len(df_d) < 2: continue
+                # --- MODIFIKASI 2: PENGAMAN FILTER AWAL (BERSIHKAN DATA HARIAN DARI NaN) ---
+                if df_s.empty or len(df_s) < 50 or df_d.empty: continue
+                df_d_clean = df_d['Close'].dropna()
+                if df_d_clean.empty: continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
@@ -143,8 +146,13 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
+                # --- MODIFIKASI 3: PENENTUAN PREVIOUS CLOSE SECARA DINAMIS & AMAN ---
+                if len(df_d_clean) >= 2:
+                    prev_daily_close = float(df_d_clean.iloc[-2]) # Ambil hari bursa sebelumnya
+                else:
+                    prev_daily_close = float(df_d_clean.iloc[-1]) # Fallback jika data terpotong libur
+
                 # Filter Intraday Momentum
-                prev_daily_close = float(df_d['Close'].iloc[-2])
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and float(df_s['Close'].iloc[-1]) <= prev_daily_close:
                     is_lolos = False
 
