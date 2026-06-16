@@ -100,8 +100,8 @@ if MULAI_SCAN:
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
                 if df_s.empty or len(df_s) < 50 or df_d.empty: continue
                 
-                # PENGAMAN ANTI-LIBUR
-                if df_s.index[-1].date() < pd.Timestamp.now().date() and PRESET == "Hot Start":
+                # LOGIKA PENGAMAN: Jika Hot Start dan data terakhir bukan data hari ini, lewati
+                if PRESET == "Hot Start" and df_s.index[-1].date() < pd.Timestamp.now().date():
                     continue
                 
                 close = float(df_s['Close'].iloc[-1])
@@ -157,11 +157,8 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                if PRESET == "Hot Start":
-                    df_h = df_h.sort_values(by="val_helper", ascending=False)
-                else:
-                    df_h = df_h.sort_values(by="Kode Saham")
-                
+                # Sort berdasarkan Value untuk Hot Start, atau Kode Saham untuk lainnya
+                df_h = df_h.sort_values(by="val_helper", ascending=False) if PRESET == "Hot Start" else df_h.sort_values(by="Kode Saham")
                 df_h = df_h.drop(columns=["val_helper"])
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
