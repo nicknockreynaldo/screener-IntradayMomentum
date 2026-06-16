@@ -22,7 +22,7 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# KETERANGAN PRESET (HTML ORIGINAL)
+# KETERANGAN PRESET
 if PRESET == "Grade A Setup":
     st.sidebar.markdown("""
     <div style="background-color: #d4edda; padding: 10px; border-radius: 5px; color: #155724;">
@@ -61,11 +61,11 @@ elif PRESET == "Hot Start":
 
 FILTER_INTRADAY = st.sidebar.selectbox("1. Filter Pergerakan Hari Ini (Vs Open)", ["General", "Intraday Momentum (>0%)"])
 
-# Penyesuaian Otomatis Parameter
+# Penyesuaian Otomatis Parameter Sidebar
 if PRESET == "Manual (Default)":
     TF_PILIHAN = st.sidebar.selectbox("2. Pilih Timeframe Eksekusi", ["Harian (Daily)", "1 Jam (1H)", "30 Menit (30m)", "15 Menit (15m)", "5 Menit (5m)"])
-    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=3) # Diubah default index ke 50 agar sesuai preferensi Anda
-    FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > Selected MA)"])
+    MA_PERIODE = st.sidebar.selectbox("3. Periode Moving Average (MA) Eksekusi", [5, 10, 20, 50, 200], index=1)
+    FILTER_TREND = st.sidebar.selectbox("4. Filter Tren Utama (Akselerasi)", ["General", "Power Play Uptrend (Price > DMA 10)"])
 elif PRESET == "Hot Start":
     TF_PILIHAN = "15 Menit (15m)"
     MA_PERIODE = 50
@@ -85,7 +85,7 @@ MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 if PRESET == "Hot Start":
     st.title("📈 IHSG Ultimate Power Screener")
 else:
-    st.title("📈 IHSG Ultimate Multi-Timeframe Screener")
+    st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
 
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
@@ -94,36 +94,29 @@ if MULAI_SCAN:
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
-            data_daily = yf.download(watchlist, period="5d", interval="1d", group_by='ticker', progress=False)
             
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_d = data_daily[ticker] if len(watchlist) > 1 else data_daily
+                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
-                
-                if df_s.empty or len(df_s) < 50 or df_d.empty: continue
-                df_d_clean = df_d['Close'].dropna()
-                if df_d_clean.empty: continue
+                # Memastikan jumlah data cukup untuk menghitung MA dinamis yang dipilih
+                if df_s.empty or len(df_s) < max(50, MA_PERIODE): continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
+                val_pagi = 0
                 
                 close = float(df_s['Close'].iloc[-1])
+                open_price = float(df_s['Open'].iloc[-1])
+                change_pct = ((close - open_price) / open_price) * 100
                 
-                # --- KALKULASI VALUE TRANSAKSI DI BACKGROUND UNTUK SORTING ---
-                volume_sekarang = float(df_s['Volume'].iloc[-1])
-                value_miliar = (volume_sekarang * close) / 1_000_000_000
-                
+                # Menghitung Moving Averages Utama untuk keperluan data kolom tabel luar
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
-                
-                # Menghitung Nilai MA Dinamis berdasarkan input dropdown nomor 3 di sidebar
-                ma_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
                 # Logic Hot Start
                 if PRESET == "Hot Start":
@@ -135,8 +128,6 @@ if MULAI_SCAN:
                     if len(df_hari_ini) >= 2:
                         vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
                         val_pagi = vol_pagi * df_hari_ini['Close'].iloc[0:2].mean()
-                        value_miliar = val_pagi / 1_000_000_000
-                        
                         waktu_kunci = df_hari_ini.index[1]
                         vol_rata = df_s['Volume'].rolling(window=10).mean().loc[waktu_kunci]
                         
@@ -147,12 +138,19 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic preset utama
+                    # Logic preset utama (Manual & Pre-built Grade)
                     if PRESET == "Manual (Default)": 
-                        is_lolos = True
-                        # Logika filter tren diaktifkan untuk menyaring hanya saham di atas MA pilihan
-                        if FILTER_TREND == "Power Play Uptrend (Price > Selected MA)" and close < ma_dinamis:
-                            is_lolos = False
+                        
+                        # 1. KONDISI GENERAL: Mengikuti TF pilihan (No. 2) dan MA periode pilihan (No. 3) secara dinamis
+                        if FILTER_TREND == "General":
+                            ma_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
+                            if close >= ma_dinamis:
+                                is_lolos = True
+                        
+                        # 2. KONDISI POWER PLAY: Mengunci mutlak ke MA10 pada TF eksekusi dengan toleransi 3% Anda
+                        elif FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                            if close >= (ma10 * 0.97):
+                                is_lolos = True
                             
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -161,37 +159,32 @@ if MULAI_SCAN:
                     if is_lolos and (clean := ticker.replace(".JK", "")) in st.session_state['memori_saham'][PRESET]:
                         status_keterangan = "🔵 HOLD"
 
-                # Penentuan Previous Close
-                if len(df_d_clean) >= 2:
-                    prev_daily_close = float(df_d_clean.iloc[-2])
-                else:
-                    prev_daily_close = float(df_d_clean.iloc[-1])
-
-                # Filter Intraday Momentum
-                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and float(df_s['Close'].iloc[-1]) <= prev_daily_close:
+                # Filter Intraday Momentum terhadap Harga Open Hari Ini
+                if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
                     is_lolos = False
 
                 if is_lolos:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
-                    change_pct = ((float(df_s['Close'].iloc[-1]) - prev_daily_close) / prev_daily_close) * 100
+                    
+                    suffix = "Daily" if TF_PILIHAN == "Harian (Daily)" else TF_PILIHAN.split()[-1].replace("(", "").replace(")", "")
                     
                     item_data = {
                         "Kode Saham": clean, 
-                        "Price": f"Rp{float(df_s['Close'].iloc[-1]):,.0f}", 
-                        "Change %": f"{change_pct:+.2f}%", 
+                        "Price": f"Rp{close:,.0f}", 
+                        "Change %": f"{change_pct:+.2f}%",
                     }
                     
                     if PRESET != "Hot Start":
                         item_data.update({
-                            "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:+.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:+.2f}%"
+                            f"% Jarak ke MA10 ({suffix})": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                            f"% Jarak ke MA20 ({suffix})": f"{((close - ma20) / ma20) * 100:+.2f}%",
+                            f"% Jarak ke MA50 ({suffix})": f"{((close - ma50) / ma50) * 100:+.2f}%"
                         })
                         
                     item_data.update({
                         "Status": status_keterangan,
-                        "Value_Hidden": value_miliar  # Penampung nilai transaksi untuk disortir
+                        "val_helper": val_pagi
                     })
                     hasil_screener.append(item_data)
             
@@ -199,17 +192,18 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
+                if PRESET == "Hot Start":
+                    df_h = df_h.sort_values(by="val_helper", ascending=False)
+                else:
+                    df_h = df_h.sort_values(by="Kode Saham")
                 
-                # --- PROSES SORTING BY VALUE DI SINI ---
-                df_h = df_h.sort_values(by="Value_Hidden", ascending=False)
+                df_h = df_h.drop(columns=["val_helper"])
                 
-                # --- MENYEMBUNYIKAN (KOLOM VALUE DI-DROP) ---
-                df_h = df_h.drop(columns=["Value_Hidden"])
-                
-                st.subheader(f"Total: {len(df_h)} Saham")
+                st.success("🎯 Pemindaian Selesai!")
+                st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 
                 tabel_height = (len(df_h) + 1) * 35
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else:
-                st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
+                st.warning("Tidak ada saham yang memenuhi kriteria.")
         except Exception as e: st.error(f"Error: {e}")
