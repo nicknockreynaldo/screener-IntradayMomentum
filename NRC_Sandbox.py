@@ -96,10 +96,10 @@ if MULAI_SCAN:
             # 1. Download Data Utama (Sesuai Timeframe Eksekusi No. 2)
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             
-            # 2. Download Data Harian terpisah untuk benteng pertahanan terakhir (Power Play)
+            # 2. Download Data Harian terpisah untuk menjamin ekstraksi nilai "Daily MA 50" yang valid
             data_daily_bulk = None
-            if PRESET == "Manual (Default)" and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and TF_PILIHAN != "Harian (Daily)":
-                data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+            if TF_PILIHAN != "Harian (Daily)":
+                data_daily_bulk = yf.download(watchlist, period="6mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
             
             # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display jangkauan (1H)
             data_1h_bulk = None
@@ -116,7 +116,7 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index()
                 
-                # SINKRONISASI DATA: Atasi celah yfinance agar baris terakhir tidak melompat ke masa lalu
+                # SINKRONISASI DATA UTAMA
                 df_s['Close'] = df_s['Close'].ffill()
                 df_s['Open'] = df_s['Open'].fillna(df_s['Close'])
                 df_s['Volume'] = df_s['Volume'].fillna(0)
@@ -138,6 +138,31 @@ if MULAI_SCAN:
                 ma10_internal = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma50_internal = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 ma_eksekusi_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
+                
+                # --- LOGIKA EKSTRAKSI DAN KALKULASI DATA HARIAN (AUDIT JANGKAR) ---
+                if TF_PILIHAN == "Harian (Daily)":
+                    daily_ma50 = ma50_internal
+                    dma10_kunci = ma10_internal
+                    d_close = close
+                else:
+                    df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
+                    df_d = df_d.sort_index()
+                    df_d['Close'] = df_d['Close'].ffill()
+                    df_d = df_d.dropna(subset=['Close'])
+                    
+                    # Hitung Nilai Rata-rata 50 Harian yang sesungguhnya
+                    if not df_d.empty and len(df_d) >= 50:
+                        daily_ma50 = float(df_d['Close'].rolling(50).mean().iloc[-1])
+                    else:
+                        daily_ma50 = None
+                        
+                    # Komponen untuk Filter Power Play Uptrend
+                    if not df_d.empty and len(df_d) >= 10:
+                        dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
+                        d_close = float(df_d['Close'].iloc[-1])
+                    else:
+                        dma10_kunci = ma10_internal
+                        d_close = close
                 
                 # Hitung Nilai Transaksi Hari Ini untuk keperluan Sorting Latar Belakang
                 hari_ini = df_s.index[-1].date()
@@ -172,22 +197,6 @@ if MULAI_SCAN:
                         if close >= ma_eksekusi_dinamis:
                             # IF 2: Validasi Filter No. 4 (Filter Tren Utama / Akselerasi)
                             if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
-                                if TF_PILIHAN == "Harian (Daily)":
-                                    dma10_kunci = ma10_internal
-                                    d_close = close
-                                else:
-                                    df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
-                                    df_d = df_d.sort_index()
-                                    df_d['Close'] = df_d['Close'].ffill()
-                                    df_d = df_d.dropna(subset=['Close'])
-                                    
-                                    if not df_d.empty and len(df_d) >= 10:
-                                        dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
-                                        d_close = float(df_d['Close'].iloc[-1])
-                                    else:
-                                        dma10_kunci = ma10_internal
-                                        d_close = close
-                                
                                 # Jika harga memenuhi ambang batas toleransi 3% DMA10 harian, nyatakan lolos
                                 if d_close >= (dma10_kunci * 0.97):
                                     is_lolos = True
@@ -210,10 +219,12 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     
+                    # Pembuatan Matriks Display Baris Tabel
                     item_data = {
                         "Kode Saham": clean, 
                         "Price": f"Rp{close:,.0f}", 
                         "Change %": f"{change_pct:+.2f}%",
+                        "Daily MA 50": f"Rp{daily_ma50:,.0f}" if daily_ma50 is not None else "N/A" # KOLOM BARU AUDIT
                     }
                     
                     # LOGIKA JANGKAR 1H MURNI UNTUK MATRIKS DISPLAY TABEL
@@ -253,7 +264,6 @@ if MULAI_SCAN:
                 
                 # LOGIKA SORTING BERDASARKAN VALUE TRANSAKSI TERBESAR (DESCENDING)
                 df_h = df_h.sort_values(by="val_helper", ascending=False)
-                # Kolom helper langsung dibuang sebelum dirender ke layar (Sesuai instruksi: Kolom Value Hilang)
                 df_h = df_h.drop(columns=["val_helper"])
                 
                 st.success("🎯 Pemindaian Selesai!")
