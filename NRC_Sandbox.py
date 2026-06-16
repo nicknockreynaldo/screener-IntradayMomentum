@@ -116,8 +116,9 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
-                # Memastikan data cukup untuk menghitung MA
-                if df_s.empty or len(df_s) < max(50, MA_PERIODE): continue
+                # Cek batas candle minimal secara dinamis agar kalkulasi MA tidak error
+                min_candle = MA_PERIODE if PRESET == "Manual (Default)" else 50
+                if df_s.empty or len(df_s) < min_candle: continue
                 
                 is_lolos = False
                 status_keterangan = "🟢 NEW"
@@ -132,7 +133,7 @@ if MULAI_SCAN:
                 ma50_internal = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 ma_eksekusi_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
-                # Hitung Akumulasi Nilai Transaksi Hari Ini untuk sorting Likuiditas
+                # Hitung Nilai Transaksi Hari Ini untuk keperluan Sorting Latar Belakang
                 hari_ini = df_s.index[-1].date()
                 df_hari_ini = df_s[df_s.index.date == hari_ini]
                 if not df_hari_ini.empty:
@@ -157,30 +158,33 @@ if MULAI_SCAN:
                             is_lolos = True
                             status_keterangan = "🔥 HOT START"
                 
+                # Logic Preset Berbasis Multi-Timeframe & Manual Setup
                 else:
-                    # Logic preset utama
                     if PRESET == "Manual (Default)": 
-                        # KUNCI FILTER: Wajib berada di atas MA Periode Pilihan Nomor 3
+                        # --- KONSEP NESTED IF SELEKSI BERLAPIS ---
+                        # IF 1: Validasi Filter No. 3 (Price wajib >= MA Eksekusi pada TF pilihan)
                         if close >= ma_eksekusi_dinamis:
-                            is_lolos = True
-                        
-                        # Aturan Toleransi Akselerasi Trend 3% di bawah DMA10 (Daily)
-                        if is_lolos and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
-                            if TF_PILIHAN == "Harian (Daily)":
-                                dma10_kunci = ma10_internal
-                                d_close = close
-                            else:
-                                df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
-                                df_d = df_d.sort_index().dropna(subset=['Close'])
-                                if not df_d.empty and len(df_d) >= 10:
-                                    dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
-                                    d_close = float(df_d['Close'].iloc[-1])
-                                else:
+                            # IF 2: Validasi Filter No. 4 (Filter Tren Utama / Akselerasi)
+                            if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                                if TF_PILIHAN == "Harian (Daily)":
                                     dma10_kunci = ma10_internal
                                     d_close = close
-                                    
-                            if d_close < (dma10_kunci * 0.97):
-                                is_lolos = False
+                                else:
+                                    df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
+                                    df_d = df_d.sort_index().dropna(subset=['Close'])
+                                    if not df_d.empty and len(df_d) >= 10:
+                                        dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
+                                        d_close = float(df_d['Close'].iloc[-1])
+                                    else:
+                                        dma10_kunci = ma10_internal
+                                        d_close = close
+                                
+                                # Jika harga memenuhi ambang batas toleransi 3% DMA10 harian, nyatakan lolos
+                                if d_close >= (dma10_kunci * 0.97):
+                                    is_lolos = True
+                            else:
+                                # Jika Filter Tren Utama adalah "General", otomatis lolos karena IF 1 terpenuhi
+                                is_lolos = True
                             
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10_internal and close > ma50_internal)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10_internal * 0.95) and close < ma50_internal)
@@ -225,11 +229,6 @@ if MULAI_SCAN:
                                 "% Jarak ke MA50 (1H)": "N/A"
                             })
                         
-                        # Tampilkan nilai transaksi riil dalam Miliar (M) di tabel
-                        item_data.update({
-                            "Value (M)": f"Rp{val_transaksi_sekarang / 1_000_000_000:.2f}M"
-                        })
-                        
                     item_data.update({
                         "Status": status_keterangan,
                         "val_helper": val_pagi if PRESET == "Hot Start" else val_transaksi_sekarang
@@ -243,6 +242,7 @@ if MULAI_SCAN:
                 
                 # LOGIKA SORTING BERDASARKAN VALUE TRANSAKSI TERBESAR (DESCENDING)
                 df_h = df_h.sort_values(by="val_helper", ascending=False)
+                # Kolom helper langsung dibuang sebelum dirender ke layar (Kolom value hilang dari interface)
                 df_h = df_h.drop(columns=["val_helper"])
                 
                 st.success("🎯 Pemindaian Selesai!")
