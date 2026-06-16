@@ -93,15 +93,15 @@ if MULAI_SCAN:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
-            # 1. Download Data UTAMA berdasarkan Timeframe Eksekusi pilihan (No. 2)
+            # 1. Download Data Utama (Sesuai Timeframe Eksekusi No. 2)
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
             
-            # 2. Download Data HARIAN terpisah untuk benteng pertahanan terakhir (Power Play)
+            # 2. Download Data Harian terpisah untuk benteng pertahanan terakhir (Power Play)
             data_daily_bulk = None
             if PRESET == "Manual (Default)" and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and TF_PILIHAN != "Harian (Daily)":
                 data_daily_bulk = yf.download(watchlist, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
             
-            # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display tabel (jika TF eksekusi bukan 1H)
+            # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display jangkauan (1H)
             data_1h_bulk = None
             if PRESET != "Hot Start":
                 if TF_PILIHAN == "1 Jam (1H)":
@@ -116,6 +116,7 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
+                # Memastikan data cukup untuk menghitung MA
                 if df_s.empty or len(df_s) < max(50, MA_PERIODE): continue
                 
                 is_lolos = False
@@ -126,18 +127,24 @@ if MULAI_SCAN:
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
                 
-                # Perhitungan MA Internal untuk Filter Eksekusi sesuai TF Pilihan (No. 2 & No. 3)
+                # Menghitung Moving Averages Utama Internal (Sesuai TF Eksekusi)
                 ma10_internal = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma50_internal = float(df_s['Close'].rolling(50).mean().iloc[-1])
                 ma_eksekusi_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
+                
+                # Hitung Akumulasi Nilai Transaksi Hari Ini untuk sorting Likuiditas
+                hari_ini = df_s.index[-1].date()
+                df_hari_ini = df_s[df_s.index.date == hari_ini]
+                if not df_hari_ini.empty:
+                    val_transaksi_sekarang = (df_hari_ini['Close'] * df_hari_ini['Volume']).sum()
+                else:
+                    val_transaksi_sekarang = close * float(df_s['Volume'].iloc[-1])
                 
                 # Logic Hot Start
                 if PRESET == "Hot Start":
                     if df_s.index[-1].date() < pd.Timestamp.now().date(): continue
                     
-                    hari_ini = df_s.index[-1].date()
                     df_hari_ini = df_s[df_s.index.date == hari_ini]
-                    
                     if len(df_hari_ini) >= 2:
                         vol_pagi = df_hari_ini['Volume'].iloc[0:2].sum()
                         val_pagi = vol_pagi * df_hari_ini['Close'].iloc[0:2].mean()
@@ -151,13 +158,13 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic Preset Manual (Default) & Pre-built Setup
+                    # Logic preset utama
                     if PRESET == "Manual (Default)": 
-                        # LAYER EKSEKUSI (No. 2 & No. 3): Wajib di atas MA pilihan pada TF pilihan
+                        # KUNCI FILTER: Wajib berada di atas MA Periode Pilihan Nomor 3
                         if close >= ma_eksekusi_dinamis:
                             is_lolos = True
                         
-                        # LAYER BENTENG TERAKHIR (No. 4): Konfirmasi Daily > DMA10 (Toleransi 3%)
+                        # Aturan Toleransi Akselerasi Trend 3% di bawah DMA10 (Daily)
                         if is_lolos and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
                             if TF_PILIHAN == "Harian (Daily)":
                                 dma10_kunci = ma10_internal
@@ -196,7 +203,7 @@ if MULAI_SCAN:
                         "Change %": f"{change_pct:+.2f}%",
                     }
                     
-                    # HITUNG DISTANCE BERDASARKAN TIMEFRAME 1 JAM (1H) SECARA MURNI UNTUK KOLOM TABEL
+                    # LOGIKA JANGKAR 1H MURNI UNTUK MATRIKS DISPLAY TABEL
                     if PRESET != "Hot Start":
                         df_1h = data_1h_bulk[ticker] if len(watchlist) > 1 else data_1h_bulk
                         df_1h = df_1h.sort_index().dropna(subset=['Close'])
@@ -218,9 +225,14 @@ if MULAI_SCAN:
                                 "% Jarak ke MA50 (1H)": "N/A"
                             })
                         
+                        # Tampilkan nilai transaksi riil dalam Miliar (M) di tabel
+                        item_data.update({
+                            "Value (M)": f"Rp{val_transaksi_sekarang / 1_000_000_000:.2f}M"
+                        })
+                        
                     item_data.update({
                         "Status": status_keterangan,
-                        "val_helper": val_pagi
+                        "val_helper": val_pagi if PRESET == "Hot Start" else val_transaksi_sekarang
                     })
                     hasil_screener.append(item_data)
             
@@ -228,7 +240,9 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                df_h = df_h.sort_values(by="Kode Saham")
+                
+                # LOGIKA SORTING BERDASARKAN VALUE TRANSAKSI TERBESAR (DESCENDING)
+                df_h = df_h.sort_values(by="val_helper", ascending=False)
                 df_h = df_h.drop(columns=["val_helper"])
                 
                 st.success("🎯 Pemindaian Selesai!")
