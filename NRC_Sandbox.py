@@ -114,7 +114,13 @@ if MULAI_SCAN:
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
+                df_s = df_s.sort_index()
+                
+                # SINKRONISASI DATA: Atasi celah yfinance agar baris terakhir tidak melompat ke masa lalu
+                df_s['Close'] = df_s['Close'].ffill()
+                df_s['Open'] = df_s['Open'].fillna(df_s['Close'])
+                df_s['Volume'] = df_s['Volume'].fillna(0)
+                df_s = df_s.dropna(subset=['Close'])
                 
                 # Cek batas candle minimal secara dinamis agar kalkulasi MA tidak error
                 min_candle = MA_PERIODE if PRESET == "Manual (Default)" else 50
@@ -126,7 +132,7 @@ if MULAI_SCAN:
                 
                 close = float(df_s['Close'].iloc[-1])
                 open_price = float(df_s['Open'].iloc[-1])
-                change_pct = ((close - open_price) / open_price) * 100
+                change_pct = ((close - open_price) / open_price) * 100 if open_price != 0 else 0
                 
                 # Menghitung Moving Averages Utama Internal (Sesuai TF Eksekusi)
                 ma10_internal = float(df_s['Close'].rolling(10).mean().iloc[-1])
@@ -162,7 +168,7 @@ if MULAI_SCAN:
                 else:
                     if PRESET == "Manual (Default)": 
                         # --- KONSEP NESTED IF SELEKSI BERLAPIS ---
-                        # IF 1: Validasi Filter No. 3 (Price wajib >= MA Eksekusi pada TF pilihan)
+                        # IF 1: Validasi Filter No. 3 (Price wajib >= MA Eksekusi pada TF pilihan saat ini)
                         if close >= ma_eksekusi_dinamis:
                             # IF 2: Validasi Filter No. 4 (Filter Tren Utama / Akselerasi)
                             if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
@@ -171,7 +177,10 @@ if MULAI_SCAN:
                                     d_close = close
                                 else:
                                     df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
-                                    df_d = df_d.sort_index().dropna(subset=['Close'])
+                                    df_d = df_d.sort_index()
+                                    df_d['Close'] = df_d['Close'].ffill()
+                                    df_d = df_d.dropna(subset=['Close'])
+                                    
                                     if not df_d.empty and len(df_d) >= 10:
                                         dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
                                         d_close = float(df_d['Close'].iloc[-1])
@@ -210,7 +219,9 @@ if MULAI_SCAN:
                     # LOGIKA JANGKAR 1H MURNI UNTUK MATRIKS DISPLAY TABEL
                     if PRESET != "Hot Start":
                         df_1h = data_1h_bulk[ticker] if len(watchlist) > 1 else data_1h_bulk
-                        df_1h = df_1h.sort_index().dropna(subset=['Close'])
+                        df_1h = df_1h.sort_index()
+                        df_1h['Close'] = df_1h['Close'].ffill()
+                        df_1h = df_1h.dropna(subset=['Close'])
                         
                         if not df_1h.empty and len(df_1h) >= 50:
                             ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
@@ -242,7 +253,7 @@ if MULAI_SCAN:
                 
                 # LOGIKA SORTING BERDASARKAN VALUE TRANSAKSI TERBESAR (DESCENDING)
                 df_h = df_h.sort_values(by="val_helper", ascending=False)
-                # Kolom helper langsung dibuang sebelum dirender ke layar (Kolom value hilang dari interface)
+                # Kolom helper langsung dibuang sebelum dirender ke layar (Sesuai instruksi: Kolom Value Hilang)
                 df_h = df_h.drop(columns=["val_helper"])
                 
                 st.success("🎯 Pemindaian Selesai!")
