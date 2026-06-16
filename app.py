@@ -7,7 +7,7 @@ import warnings
 st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
 
-# Inisialisasi Session State
+# Inisialisasi Session State (Tanpa Hot Start)
 if 'memori_saham' not in st.session_state:
     st.session_state['memori_saham'] = {
         "Manual (Default)": [], "Grade A Setup": [], "Grade B Setup": [], "Grade D (Market Merah Cari Alpha)": []
@@ -51,45 +51,51 @@ if MULAI_SCAN:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
-            data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
+            # FIX CRITICAL: auto_adjust dimatikan agar yfinance tidak mendistorsi nominal rupiah dividen ke data masa lalu
+            data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=False, progress=False)
             
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
             
             for ticker in watchlist:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
-                df_s = df_s.sort_index().dropna(subset=['Close', 'Open', 'Volume'])
+                df_s = df_s.sort_index()
+                
+                # FIX CRITICAL: Menggunakan 'Adj Close' resmi Yahoo untuk kalkulasi presisi rasio mendekati TradingView
+                # Menggunakan ffill() dan fillna() untuk mencegah error data kosong/bolong pada saham tertentu
+                df_s['Close_Target'] = df_s['Adj Close'].ffill() if 'Adj Close' in df_s.columns else df_s['Close'].ffill()
+                df_s['Open_Target'] = df_s['Open'].fillna(df_s['Close_Target'])
+                df_s = df_s.dropna(subset=['Close_Target'])
                 
                 jumlah_data = len(df_s)
-                if df_s.empty or jumlah_data < max(50, MA_PERIODE): continue
+                if df_s.empty or jumlah_data < 50: continue
                 
-                close = float(df_s['Close'].iloc[-1])
-                open_price = float(df_s['Open'].iloc[-1])
-                change_pct = ((close - open_price) / open_price) * 100
+                close = float(df_s['Close_Target'].iloc[-1])
+                open_price = float(df_s['Open_Target'].iloc[-1])
+                change_pct = ((close - open_price) / open_price) * 100 if open_price != 0 else 0
                 
-                # --- 1. PERHITUNGAN VALUE TRANSAKSI DI BACKGROUND ---
-                volume_sekarang = float(df_s['Volume'].iloc[-1])
-                value_miliar = (volume_sekarang * close) / 1_000_000_000
+                # Kalkulasi MA dari data penutupan yang stabil (Targeted Adj Close)
+                ma10 = float(df_s['Close_Target'].rolling(10).mean().iloc[-1])
+                ma20 = float(df_s['Close_Target'].rolling(20).mean().iloc[-1])
+                ma50 = float(df_s['Close_Target'].rolling(50).mean().iloc[-1])
                 
-                ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
-                ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
-                ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
+                # Menentukan MA dinamis untuk mode parameter Manual
+                ma_eksekusi_dinamis = float(df_s['Close_Target'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
-                # Menghitung Garis MA Target dinamis mengikuti pilihan dropdown Nomor 3
-                ma_target = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
-                
-                # Logika Filter (Sudah Dihubungkan ke Parameter Sidebar)
+                # Logika Filter Seleksi Utama
                 if PRESET == "Manual (Default)": 
                     is_lolos = True
-                    # Jika memilih filter tren akselerasi, harga wajib berada di atas MA pilihan (contoh: DMA50)
-                    if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and close < ma_target:
+                    if close < ma_eksekusi_dinamis:
+                        is_lolos = False
+                    # Aturan Toleransi Akselerasi Trend 3% di bawah DMA10
+                    if FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and close < (ma10 * 0.97):
                         is_lolos = False
                         
                 elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                 elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
                 elif PRESET == "Grade D (Market Merah Cari Alpha)": is_lolos = (close > ma50)
                 
-                # Hubungkan Filter Intraday Momentum terhadap Open
+                # Filter Intraday Momentum terhadap Harga Open Hari Ini
                 if is_lolos and FILTER_INTRADAY == "Intraday Momentum (>0%)" and change_pct <= 0:
                     is_lolos = False
                 
@@ -97,29 +103,29 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     
+                    # Penamaan header jarak kolom dinamis sesuai dengan Timeframe yang dipilih
+                    suffix = "Daily" if TF_PILIHAN == "Harian (Daily)" else TF_PILIHAN.split()[-1].replace("(", "").replace(")", "")
+                    
                     hasil_screener.append({
                         "Kode Saham": clean,
                         "Price": f"Rp{close:,.0f}",
                         "Change %": f"{change_pct:+.2f}%",
-                        "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:.2f}%",
-                        "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:.2f}%",
-                        "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:.2f}%",
-                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD",
-                        "Value_Hidden": value_miliar # Menyimpan nilai murni float untuk sorting
+                        f"% Jarak ke MA10 ({suffix})": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                        f"% Jarak ke MA20 ({suffix})": f"{((close - ma20) / ma20) * 100:+.2f}%",
+                        f"% Jarak ke MA50 ({suffix})": f"{((close - ma50) / ma50) * 100:+.2f}%",
+                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
+                df_h = df_h.sort_values(by="Kode Saham")
                 
-                # --- 2. PROSES SORTING BY VALUE TERBESAR & DROP SEBELUM TAMPIL ---
-                df_h = df_h.sort_values(by="Value_Hidden", ascending=False)
-                df_h = df_h.drop(columns=["Value_Hidden"])
-                
-                st.success(f"🎯 Pemindaian Selesai!")
+                st.success("🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
                 
+                # Modifikasi tinggi tabel agar menampilkan semua baris tanpa scroll dalam tabel
                 tabel_height = (len(df_h) + 1) * 35
                 st.dataframe(df_h, use_container_width=True, hide_index=True, height=tabel_height)
             else: 
