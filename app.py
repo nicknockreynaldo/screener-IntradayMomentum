@@ -62,9 +62,9 @@ if MULAI_SCAN:
                 df_s = df_s.sort_index()
                 
                 # FIX CRITICAL: Menggunakan 'Adj Close' resmi Yahoo untuk kalkulasi presisi rasio mendekati TradingView
-                # Menggunakan ffill() dan fillna() untuk mencegah error data kosong/bolong pada saham tertentu
                 df_s['Close_Target'] = df_s['Adj Close'].ffill() if 'Adj Close' in df_s.columns else df_s['Close'].ffill()
                 df_s['Open_Target'] = df_s['Open'].fillna(df_s['Close_Target'])
+                df_s['Volume'] = df_s['Volume'].fillna(0)
                 df_s = df_s.dropna(subset=['Close_Target'])
                 
                 jumlah_data = len(df_s)
@@ -81,6 +81,14 @@ if MULAI_SCAN:
                 
                 # Menentukan MA dinamis untuk mode parameter Manual
                 ma_eksekusi_dinamis = float(df_s['Close_Target'].rolling(window=MA_PERIODE).mean().iloc[-1])
+                
+                # Hitung Nilai Transaksi Rupiah Hari Ini sebagai basis Sorting
+                hari_ini = df_s.index[-1].date()
+                df_hari_ini = df_s[df_s.index.date == hari_ini]
+                if not df_hari_ini.empty:
+                    val_transaksi_sekarang = (df_hari_ini['Close_Target'] * df_hari_ini['Volume']).sum()
+                else:
+                    val_transaksi_sekarang = close * float(df_s['Volume'].iloc[-1])
                 
                 # Logika Filter Seleksi Utama
                 if PRESET == "Manual (Default)": 
@@ -103,24 +111,26 @@ if MULAI_SCAN:
                     clean = ticker.replace(".JK", "")
                     daftar_saham_lolos_sekarang.append(clean)
                     
-                    # Penamaan header jarak kolom dinamis sesuai dengan Timeframe yang dipilih
-                    suffix = "Daily" if TF_PILIHAN == "Harian (Daily)" else TF_PILIHAN.split()[-1].replace("(", "").replace(")", "")
-                    
                     hasil_screener.append({
                         "Kode Saham": clean,
                         "Price": f"Rp{close:,.0f}",
                         "Change %": f"{change_pct:+.2f}%",
-                        f"% Jarak ke MA10 ({suffix})": f"{((close - ma10) / ma10) * 100:+.2f}%",
-                        f"% Jarak ke MA20 ({suffix})": f"{((close - ma20) / ma20) * 100:+.2f}%",
-                        f"% Jarak ke MA50 ({suffix})": f"{((close - ma50) / ma50) * 100:+.2f}%",
-                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD"
+                        # UPDATE: Nama title kolom diubah permanen menggunakan (1H) sesuai instruksi
+                        "% Jarak ke MA10 (1H)": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                        "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:+.2f}%",
+                        "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:+.2f}%",
+                        "Status": "🟢 NEW" if clean not in st.session_state['memori_saham'][PRESET] else "🔵 HOLD",
+                        "val_helper": val_transaksi_sekarang  # Disimpan sementara untuk proses sorting data
                     })
             
             st.session_state['memori_saham'][PRESET] = daftar_saham_lolos_sekarang
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                df_h = df_h.sort_values(by="Kode Saham")
+                
+                # UPDATE: Mengurutkan otomatis dari nilai transaksi terbesar ke terkecil (Descending)
+                df_h = df_h.sort_values(by="val_helper", ascending=False)
+                df_h = df_h.drop(columns=["val_helper"])  # Hapus kolom pembantu agar tidak mengotori tabel utama
                 
                 st.success("🎯 Pemindaian Selesai!")
                 st.metric("Saham Lolos Kriteria", f"{len(df_h)} Saham")
