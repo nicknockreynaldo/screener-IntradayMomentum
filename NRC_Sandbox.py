@@ -7,7 +7,7 @@ import math
 st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
 
 # Pengaturan Halaman
-st.set_page_config(page_title="IHSG Ultimate Power Screener", page_icon="📈", layout="wide")
+st.set_page_config(page_title="IHSG Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
 
 # Inisialisasi Session State
@@ -21,7 +21,7 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.header("⚙️ Parameter Sensor")
 PRESET = st.sidebar.selectbox("Pilih Preset Setup:", ["Manual (Default)", "Grade A Setup", "Grade B Setup", "Grade D (Market Merah Cari Alpha)", "Hot Start"])
 
-# KETERANGAN PRESET (Restorasi Tampilan)
+# KETERANGAN PRESET
 if PRESET == "Grade A Setup":
     st.sidebar.markdown("""
     <div style="background-color: #d4edda; padding: 10px; border-radius: 5px; color: #155724;">
@@ -77,7 +77,11 @@ interval_param, period_param = tf_map[TF_PILIHAN]
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
-st.title("📈 IHSG Ultimate Power Screener")
+# JUDUL DINAMIS
+if PRESET == "Hot Start":
+    st.title("📈 IHSG Ultimate Power Screener")
+else:
+    st.title("📈 IHSG Ultimate Multi-Timeframe Screener")
 
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
