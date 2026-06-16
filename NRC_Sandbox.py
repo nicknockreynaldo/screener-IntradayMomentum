@@ -81,19 +81,19 @@ interval_param, period_param = tf_map[TF_PILIHAN]
 URL_PERMANEN = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv"
 MULAI_SCAN = st.sidebar.button("🚀 Start Screening", use_container_width=True)
 
-# JUDUL DINAMIS
-if PRESET == "Hot Start":
-    st.title("📈 IHSG Ultimate Power Screener")
-else:
-    st.title("📈 IHSG Multi-Timeframe Ultimate Screener")
-
 if MULAI_SCAN:
     with st.spinner("Mengambil data terbaru..."):
         try:
             df_sheet = pd.read_csv(URL_PERMANEN, usecols=[0], nrows=200)
             watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
             
+            # 1. Download Data UTAMA berdasarkan Timeframe Eksekusi pilihan (No. 2)
             data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
+            
+            # 2. Download Data HARIAN terpisah untuk benteng pertahanan terakhir (jika TF eksekusinya intraday)
+            data_daily_bulk = None
+            if PRESET == "Manual (Default)" and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)" and TF_PILIHAN != "Harian (Daily)":
+                data_daily_bulk = yf.download(watchlist, period="1mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
             
             hasil_screener = []
             daftar_saham_lolos_sekarang = []
@@ -102,7 +102,6 @@ if MULAI_SCAN:
                 df_s = data_bulk[ticker] if len(watchlist) > 1 else data_bulk
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume', 'Open'])
                 
-                # Memastikan data cukup untuk MA berapapun yang dipilih (termasuk MA 200)
                 if df_s.empty or len(df_s) < max(50, MA_PERIODE): continue
                 
                 is_lolos = False
@@ -113,10 +112,13 @@ if MULAI_SCAN:
                 open_price = float(df_s['Open'].iloc[-1])
                 change_pct = ((close - open_price) / open_price) * 100
                 
-                # Menghitung Moving Averages Utama untuk kolom luar tabel
+                # Menghitung Indikator Berdasarkan TF Eksekusi Terpilih (No.2 & No.3)
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma20 = float(df_s['Close'].rolling(20).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
+                
+                # Ambil MA Eksekusi Dinamis sesuai pilihan No. 3
+                ma_eksekusi_dinamis = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
                 
                 # Logic Hot Start
                 if PRESET == "Hot Start":
@@ -138,19 +140,31 @@ if MULAI_SCAN:
                             status_keterangan = "🔥 HOT START"
                 
                 else:
-                    # Logic preset utama
+                    # Logic Preset Manual (Default) dengan Sistem Benteng Pertahanan 4 tingkat
                     if PRESET == "Manual (Default)": 
+                        # SYARAT UTAMA: Wajib di atas MA Eksekusi Terpilih (No. 2 & No. 3)
+                        if close >= ma_eksekusi_dinamis:
+                            is_lolos = True
                         
-                        # FIX LOGIKA GENERAL: Dinamis mengikuti parameter No. 3 tanpa toleransi bawaan
-                        if FILTER_TREND == "General":
-                            ma_pilihan = float(df_s['Close'].rolling(window=MA_PERIODE).mean().iloc[-1])
-                            if close >= ma_pilihan:
-                                is_lolos = True
-                        
-                        # FIX LOGIKA POWER PLAY: Tetap terkunci ke MA10 dengan toleransi 3% bawaan Anda
-                        elif FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
-                            if close >= (ma10 * 0.97):
-                                is_lolos = True
+                        # SYARAT BENTENG TERAKHIR (No. 4): Jika diaktifkan, ketatkan dengan Daily > DMA10
+                        if is_lolos and FILTER_TREND == "Power Play Uptrend (Price > DMA 10)":
+                            if TF_PILIHAN == "Harian (Daily)":
+                                dma10_kunci = ma10
+                                d_close = close
+                            else:
+                                # Jika TF Eksekusi Intraday, periksa chart harian aslinya
+                                df_d = data_daily_bulk[ticker] if len(watchlist) > 1 else data_daily_bulk
+                                df_d = df_d.sort_index().dropna(subset=['Close'])
+                                if not df_d.empty and len(df_d) >= 10:
+                                    dma10_kunci = float(df_d['Close'].rolling(10).mean().iloc[-1])
+                                    d_close = float(df_d['Close'].iloc[-1])
+                                else:
+                                    dma10_kunci = ma10
+                                    d_close = close
+                                    
+                            # Syarat pengetatan benteng terakhir harian
+                            if d_close < (dma10_kunci * 0.97):
+                                is_lolos = False
                             
                     elif PRESET == "Grade A Setup": is_lolos = (close > ma10 and close > ma50)
                     elif PRESET == "Grade B Setup": is_lolos = (close >= (ma10 * 0.95) and close < ma50)
@@ -192,11 +206,7 @@ if MULAI_SCAN:
             
             if hasil_screener:
                 df_h = pd.DataFrame(hasil_screener)
-                if PRESET == "Hot Start":
-                    df_h = df_h.sort_values(by="val_helper", ascending=False)
-                else:
-                    df_h = df_h.sort_values(by="Kode Saham")
-                
+                df_h = df_h.sort_values(by="Kode Saham")
                 df_h = df_h.drop(columns=["val_helper"])
                 
                 st.success("🎯 Pemindaian Selesai!")
