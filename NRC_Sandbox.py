@@ -288,24 +288,24 @@ with tab_screener:
 with tab_watchlist:
     st.header("📋 Manual Watchlist Monitor (TF: 1 Hour)")
     
-    # URL Google Sheet tab "WL" (GID=720440950)
+    # 1. MENGAMBIL DATA DARI SHEET "WL" (A1)
+    # Ganti &gid=720440950 dengan GID tab "WL" Anda yang benar jika data gagal terbaca
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # 1. Logic untuk menarik data Google Sheet sekali saja saat pertama kali buka
-    if 'default_wl' not in st.session_state:
-        try:
-            df_wl_raw = pd.read_csv(URL_WL, header=None)
-            # Mengambil baris pertama, kolom pertama
-            st.session_state['default_wl'] = str(df_wl_raw.iloc[0, 0])
-        except:
-            # Fallback jika gagal load
-            st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
+    try:
+        df_wl_load = pd.read_csv(URL_WL, header=None)
+        # Mengambil nilai sel A1 (row 0, col 0)
+        default_stocks = str(df_wl_load.iloc[0, 0])
+    except:
+        default_stocks = "BBCA, BMRI, BBNI, UNVR"
     
-    # 2. Input Box (Nilai default diambil dari session state yang diisi dari Google Sheet)
+    st.markdown("Pantau pergerakan data teknikal asli tanpa filter eliminasi untuk seluruh saham yang Anda ketik mandiri di bawah ini.")
+    
+    # 2. MENGGUNAKAN DATA DARI SHEET SEBAGAI VALUE
     input_watchlist_manual = st.text_area(
         "Masukkan Kode Saham Pilihan Anda (pisahkan dengan koma atau enter):",
-        value=st.session_state['default_wl'],
-        help="Anda bisa menambah/mengedit saham di sini secara manual tanpa mengubah Google Sheet.",
+        value=default_stocks,
+        help="Input otomatis ditarik dari Google Sheet Tab WL (Sel A1)",
         key="wl_manual_input"
     )
     
@@ -319,58 +319,39 @@ with tab_watchlist:
                 watchlist_wl = [s + ".JK" if not s.endswith(".JK") else s for s in raw_wl_tokens if len(s.split(".")[0]) == 4]
                 
                 if watchlist_wl:
-                    # Mengunci download data massal khusus ke timeframe 1 Jam (1h)
                     data_bulk_wl = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
                     hasil_watchlist_manual = []
                     
                     for ticker in watchlist_wl:
                         df_wl_single = data_bulk_wl[ticker] if len(watchlist_wl) > 1 else data_bulk_wl
-                        df_wl_single = df_wl_single.sort_index()
+                        df_wl_single = df_wl_single.sort_index().dropna(subset=['Close'])
                         
-                        df_wl_single['Close'] = df_wl_single['Close'].ffill()
-                        df_wl_single['Open'] = df_wl_single['Open'].fillna(df_wl_single['Close'])
-                        df_wl_single['Volume'] = df_wl_single['Volume'].fillna(0)
-                        df_wl_single = df_wl_single.dropna(subset=['Close'])
-                        
-                        # Pengaman data jika baris saham baru listing kurang dari 50 baris candle 1H
-                        if df_wl_single.empty or len(df_wl_single) < 50:
-                            hasil_watchlist_manual.append({
-                                "Kode Saham": ticker.replace(".JK", ""), "Price": "N/A", "Change %": "N/A",
-                                "% Jarak ke MA10 (1H)": "N/A", "% Jarak ke MA20 (1H)": "N/A", "% Jarak ke MA50 (1H)": "N/A",
-                                "val_helper": 0
-                            })
-                            continue
+                        if df_wl_single.empty or len(df_wl_single) < 50: continue
                         
                         close_wl = float(df_wl_single['Close'].iloc[-1])
                         open_wl = float(df_wl_single['Open'].iloc[-1])
                         change_pct_wl = ((close_wl - open_wl) / open_wl) * 100 if open_wl != 0 else 0
                         
-                        # Menghitung rolling mean MA Jam-Jaman (1H)
                         ma10_wl = float(df_wl_single['Close'].rolling(10).mean().iloc[-1])
                         ma20_wl = float(df_wl_single['Close'].rolling(20).mean().iloc[-1])
                         ma50_wl = float(df_wl_single['Close'].rolling(50).mean().iloc[-1])
                         
-                        # Kalkulasi Nilai Transaksi Jam Terakhir/Hari Ini untuk background sorting
-                        hari_ini_wl = df_wl_single.index[-1].date()
-                        df_hari_ini_wl = df_wl_single[df_wl_single.index.date == hari_ini_wl]
-                        val_transaksi_wl = (df_hari_ini_wl['Close'] * df_hari_ini_wl['Volume']).sum() if not df_hari_ini_wl.empty else close_wl * float(df_wl_single['Volume'].iloc[-1])
-                        
-                        # MASUKKAN LANGSUNG TANPA ADANYA LOGIKA ELIMINASI IF IS_LOLOS
                         hasil_watchlist_manual.append({
                             "Kode Saham": ticker.replace(".JK", ""),
                             "Price": f"Rp{close_wl:,.0f}",
                             "Change %": f"{change_pct_wl:+.2f}%",
                             "% Jarak ke MA10 (1H)": f"{((close_wl - ma10_wl) / ma10_wl) * 100:+.2f}%",
                             "% Jarak ke MA20 (1H)": f"{((close_wl - ma20_wl) / ma20_wl) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%",
-                            "val_helper": val_transaksi_wl
+                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%"
                         })
                     
                     if hasil_watchlist_manual:
                         df_render_wl = pd.DataFrame(hasil_watchlist_manual)
-                        # Sorting default otomatis berdasarkan value transaksi terbesar (descending) sesuai sandbox
-                        df_render_wl = df_render_wl.sort_values(by="val_helper", ascending=False)
-                        df_render_wl = df_render_wl.drop(columns=["val_helper"])
+                        st.success(f"🎯 Watchlist Berhasil Dimuat dari Google Sheet!")
+                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning("Tidak ada data saham yang valid.")
+            except Exception as e: st.error(f"Error: {e}")
                         
                         st.success(f"🎯 Watchlist Berhasil Dimuat! Memantau {len(df_render_wl)} Saham.")
                         tabel_height_wl = (len(df_render_wl) + 1) * 35
