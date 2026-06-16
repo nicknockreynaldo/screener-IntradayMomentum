@@ -283,17 +283,29 @@ with tab_screener:
             except Exception as e: st.error(f"Error: {e}")
 
 # ==============================================================================
-# TAB 2: INJEKSI FITUR MANUAL WATCHLIST MONITOR (TOTAL PASS TANPA FILTER)
+# TAB 2: INJEKSI FITUR MANUAL WATCHLIST MONITOR (CLOUD SYNC AUTO-LOAD)
 # ==============================================================================
 with tab_watchlist:
     st.header("📋 Manual Watchlist Monitor (TF: 1 Hour)")
-    st.markdown("Pantau pergerakan data teknikal asli tanpa filter eliminasi untuk seluruh saham yang Anda ketik mandiri di bawah ini.")
     
-    # Text area untuk menampung input kode-kode saham pilihan harian Anda
+    # URL Google Sheet tab "WL" (GID=720440950)
+    URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
+    
+    # 1. Logic untuk menarik data Google Sheet sekali saja saat pertama kali buka
+    if 'default_wl' not in st.session_state:
+        try:
+            df_wl_raw = pd.read_csv(URL_WL, header=None)
+            # Mengambil baris pertama, kolom pertama
+            st.session_state['default_wl'] = str(df_wl_raw.iloc[0, 0])
+        except:
+            # Fallback jika gagal load
+            st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
+    
+    # 2. Input Box (Nilai default diambil dari session state yang diisi dari Google Sheet)
     input_watchlist_manual = st.text_area(
         "Masukkan Kode Saham Pilihan Anda (pisahkan dengan koma atau enter):",
-        value="BBCA, BMRI, BBNI, UNVR",
-        help="Contoh input: BBRI, TLKM, ASII, GOTO",
+        value=st.session_state['default_wl'],
+        help="Anda bisa menambah/mengedit saham di sini secara manual tanpa mengubah Google Sheet.",
         key="wl_manual_input"
     )
     
