@@ -22,7 +22,7 @@ if 'memori_saham' not in st.session_state:
 tab_screener, tab_watchlist = st.tabs(["🚀 Sandbox Ultimate Screener", "📋 Manual Watchlist Monitor (TF: 1H)"])
 
 # ==============================================================================
-# TAB 1: CODE ASLI SANDBOX (TANPA MODIFIKASI APA-APA)
+# TAB 1: CODE ASLI SANDBOX (DIPERTAHANKAN SEPENUHNYA)
 # ==============================================================================
 with tab_screener:
     # Sidebar Parameter (Khusus untuk Tab Screener)
