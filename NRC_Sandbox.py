@@ -5,7 +5,7 @@ import warnings
 import math
 
 # --- KETERANGAN MODE ---
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
+st.warning("⚠️ MODE SANDBOX")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener", page_icon="📈", layout="wide")
