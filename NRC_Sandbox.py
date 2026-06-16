@@ -4,8 +4,6 @@ import pandas as pd
 import warnings
 import math
 
-st.warning("⚠️ MODE SANDBOX - Logika: Snapshot 09.30 Terkunci (Fixed Date)")
-
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
@@ -102,6 +100,10 @@ if MULAI_SCAN:
                 df_s = df_s.sort_index().dropna(subset=['Close', 'Volume'])
                 if df_s.empty or len(df_s) < 50 or df_d.empty: continue
                 
+                # PENGAMAN ANTI-LIBUR
+                if df_s.index[-1].date() < pd.Timestamp.now().date() and PRESET == "Hot Start":
+                    continue
+                
                 close = float(df_s['Close'].iloc[-1])
                 ma10 = float(df_s['Close'].rolling(10).mean().iloc[-1])
                 ma50 = float(df_s['Close'].rolling(50).mean().iloc[-1])
@@ -164,5 +166,5 @@ if MULAI_SCAN:
                 st.subheader(f"Total: {len(df_h)} Saham")
                 st.dataframe(df_h, use_container_width=True, hide_index=True)
             else:
-                st.warning("Tidak ada saham yang memenuhi kriteria.")
+                st.warning("Tidak ada saham yang memenuhi kriteria atau market sedang tutup.")
         except Exception as e: st.error(f"Error: {e}")
