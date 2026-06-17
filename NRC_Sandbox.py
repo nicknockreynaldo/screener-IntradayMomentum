@@ -387,6 +387,14 @@ with tab_calc:
     # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
     st.subheader("🎯 Target Price Setup")
     
+    # CSS Injection untuk Center Alignment
+    st.markdown("""
+        <style>
+            table { text-align: center !important; }
+            th { text-align: center !important; }
+            td { text-align: center !important; }
+        </style>
+    """, unsafe_allow_html=True)
     
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
