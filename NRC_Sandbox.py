@@ -356,12 +356,22 @@ with tab_watchlist:
 # ==============================================================================
 # TAB 3: RISK CALCULATOR (FITUR BARU)
 # ==============================================================================
+# ==============================================================================
+# TAB 3: RISK CALCULATOR (FITUR BARU DENGAN TABEL PERSISTEN)
+# ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
+    # Inisialisasi list untuk menyimpan data trade
+    if 'my_trades' not in st.session_state:
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+
     # Global Setting
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
+    # Menampilkan format dot (helper)
+    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
+    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.5, 5.0, 1.0, step=0.1) / 100
     
     # Input Data
@@ -370,10 +380,13 @@ with tab_calc:
     entry_in = col_in2.number_input("Entry Price", value=6000)
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
     
+    # Kalkulasi Nominal Risk
+    risk_amount = MODAL * RISK_PCT
+    st.info(f"💰 Nominal Risk/Trade: **Rp {f'{int(risk_amount):,.0f}'.replace(',', '.') }**")
+    
     if sl_in >= entry_in:
         st.error("⚠️ Stop Loss tidak boleh >= Entry Price (Posisi Long)!")
     else:
-        # Kalkulasi
         risk_per_share = entry_in - sl_in
         risk_dist_pct = (risk_per_share / entry_in) * 100
         
@@ -383,33 +396,38 @@ with tab_calc:
         else:
             st.success(f"✅ Risiko SL: {risk_dist_pct:.2f}% (AMAN)")
             
-        risk_amount = MODAL * RISK_PCT
-        # Lot calculation (standard 100 lembar per lot)
         lot_max = math.floor((risk_amount / risk_per_share) / 100)
         
-        # Display Hasil Utama
+        # Hasil Kalkulasi
         m1, m2, m3 = st.columns(3)
-        m1.metric("Risk Amount (Rp)", f"Rp{int(risk_amount):,}")
-        m2.metric("Max Lot", f"{lot_max} Lot")
-        m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
+        m1.metric("Max Lot", f"{lot_max} Lot")
+        m2.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
+        m3.metric("Risk Amount", f"Rp{int(risk_amount):,}")
         
-        # Tabel Target Profit (1.5R, 2R, 3R)
+        # Target Profit
+        t1, t2, t3 = entry_in + (risk_per_share * 1.5), entry_in + (risk_per_share * 2), entry_in + (risk_per_share * 3)
+        
+        if st.button("➕ Tambah ke Daftar Trade"):
+            new_trade = {
+                "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
+                "Lot": lot_max, "Target 1.5R": int(t1), "Target 2R": int(t2), "Target 3R": int(t3)
+            }
+            # Simpan ke session state
+            st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+            st.rerun()
+
+        # Tampilan Tabel Target
         st.subheader("🎯 Target Profit")
-        data_target = {
+        df_target = pd.DataFrame({
             "Level": ["1.5R", "2R", "3R"],
-            "Price": [
-                entry_in + (risk_per_share * 1.5),
-                entry_in + (risk_per_share * 2),
-                entry_in + (risk_per_share * 3)
-            ],
-            "% Gain": [
-                ((risk_per_share * 1.5) / entry_in) * 100,
-                ((risk_per_share * 2) / entry_in) * 100,
-                ((risk_per_share * 3) / entry_in) * 100
-            ]
-        }
-        df_target = pd.DataFrame(data_target)
-        st.dataframe(df_target, use_container_width=True, hide_index=True, column_config={
-            "Price": st.column_config.NumberColumn("Price Target", format="Rp%d"),
-            "% Gain": st.column_config.NumberColumn("% Gain", format="%.2f%%")
+            "Price": [t1, t2, t3]
         })
+        st.dataframe(df_target, use_container_width=True, hide_index=True)
+
+        # Tampilan Daftar Trade
+        st.subheader("📋 Daftar Trade Anda")
+        if not st.session_state['my_trades'].empty:
+            st.dataframe(st.session_state['my_trades'], use_container_width=True)
+            if st.button("🗑️ Hapus Semua Daftar"):
+                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+                st.rerun()
