@@ -354,86 +354,71 @@ with tab_watchlist:
             except Exception as e: st.error(f"Error: {e}")
 
 
+
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (FITUR BARU DENGAN TABEL PERSISTEN)
-# ==============================================================================
-# ==============================================================================
-# TAB 3: RISK CALCULATOR (LENGKAP DENGAN KOLOM JARAK SL)
+# TAB 3: RISK CALCULATOR (OPTIMIZED & COMPACT)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
-    # Inisialisasi list untuk menyimpan data trade
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Jarak SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
-    # Global Setting
+    # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
+    RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
-    RISK_PCT = c2.slider("Risk per Trade (%)", 0.5, 5.0, 1.0, step=0.1) / 100
-    
-    # Input Data
-    col_in1, col_in2, col_in3 = st.columns(3)
+    col_in1, col_in2, col_in3, col_in4 = st.columns(4)
     ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
     entry_in = col_in2.number_input("Entry Price", value=6000)
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
+    manual_tp = col_in4.number_input("Target Manual", value=float(6300))
     
-    # Kalkulasi Nominal Risk
+    # --- CALCULATIONS ---
     risk_amount = MODAL * RISK_PCT
-    st.info(f"💰 Nominal Risk/Trade: **Rp {f'{int(risk_amount):,.0f}'.replace(',', '.') }**")
-    
-    if sl_in >= entry_in:
-        st.error("⚠️ Stop Loss tidak boleh >= Entry Price (Posisi Long)!")
-    else:
-        risk_per_share = entry_in - sl_in
-        risk_dist_pct = (risk_per_share / entry_in) * 100
-        
-        # Validasi Jarak SL
-        if risk_dist_pct > 5:
-            st.warning(f"⚠️ Risiko terlalu lebar: {risk_dist_pct:.2f}% (Limit Anda < 5%)")
-        else:
-            st.success(f"✅ Risiko SL: {risk_dist_pct:.2f}% (AMAN)")
-            
-        lot_max = math.floor((risk_amount / risk_per_share) / 100)
-        
-        # Hasil Kalkulasi
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Max Lot", f"{lot_max} Lot")
-        m2.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
-        m3.metric("Risk Amount", f"Rp{int(risk_amount):,}")
-        
-        # Target Profit
-        t1, t2, t3 = entry_in + (risk_per_share * 1.5), entry_in + (risk_per_share * 2), entry_in + (risk_per_share * 3)
-        
-        if st.button("➕ Tambah ke Daftar Trade"):
-            new_trade = {
-                "Ticker": ticker_in, 
-                "Entry": entry_in, 
-                "SL": sl_in, 
-                "Jarak SL": f"{risk_dist_pct:.2f}%", # KOLOM BARU DITAMBAHKAN
-                "Lot": lot_max, 
-                "Target 1.5R": int(t1), 
-                "Target 2R": int(t2), 
-                "Target 3R": int(t3)
-            }
-            # Simpan ke session state
-            st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
-            st.rerun()
+    risk_per_share = entry_in - sl_in
+    risk_dist_pct = (risk_per_share / entry_in) * 100
+    r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
+    lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-        # Tampilan Target Profit (Ringkasan)
-        st.subheader("🎯 Target Profit")
+    # --- METRICS & STATUS ---
+    st.markdown("---")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
+    m2.metric("Max Lot", f"{lot_max} Lot")
+    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%", delta_color="inverse")
+    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
+    
+    if risk_dist_pct > 5:
+        st.caption(f"⚠️ Peringatan: Risiko {risk_dist_pct:.2f}% (Di atas limit 5%)")
+
+    # --- ACTION BUTTON ---
+    if st.button("➕ Tambah ke Daftar Trade"):
+        new_trade = {
+            "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
+            "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
+            "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
+        }
+        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+        st.rerun()
+
+    # --- TABLES (COMPACT) ---
+    st.subheader("🎯 Quick Targets & List")
+    c_tab1, c_tab2 = st.columns([1, 2]) # Tabel dibuat lebih ramping
+    
+    with c_tab1:
+        # Tabel Target 1.5R, 2R, 3R
         df_target = pd.DataFrame({
             "Level": ["1.5R", "2R", "3R"],
-            "Price": [t1, t2, t3]
+            "Price": [entry_in+(risk_per_share*1.5), entry_in+(risk_per_share*2), entry_in+(risk_per_share*3)]
         })
         st.dataframe(df_target, use_container_width=True, hide_index=True)
 
-        # Tampilan Daftar Trade
-        st.subheader("📋 Daftar Trade Anda")
+    with c_tab2:
+        # Daftar Trade
         if not st.session_state['my_trades'].empty:
             st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
-            if st.button("🗑️ Hapus Semua Daftar"):
-                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Jarak SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+            if st.button("🗑️ Hapus Semua"):
+                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
                 st.rerun()
