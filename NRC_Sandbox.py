@@ -380,18 +380,18 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (REVISI RINGKAS)
+# TAB 3: RISK CALCULATOR (RESTORED & INTEGRATED)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
+    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
     
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
@@ -401,51 +401,58 @@ with tab_calc:
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # --- KALKULASI ---
+    # --- CALCULATIONS ---
     risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS (3 Row) ---
-    m1, m2, m3 = st.columns(3)
+    # --- METRICS & STATUS ---
+    st.markdown("---")
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     m2.metric("Max Lot", f"{lot_max} Lot")
-    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
-
-    st.markdown("---")
-
-    # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
-    st.subheader("🎯 Target Price Setup")
+    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%", delta_color="inverse")
+    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
     
-    # Menggunakan dictionary untuk tabel horizontal agar hemat ruang
-    df_target_ringkas = pd.DataFrame({
-        "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
-        "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
-        "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-        "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
-    })
-    
-    st.table(df_target_ringkas)
+    # --- ACTION BUTTON (TOMBOL DIPULIHKAN) ---
+    if st.button("➕ Tambah ke Daftar Pre Trade"):
+        waktu_sekarang = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+        data_list = [waktu_sekarang, ticker_in, entry_in, sl_in, manual_tp, f"{r_manual:.2f}R", lot_max, f"{risk_dist_pct:.2f}%"]
+        
+        # Panggil fungsi simpan yang sudah Anda miliki di script
+        sukses, pesan = simpan_trade_ke_gsheet(data_list)
+        
+        if sukses:
+            new_trade = {
+                "Tanggal": waktu_sekarang, "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
+                "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R", "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
+            }
+            st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+            st.success("Berhasil disimpan ke Journal!")
+            st.rerun()
+        else:
+            st.error(f"Gagal simpan ke GSheet: {pesan}")
 
-    # --- ACTION BUTTON ---
-    if st.button("➕ Tambah ke Daftar Trade"):
-        new_trade = {
-            "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
-            "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
-            "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
-        }
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
-        st.rerun()
-
-    # --- TABEL LIST TRADE ---
-    st.subheader("📋 Daftar Pending")
-    st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
+    # --- TABLES (COMPACT) ---
+    st.subheader("🎯 Quick Targets & List")
+    c_tab1, c_tab2 = st.columns([1, 2])
     
-    if st.button("🗑️ Hapus Semua"):
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
-        st.rerun()
+    with c_tab1:
+        df_target = pd.DataFrame({
+            "Level": ["1.5R", "2R", "3R", "Manual TP"],
+            "Price": [entry_in+(risk_per_share*1.5), entry_in+(risk_per_share*2), entry_in+(risk_per_share*3), manual_tp]
+        })
+        st.dataframe(df_target, use_container_width=True, hide_index=True)
+
+    with c_tab2:
+        st.subheader("📋 Daftar Pre Trade")
+        if not st.session_state['my_trades'].empty:
+            st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
+            if st.button("🗑️ Hapus Semua"):
+                st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+                st.rerun()
 # ==============================================================================
 # --- TAB JOURNAL (NEW) ---
 # ==============================================================================
