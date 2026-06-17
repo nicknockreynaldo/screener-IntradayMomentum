@@ -315,7 +315,7 @@ with tab_screener:
 # ==============================================================================
 with tab_watchlist:
     # 1. Mengembalikan Header Utama
-    st.header("Super Watchlist")
+    st.header("🚀 Super Watchlist")
     
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
