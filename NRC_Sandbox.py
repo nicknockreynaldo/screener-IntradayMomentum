@@ -3,6 +3,21 @@ import yfinance as yf
 import pandas as pd
 import warnings
 import math
+import gspread
+
+# --- FUNGSI GOOGLE SHEETS ---
+def simpan_trade_ke_gsheet(data_list):
+    try:
+        # Mengambil secret dari st.secrets
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        # Nama sheet harus sesuai persis
+        sh = gc.open("NRC Trading Journal")
+        wks = sh.sheet1
+        wks.append_row(data_list)
+        return True, "Sukses"
+    except Exception as e:
+        return False, str(e)
 
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
@@ -397,12 +412,32 @@ with tab_calc:
 
     # --- ACTION BUTTON ---
     if st.button("➕ Tambah ke Daftar Trade"):
+        # 1. Update Session State
         new_trade = {
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
         }
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+        
+        # 2. Simpan ke Google Sheet
+        data_to_save = [
+            str(pd.Timestamp.now()), # Tanggal
+            ticker_in, 
+            entry_in, 
+            sl_in, 
+            manual_tp, 
+            f"{r_manual:.2f}R", 
+            lot_max, 
+            f"{risk_dist_pct:.2f}%"
+        ]
+        success, msg = simpan_trade_ke_gsheet(data_to_save)
+        
+        if success:
+            st.success("✅ Berhasil disimpan ke GSheet!")
+        else:
+            st.error(f"❌ Gagal simpan GSheet: {msg}")
+            
         st.rerun()
 
     # --- TABLES (COMPACT) ---
