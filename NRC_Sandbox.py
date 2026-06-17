@@ -316,18 +316,25 @@ with tab_screener:
 with tab_watchlist:
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # Inisialisasi Session State
-    if 'default_wl_list' not in st.session_state:
+    # --- LOGIKA PENARIKAN DATA ASLI (Dikembalikan ke semula) ---
+    if 'default_wl' not in st.session_state:
         try:
-            df_raw = pd.read_csv(URL_WL, header=None)
-            full_list = [val for col in df_raw.columns for val in df_raw[col].dropna().astype(str).tolist()]
-            st.session_state['default_wl_list'] = ", ".join(full_list)
+            df_wl_raw = pd.read_csv(URL_WL, header=None)
+            full_content = []
+            for col in df_wl_raw.columns:
+                vals = df_wl_raw[col].dropna().astype(str).tolist()
+                full_content.extend(vals)
+            st.session_state['default_wl'] = ", ".join(full_content)
         except:
-            st.session_state['default_wl_list'] = "BBCA, BMRI, BBNI, UNVR"
+            st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
 
     # --- 1. SUPER WATCHLIST ---
     st.subheader("🌟 Super Watchlist (TF: 1H)")
-    input_super = st.text_area("Super Watchlist (Default dari Sheet):", value=st.session_state['default_wl_list'], key="input_super")
+    input_super = st.text_area(
+        "Super Watchlist (Default dari Sheet):", 
+        value=st.session_state['default_wl'], 
+        key="input_super"
+    )
     btn_super = st.button("🚀 Refresh Super Watchlist", key="btn_super")
 
     if btn_super or input_super:
@@ -379,7 +386,6 @@ with tab_watchlist:
                     if df.empty: continue
                     
                     close = float(df['Close'].iloc[-1])
-                    # VWAP = Sum(P*V) / Sum(V)
                     vwap = (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
                     
                     hasil.append({
