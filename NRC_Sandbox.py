@@ -380,19 +380,19 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (FIXED LOGIC)
+# TAB 3: RISK CALCULATOR (FIXED LOGIC CHECKBOX)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        # Tambahkan kolom "Pilih" di awal
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
-    # --- INPUT SECTION (SAMA) ---
+    # --- INPUT SECTION (DIPERTAHANKAN) ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
     c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
-    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
@@ -401,22 +401,20 @@ with tab_calc:
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # --- KALKULASI (SAMA) ---
+    # --- KALKULASI & METRICS (DIPERTAHANKAN) ---
     risk_per_share = entry_in - sl_in
     risk_amount = MODAL * RISK_PCT
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS (SAMA) ---
     m1, m2, m3 = st.columns(3)
     m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     m2.metric("Max Lot", f"{lot_max} Lot")
     m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
-
     st.markdown("---")
 
-    # --- TARGET PRICE MULTIPLE (SAMA) ---
+    # --- TARGET PRICE (DIPERTAHANKAN) ---
     st.subheader("🎯 Risk Multiple")
     df_target_ringkas = pd.DataFrame({
         "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
@@ -428,46 +426,39 @@ with tab_calc:
 
     # --- BUTTON TAMBAH ---
     if st.button("➕ Tambah ke Daftar Pre-Trade"):
-        new_trade = {
+        new_row = pd.DataFrame([{
+            "Pilih": False,
             "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
-        }
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+        }])
+        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
         st.rerun()
 
-    # --- DAFTAR PRE-TRADE ---
+    # --- DAFTAR PRE-TRADE DENGAN CHECKBOX ---
     st.subheader("📋 Daftar Pre-Trade")
     
-    # KUNCI PERBAIKAN: Gunakan key agar Streamlit melacak perubahan data secara konsisten
+    # Konfigurasi kolom agar kolom 'Pilih' menjadi Checkbox
     edited_df = st.data_editor(
-        st.session_state['my_trades'], 
-        use_container_width=True, 
-        hide_index=True,
-        num_rows="dynamic",
-        key="data_editor_trades"
+        st.session_state['my_trades'],
+        column_config={"Pilih": st.column_config.CheckboxColumn("Pilih", default=False)},
+        use_container_width=True,
+        hide_index=True
     )
-    
-    # Sinkronisasi otomatis: setiap kali ada perubahan di data_editor (termasuk hapus baris), 
-    # kita update session state.
-    if not edited_df.equals(st.session_state['my_trades']):
-        st.session_state['my_trades'] = edited_df
-        st.rerun()
     
     c_act1, c_act2 = st.columns(2)
     
-    # 1. Tombol Confirm
     if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
         for _, row in st.session_state['my_trades'].iterrows():
             simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
         st.success("Trade berhasil dikonfirmasi!")
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
-    
-    # 2. Tombol Hapus Semua (Jika ingin cara cepat hapus semua)
-    if c_act2.button("🗑️ Hapus Semua Daftar"):
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        
+    if c_act2.button("🗑️ Hapus Baris Terpilih"):
+        # Logika: Simpan hanya baris yang kolom "Pilih" nya False (tidak dicentang)
+        st.session_state['my_trades'] = edited_df[edited_df["Pilih"] == False]
         st.rerun()
 # ==============================================================================
 # --- TAB JOURNAL (NEW) ---
