@@ -314,21 +314,20 @@ with tab_screener:
 # TAB 2: WATCHLIST MONITOR (SUPER & INTRADAY)
 # ==============================================================================
 with tab_watchlist:
-    st.header("📈 Super Watchlist")
-    
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # Inisialisasi Session State Watchlist
-    if 'wl_data' not in st.session_state:
-        st.session_state['wl_data'] = {"Super": "BBCA, BMRI, BBNI, UNVR", "Intraday": "BBCA, BMRI"}
+    # Inisialisasi Session State
+    if 'default_wl_list' not in st.session_state:
+        try:
+            df_raw = pd.read_csv(URL_WL, header=None)
+            full_list = [val for col in df_raw.columns for val in df_raw[col].dropna().astype(str).tolist()]
+            st.session_state['default_wl_list'] = ", ".join(full_list)
+        except:
+            st.session_state['default_wl_list'] = "BBCA, BMRI, BBNI, UNVR"
 
-    # Fungsi Helper untuk VWAP: (Sum(Price * Volume) / Sum(Volume))
-    def hitung_vwap(df):
-        return (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
-
-    # --- INPUT 1: SUPER WATCHLIST ---
+    # --- 1. SUPER WATCHLIST ---
     st.subheader("🌟 Super Watchlist (TF: 1H)")
-    input_super = st.text_area("Super Watchlist:", value=st.session_state['wl_data']['Super'], key="input_super")
+    input_super = st.text_area("Super Watchlist (Default dari Sheet):", value=st.session_state['default_wl_list'], key="input_super")
     btn_super = st.button("🚀 Refresh Super Watchlist", key="btn_super")
 
     if btn_super or input_super:
@@ -352,7 +351,7 @@ with tab_watchlist:
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
                         "Price": f"Rp{close:,.0f}",
-                        "% Dist to DMA10": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                        "% Dist to MA10 (1H)": f"{((close - ma10) / ma10) * 100:+.2f}%",
                         "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:+.2f}%",
                         "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:+.2f}%"
                     })
@@ -361,18 +360,17 @@ with tab_watchlist:
 
     st.markdown("---")
 
-    # --- INPUT 2: INTRADAY WATCHLIST ---
+    # --- 2. INTRADAY MOMENTUM WATCHLIST ---
     st.subheader("⚡ Intraday Momentum Watchlist (TF: 5m)")
-    input_intra = st.text_area("Intraday Watchlist:", value=st.session_state['wl_data']['Intraday'], key="input_intra")
+    input_intra = st.text_area("Input Watchlist Intraday Manual:", value="", key="input_intra")
     btn_intra = st.button("⚡ Refresh Intraday Watchlist", key="btn_intra")
 
-    if btn_intra or input_intra:
+    if btn_intra and input_intra:
         with st.spinner("Loading Intraday Data..."):
             try:
                 tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
                 wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
-                # Mengambil data 5 menit untuk perhitungan VWAP intraday hari ini
                 data = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
                 hasil = []
                 for ticker in wl:
@@ -381,7 +379,8 @@ with tab_watchlist:
                     if df.empty: continue
                     
                     close = float(df['Close'].iloc[-1])
-                    vwap = hitung_vwap(df)
+                    # VWAP = Sum(P*V) / Sum(V)
+                    vwap = (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
                     
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
