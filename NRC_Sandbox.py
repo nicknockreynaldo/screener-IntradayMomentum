@@ -3,6 +3,30 @@ import yfinance as yf
 import pandas as pd
 import warnings
 import math
+import gspread
+
+# --- FUNGSI GOOGLE SHEETS ---
+def simpan_trade_ke_gsheet(data_list):
+    try:
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        sh = gc.open("NRC Trading Journal")
+        wks = sh.sheet1
+        wks.append_row(data_list)
+        return True, "Sukses"
+    except Exception as e:
+        return False, str(e)
+
+def tarik_data_dari_gsheet():
+    try:
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        sh = gc.open("NRC Trading Journal")
+        wks = sh.sheet1
+        data = wks.get_all_records()
+        return pd.DataFrame(data)
+    except:
+        return pd.DataFrame()
 
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
@@ -10,6 +34,9 @@ st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener Suite", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
+
+if 'my_trades' not in st.session_state:
+    st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
 # Inisialisasi Session State untuk Screener
 if 'memori_saham' not in st.session_state:
@@ -20,7 +47,7 @@ if 'memori_saham' not in st.session_state:
 
 # --- KONTROL MENU UTAMA (TABS) ---
 # DITAMBAHKAN tab_calc
-tab_screener, tab_watchlist, tab_calc = st.tabs(["🚀 Sandbox Ultimate Screener", "📋 Manual Watchlist Monitor (TF: 1H)", "🧮 Risk Calculator"])
+tab_screener, tab_watchlist, tab_calc, tab_journal = st.tabs(["🚀 Screener", "📋 Watchlist", "🧮 Calculator", "📊 Journal"])
 
 # ==============================================================================
 # TAB 1: CODE ASLI SANDBOX (DIPERTAHANKAN SEPENUHNYA)
@@ -353,20 +380,16 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 
-
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (OPTIMIZED & COMPACT)
+# --- TAB CALCULATOR (MODIFIED) ---
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
-    if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
-
-    # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}") # Angka real time
+    # Format ribuan tetap ada di sini
+    c1.markdown(f"**Modal Real-time:** Rp {MODAL:,.0f}".replace(",", "."))
     
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
@@ -374,58 +397,65 @@ with tab_calc:
     ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
     entry_in = col_in2.number_input("Entry Price", value=6000)
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
-    # Manual TP tanpa desimal
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # --- CALCULATIONS ---
+    # Kalkulasi
     risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS & STATUS ---
-    st.markdown("---")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
-    m2.metric("Max Lot", f"{lot_max} Lot")
-    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%", delta_color="inverse")
-    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
-    
-    if risk_dist_pct > 5:
-        st.caption(f"⚠️ Peringatan: Risiko {risk_dist_pct:.2f}% (Di atas limit 5%)")
+    st.info(f"R-Ratio Manual: {r_manual:.2f}R | Lot: {lot_max} | Jarak SL: {risk_dist_pct:.2f}%")
 
-    # --- ACTION BUTTON ---
-    if st.button("➕ Tambah ke Daftar Trade"):
-        new_trade = {
-            "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
-            "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
-            "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
-        }
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+    if st.button("💾 Simpan ke GSheet"):
+        tanggal_now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+        data_row = [tanggal_now, ticker_in, entry_in, sl_in, manual_tp, f"{r_manual:.2f}R", lot_max, f"{risk_dist_pct:.2f}%"]
+        
+        success, msg = simpan_trade_ke_gsheet(data_row)
+        if success:
+            st.success(f"Trade {ticker_in} berhasil disimpan!")
+        else:
+            st.error(f"Gagal simpan: {msg}")
+        
+# ==============================================================================
+# --- TAB JOURNAL (NEW) ---
+# ==============================================================================
+with tab_journal:
+    st.header("📊 Trade Performance Analytics")
+    
+    if st.button("🔄 Refresh Data"):
         st.rerun()
-
-    # --- TABLES (COMPACT) ---
-    st.subheader("🎯 Quick Targets & List")
-    c_tab1, c_tab2 = st.columns([1, 2]) # Tabel lebih ramping
+        
+    df_jurnal = tarik_data_dari_gsheet()
     
-    with c_tab1:
-        # Tabel Target 1.5R, 2R, 3R + Manual TP
-        df_target = pd.DataFrame({
-            "Level": ["1.5R", "2R", "3R", "Manual TP"],
-            "Price": [
-                entry_in+(risk_per_share*1.5), 
-                entry_in+(risk_per_share*2), 
-                entry_in+(risk_per_share*3), 
-                manual_tp
-            ]
-        })
-        st.dataframe(df_target, use_container_width=True, hide_index=True)
-
-    with c_tab2:
-        # Daftar Trade
-        if not st.session_state['my_trades'].empty:
-            st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
-            if st.button("🗑️ Hapus Semua"):
-                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
-                st.rerun()
+    if not df_jurnal.empty:
+        # Analisis Data
+        total_trade = len(df_jurnal)
+        
+        # Bersihkan R-Ratio untuk grafik (mengambil angka sebelum 'R')
+        try:
+            df_jurnal['R_val'] = df_jurnal['R-Ratio'].astype(str).str.replace('R', '').astype(float)
+            win_rate = (len(df_jurnal[df_jurnal['R_val'] > 0]) / total_trade) * 100
+            avg_r = df_jurnal['R_val'].mean()
+        except:
+            win_rate = 0
+            avg_r = 0
+            
+        # Tampilan Metrik
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Trade", total_trade)
+        c2.metric("Win Rate", f"{win_rate:.1f}%")
+        c3.metric("Avg R-Ratio", f"{avg_r:.2f} R")
+        
+        st.markdown("---")
+        # Grafik
+        st.subheader("📈 Profitability (R-Ratio History)")
+        if 'R_val' in df_jurnal.columns:
+            st.bar_chart(df_jurnal['R_val'])
+            
+        # Tabel History
+        st.subheader("📜 Trade History Log")
+        st.dataframe(df_jurnal, use_container_width=True)
+    else:
+        st.info("Belum ada data. Silakan lakukan eksekusi trade di Tab Calculator.")
