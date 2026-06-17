@@ -314,6 +314,9 @@ with tab_screener:
 # TAB 2: WATCHLIST MONITOR (SUPER & INTRADAY)
 # ==============================================================================
 with tab_watchlist:
+    # 1. Mengembalikan Header Utama
+    st.header("Super Watchlist")
+    
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
     # Ambil data dari sheet (Default)
@@ -335,7 +338,8 @@ with tab_watchlist:
         key="wl_manual_input"
     )
     
-    REFRESH_WATCHLIST = st.button("🚀 Refresh Super Watchlist", use_container_width=True, key="wl_manual_btn")
+    # 2. Tombol dibuat pendek (Tanpa use_container_width)
+    REFRESH_WATCHLIST = st.button("🚀 Refresh Super Watchlist", key="wl_manual_btn")
     
     if REFRESH_WATCHLIST or input_watchlist_manual:
         with st.spinner("Mengunduh data Super Watchlist..."):
