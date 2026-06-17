@@ -314,7 +314,6 @@ with tab_screener:
 # TAB 2: WATCHLIST MONITOR (SUPER & INTRADAY)
 # ==============================================================================
 with tab_watchlist:
-    # --- 1. SUPER WATCHLIST (LOGIKA ASLI YANG 100% BERHASIL) ---
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
     # Ambil data dari sheet (Default)
@@ -345,33 +344,40 @@ with tab_watchlist:
                 watchlist_wl = [s + ".JK" if not s.endswith(".JK") else s for s in raw_wl_tokens if len(s.split(".")[0]) == 4]
                 
                 if watchlist_wl:
-                    data_bulk_wl = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+                    # Download 1H untuk MA
+                    data_1h = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+                    # Download 1D untuk Daily MA 10
+                    data_1d = yf.download(watchlist_wl, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                    
                     hasil_watchlist_manual = []
                     
                     for ticker in watchlist_wl:
-                        df_wl_single = data_bulk_wl[ticker] if len(watchlist_wl) > 1 else data_bulk_wl
-                        df_wl_single = df_wl_single.sort_index()
-                        df_wl_single['Close'] = df_wl_single['Close'].ffill()
-                        df_wl_single = df_wl_single.dropna(subset=['Close'])
+                        df_1h = data_1h[ticker] if len(watchlist_wl) > 1 else data_1h
+                        df_1d = data_1d[ticker] if len(watchlist_wl) > 1 else data_1d
                         
-                        if df_wl_single.empty or len(df_wl_single) < 50: continue
+                        df_1h = df_1h.dropna(subset=['Close'])
+                        df_1d = df_1d.dropna(subset=['Close'])
                         
-                        close_wl = float(df_wl_single['Close'].iloc[-1])
-                        ma10_wl = float(df_wl_single['Close'].rolling(10).mean().iloc[-1])
-                        ma20_wl = float(df_wl_single['Close'].rolling(20).mean().iloc[-1])
-                        ma50_wl = float(df_wl_single['Close'].rolling(50).mean().iloc[-1])
+                        if df_1h.empty or df_1d.empty: continue
+                        
+                        close = float(df_1h['Close'].iloc[-1])
+                        ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                        ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                        ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                        
+                        ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
                         
                         hasil_watchlist_manual.append({
                             "Kode Saham": ticker.replace(".JK", ""),
-                            "Price": f"Rp{close_wl:,.0f}",
-                            "% Dist to MA10 (1H)": f"{((close_wl - ma10_wl) / ma10_wl) * 100:+.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close_wl - ma20_wl) / ma20_wl) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%"
+                            "Price": f"Rp{close:,.0f}",
+                            "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                            "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
+                            "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                            "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
                         })
                     
                     if hasil_watchlist_manual:
-                        df_render_wl = pd.DataFrame(hasil_watchlist_manual)
-                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame(hasil_watchlist_manual), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 
     st.markdown("---")
@@ -387,21 +393,32 @@ with tab_watchlist:
                 tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
                 wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
-                # Mengambil data intraday 1 hari
-                data = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
+                data_1h = yf.download(wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+                data_5m = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
+                
                 hasil = []
                 for ticker in wl:
-                    df = data[ticker] if len(wl) > 1 else data
-                    df = df.dropna(subset=['Close', 'Volume'])
-                    if df.empty: continue
+                    df_1h = data_1h[ticker] if len(wl) > 1 else data_1h
+                    df_5m = data_5m[ticker] if len(wl) > 1 else data_5m
                     
-                    close = float(df['Close'].iloc[-1])
-                    # VWAP = Sum(P*V) / Sum(V)
-                    vwap = (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
+                    df_1h = df_1h.dropna(subset=['Close'])
+                    df_5m = df_5m.dropna(subset=['Close', 'Volume'])
+                    
+                    if df_1h.empty or df_5m.empty: continue
+                    
+                    close = float(df_1h['Close'].iloc[-1])
+                    ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                    ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                    ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                    
+                    vwap = (df_5m['Close'] * df_5m['Volume']).sum() / df_5m['Volume'].sum()
                     
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
                         "Price": f"Rp{close:,.0f}",
+                        "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                        "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                        "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%",
                         "VWAP Intraday": f"Rp{vwap:,.0f}",
                         "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
                     })
