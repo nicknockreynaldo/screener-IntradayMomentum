@@ -380,7 +380,7 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (REVISI FINAL)
+# TAB 3: RISK CALCULATOR (KEMBALI KE DEFAULT)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
@@ -437,7 +437,7 @@ with tab_calc:
     # --- BUTTON TAMBAH ---
     if st.button("➕ Tambah ke Daftar Pre-Trade"):
         new_trade = {
-            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"), # Tanggal saja
+            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
@@ -447,21 +447,11 @@ with tab_calc:
 
     # --- DAFTAR PRE-TRADE (INTERAKTIF) ---
     st.subheader("📋 Daftar Pre-Trade")
-    
-    # Gunakan data_editor untuk memungkinkan user mencentang baris yang ingin dihapus
     edited_df = st.data_editor(st.session_state['my_trades'], use_container_width=True, hide_index=True)
     
-    # Tombol Aksi
+    # Tombol Aksi (Tanpa CSS kustom, kembali ke style default)
     c_act1, c_act2 = st.columns(2)
     
-    # Custom CSS untuk warna tombol
-    st.markdown("""
-        <style>
-        div.stButton > button:first-child { background-color: #28a745; color: white; }
-        div.stButton > button:nth-child(2) { background-color: #dc3545; color: white; }
-        </style>
-    """, unsafe_allow_html=True)
-
     if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
         for _, row in st.session_state['my_trades'].iterrows():
             simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
@@ -470,8 +460,6 @@ with tab_calc:
         st.rerun()
         
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
-        # Logika: Simpan data yang TIDAK dihapus (asumsi user menghapus melalui antarmuka editor jika fitur disediakan)
-        # Mengingat batasan Streamlit, user bisa hapus baris di editor lalu klik tombol ini untuk konfirmasi update
         st.session_state['my_trades'] = edited_df
         st.rerun()
 # ==============================================================================
