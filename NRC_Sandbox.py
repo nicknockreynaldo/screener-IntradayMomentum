@@ -383,7 +383,7 @@ with tab_watchlist:
 # TAB 3: RISK CALCULATOR
 # ==============================================================================
 with tab_calc:
-    st.header("🧮 Position Sizer & Risk Calculator")
+    st.header("🧮 Position Sizing & Risk Management")
     # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
     st.subheader("🎯 Target Price Setup")
     
