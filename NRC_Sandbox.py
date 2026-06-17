@@ -379,10 +379,7 @@ with tab_watchlist:
                         st.success(f"🎯 Watchlist Berhasil Dimuat!")
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
-
-# ==============================================================================
-# --- TAB CALCULATOR (MODIFIED) ---
-# ==============================================================================
+# --- TAB 3: RISK CALCULATOR (Fungsionalitas Baru) ---
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
@@ -406,11 +403,19 @@ with tab_calc:
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    m1, m2, m3, m4 = st.columns(4)
+    # --- BARIS 1: METRICS UTAMA ---
+    m1, m2, m3 = st.columns(3)
     m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     m2.metric("Max Lot", f"{lot_max} Lot")
     m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
-    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
+
+    # --- BARIS 2: TARGETS ---
+    st.markdown("##### 🎯 Target Price Setup")
+    t1, t2, t3, t4 = st.columns(4)
+    t1.metric("1.5R", f"{entry_in + (risk_per_share * 1.5):.0f}")
+    t2.metric("2R", f"{entry_in + (risk_per_share * 2):.0f}")
+    t3.metric("3R", f"{entry_in + (risk_per_share * 3):.0f}")
+    t4.metric("Manual TP", f"{manual_tp}")
 
     # Tombol Tambah ke List
     if st.button("➕ Tambah ke Daftar Trade"):
@@ -424,9 +429,10 @@ with tab_calc:
         st.rerun()
 
     st.markdown("---")
-    st.subheader("🎯 Daftar Pending (Edit/Hapus sebelum Simpan)")
+    st.subheader("📋 Daftar Pending (Edit/Hapus)")
+    st.caption("Tips: Cek kotak di kiri tabel lalu klik ikon 'Delete' (tempat sampah) pada tabel untuk hapus baris tertentu.")
     
-    # Editor Tabel (Bisa hapus baris langsung di sini)
+    # Editor Tabel (Hapus baris tertentu via UI)
     st.session_state['my_trades'] = st.data_editor(
         st.session_state['my_trades'], 
         use_container_width=True, 
@@ -449,7 +455,7 @@ with tab_calc:
         else:
             st.warning("List kosong!")
             
-    if c_btn2.button("🗑️ Hapus Semua Pending"):
+    if c_btn2.button("🗑️ Hapus Semua Pending (Reset)"):
         st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL", "Tanggal"])
         st.rerun()
 # ==============================================================================
