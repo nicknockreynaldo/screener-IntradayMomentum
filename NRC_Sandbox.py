@@ -380,18 +380,20 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (REVISI FINAL - INTERAKTIF)
+# TAB 3: RISK CALCULATOR (REVISI FINAL)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
-    # Inisialisasi session state (menambahkan kolom Tanggal)
+    # Inisialisasi session state
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
+    c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
+    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
@@ -407,12 +409,19 @@ with tab_calc:
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS (SPOTLIGHT COLOR) ---
+    # --- METRICS (SPOTLIGHT STYLE) ---
+    def style_metric(label, value):
+        st.markdown(f"""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                <div style="font-size: 14px; color: #555;">{label}</div>
+                <div style="font-size: 24px; font-weight: bold; color: #000;">{value}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
     m1, m2, m3 = st.columns(3)
-    # Menggunakan HTML/Markdown untuk warna tanpa mengubah ukuran font
-    m1.markdown(f"**Risk Amount**<br><span style='color:#FF4B4B;'>Rp{int(risk_amount):,.0f}</span>", unsafe_allow_html=True)
-    m2.markdown(f"**Max Lot**<br><span style='color:#FF4B4B;'>{lot_max} Lot</span>", unsafe_allow_html=True)
-    m3.markdown(f"**Jarak SL**<br><span style='color:#FF4B4B;'>{risk_dist_pct:.2f}%</span>", unsafe_allow_html=True)
+    with m1: style_metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
+    with m2: style_metric("Max Lot", f"{lot_max} Lot")
+    with m3: style_metric("Jarak SL", f"{risk_dist_pct:.2f}%")
 
     st.markdown("---")
 
@@ -426,8 +435,7 @@ with tab_calc:
     st.table(df_target_ringkas)
 
     # --- BUTTONS ---
-    c_btn1, c_btn2 = st.columns(2)
-    if c_btn1.button("➕ Tambah ke Daftar Pre-Trade"):
+    if st.button("➕ Tambah ke Daftar Pre-Trade"):
         new_trade = {
             "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
@@ -439,16 +447,17 @@ with tab_calc:
 
     # --- DAFTAR PRE-TRADE (INTERAKTIF) ---
     st.subheader("📋 Daftar Pre-Trade")
-    # Menggunakan data_editor untuk menghapus baris via checkbox
     st.session_state['my_trades'] = st.data_editor(st.session_state['my_trades'], use_container_width=True)
 
     c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
-        # Logika Kirim ke GSheet (menggunakan fungsi yang sudah ada di script Anda)
         for _, row in st.session_state['my_trades'].iterrows():
-            data = [row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']]
-            simpan_trade_ke_gsheet(data)
-        st.success("Trade berhasil dikonfirmasi dan dikirim ke Jurnal!")
+            simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
+        st.success("Trade berhasil dikonfirmasi!")
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.rerun()
+        
+    if c_act2.button("🗑️ Hapus Semua Daftar"):
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
 # ==============================================================================
