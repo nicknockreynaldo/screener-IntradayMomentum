@@ -386,10 +386,10 @@ with tab_watchlist:
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
+    # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    # Format ribuan tetap ada di sini
-    c1.markdown(f"**Modal Real-time:** Rp {MODAL:,.0f}".replace(",", "."))
+    c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
     
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
@@ -399,25 +399,59 @@ with tab_calc:
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # Kalkulasi
+    # --- KALKULASI ---
     risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    st.info(f"R-Ratio Manual: {r_manual:.2f}R | Lot: {lot_max} | Jarak SL: {risk_dist_pct:.2f}%")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
+    m2.metric("Max Lot", f"{lot_max} Lot")
+    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
+    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
 
-    if st.button("💾 Simpan ke GSheet"):
-        tanggal_now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
-        data_row = [tanggal_now, ticker_in, entry_in, sl_in, manual_tp, f"{r_manual:.2f}R", lot_max, f"{risk_dist_pct:.2f}%"]
-        
-        success, msg = simpan_trade_ke_gsheet(data_row)
-        if success:
-            st.success(f"Trade {ticker_in} berhasil disimpan!")
+    # Tombol Tambah ke List
+    if st.button("➕ Tambah ke Daftar Trade"):
+        new_trade = {
+            "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
+            "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
+            "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%",
+            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+        }
+        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
+        st.rerun()
+
+    st.markdown("---")
+    st.subheader("🎯 Daftar Pending (Edit/Hapus sebelum Simpan)")
+    
+    # Editor Tabel (Bisa hapus baris langsung di sini)
+    st.session_state['my_trades'] = st.data_editor(
+        st.session_state['my_trades'], 
+        use_container_width=True, 
+        num_rows="dynamic"
+    )
+    
+    # Tombol Simpan & Hapus Semua
+    c_btn1, c_btn2 = st.columns(2)
+    
+    if c_btn1.button("💾 Simpan Semua ke GSheet"):
+        if not st.session_state['my_trades'].empty:
+            count = 0
+            for _, row in st.session_state['my_trades'].iterrows():
+                data_row = [row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']]
+                success, msg = simpan_trade_ke_gsheet(data_row)
+                if success: count += 1
+            st.success(f"Berhasil menyimpan {count} trade ke GSheet!")
+            st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL", "Tanggal"])
+            st.rerun()
         else:
-            st.error(f"Gagal simpan: {msg}")
-        
+            st.warning("List kosong!")
+            
+    if c_btn2.button("🗑️ Hapus Semua Pending"):
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL", "Tanggal"])
+        st.rerun()
 # ==============================================================================
 # --- TAB JOURNAL (NEW) ---
 # ==============================================================================
