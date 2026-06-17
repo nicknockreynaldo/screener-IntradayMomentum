@@ -19,7 +19,8 @@ if 'memori_saham' not in st.session_state:
     }
 
 # --- KONTROL MENU UTAMA (TABS) ---
-tab_screener, tab_watchlist = st.tabs(["🚀 Sandbox Ultimate Screener", "📋 Manual Watchlist Monitor (TF: 1H)"])
+# DITAMBAHKAN tab_calc
+tab_screener, tab_watchlist, tab_calc = st.tabs(["🚀 Sandbox Ultimate Screener", "📋 Manual Watchlist Monitor (TF: 1H)", "🧮 Risk Calculator"])
 
 # ==============================================================================
 # TAB 1: CODE ASLI SANDBOX (DIPERTAHANKAN SEPENUHNYA)
@@ -283,19 +284,17 @@ with tab_screener:
             except Exception as e: st.error(f"Error: {e}")
 
 # ==============================================================================
-# TAB 2: INJEKSI FITUR MANUAL WATCHLIST MONITOR (TOTAL PASS TANPA FILTER)
+# TAB 2: MANUAL WATCHLIST MONITOR (TF: 1H)
 # ==============================================================================
 with tab_watchlist:
     st.header("📋 Manual Watchlist Monitor (TF: 1 Hour)")
     
-    # URL Google Sheet tab "WL" (GID=720440950)
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # PERBAIKAN: Mengambil data dari sheet dengan menggabungkan semua kolom agar koma tidak memecah data
+    # Ambil data dari sheet (Default)
     if 'default_wl' not in st.session_state:
         try:
             df_wl_raw = pd.read_csv(URL_WL, header=None)
-            # Menggabungkan seluruh kolom di baris pertama menjadi satu string panjang
             full_content = []
             for col in df_wl_raw.columns:
                 vals = df_wl_raw[col].dropna().astype(str).tolist()
@@ -303,7 +302,7 @@ with tab_watchlist:
             st.session_state['default_wl'] = ", ".join(full_content)
         except:
             st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
-    
+            
     input_watchlist_manual = st.text_area(
         "Masukkan Kode Saham Pilihan Anda (pisahkan dengan koma atau enter):",
         value=st.session_state['default_wl'],
@@ -316,67 +315,101 @@ with tab_watchlist:
     if REFRESH_WATCHLIST or input_watchlist_manual:
         with st.spinner("Mengunduh data khusus watchlist manual..."):
             try:
-                # Parsing string input menjadi list ticker bersih (.JK)
                 raw_wl_tokens = [s.strip().upper() for s in input_watchlist_manual.replace("\n", ",").split(",") if s.strip()]
                 watchlist_wl = [s + ".JK" if not s.endswith(".JK") else s for s in raw_wl_tokens if len(s.split(".")[0]) == 4]
                 
                 if watchlist_wl:
-                    # Mengunci download data massal khusus ke timeframe 1 Jam (1h)
                     data_bulk_wl = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
                     hasil_watchlist_manual = []
                     
                     for ticker in watchlist_wl:
                         df_wl_single = data_bulk_wl[ticker] if len(watchlist_wl) > 1 else data_bulk_wl
                         df_wl_single = df_wl_single.sort_index()
-                        
                         df_wl_single['Close'] = df_wl_single['Close'].ffill()
-                        df_wl_single['Open'] = df_wl_single['Open'].fillna(df_wl_single['Close'])
-                        df_wl_single['Volume'] = df_wl_single['Volume'].fillna(0)
                         df_wl_single = df_wl_single.dropna(subset=['Close'])
                         
-                        # Pengaman data jika baris saham baru listing kurang dari 50 baris candle 1H
-                        if df_wl_single.empty or len(df_wl_single) < 50:
-                            hasil_watchlist_manual.append({
-                                "Kode Saham": ticker.replace(".JK", ""), "Price": "N/A", "Change %": "N/A",
-                                "% Jarak ke MA10 (1H)": "N/A", "% Jarak ke MA20 (1H)": "N/A", "% Jarak ke MA50 (1H)": "N/A",
-                                "val_helper": 0
-                            })
-                            continue
+                        if df_wl_single.empty or len(df_wl_single) < 50: continue
                         
                         close_wl = float(df_wl_single['Close'].iloc[-1])
                         open_wl = float(df_wl_single['Open'].iloc[-1])
                         change_pct_wl = ((close_wl - open_wl) / open_wl) * 100 if open_wl != 0 else 0
                         
-                        # Menghitung rolling mean MA Jam-Jaman (1H)
                         ma10_wl = float(df_wl_single['Close'].rolling(10).mean().iloc[-1])
                         ma20_wl = float(df_wl_single['Close'].rolling(20).mean().iloc[-1])
                         ma50_wl = float(df_wl_single['Close'].rolling(50).mean().iloc[-1])
                         
-                        # Kalkulasi Nilai Transaksi Jam Terakhir/Hari Ini untuk background sorting
-                        hari_ini_wl = df_wl_single.index[-1].date()
-                        df_hari_ini_wl = df_wl_single[df_wl_single.index.date == hari_ini_wl]
-                        val_transaksi_wl = (df_hari_ini_wl['Close'] * df_hari_ini_wl['Volume']).sum() if not df_hari_ini_wl.empty else close_wl * float(df_wl_single['Volume'].iloc[-1])
-                        
-                        # MASUKKAN LANGSUNG TANPA ADANYA LOGIKA ELIMINASI IF IS_LOLOS
                         hasil_watchlist_manual.append({
                             "Kode Saham": ticker.replace(".JK", ""),
                             "Price": f"Rp{close_wl:,.0f}",
                             "Change %": f"{change_pct_wl:+.2f}%",
                             "% Jarak ke MA10 (1H)": f"{((close_wl - ma10_wl) / ma10_wl) * 100:+.2f}%",
                             "% Jarak ke MA20 (1H)": f"{((close_wl - ma20_wl) / ma20_wl) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%",
-                            "val_helper": val_transaksi_wl
+                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%"
                         })
                     
                     if hasil_watchlist_manual:
                         df_render_wl = pd.DataFrame(hasil_watchlist_manual)
-                        # Sorting default otomatis berdasarkan value transaksi terbesar (descending) sesuai sandbox
-                        df_render_wl = df_render_wl.sort_values(by="val_helper", ascending=False)
-                        df_render_wl = df_render_wl.drop(columns=["val_helper"])
-                        
-                        st.success(f"🎯 Watchlist Berhasil Dimuat! Memantau {len(df_render_wl)} Saham.")
-                        tabel_height_wl = (len(df_render_wl) + 1) * 35
-                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True, height=tabel_height_wl)
-                    else:
-                        st.warning("Tidak ada saham yang berhasil diproses.")
-            except Exception as e: st.error(f"Error Watchlist: {e}")
+                        st.success(f"🎯 Watchlist Berhasil Dimuat!")
+                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
+            except Exception as e: st.error(f"Error: {e}")
+
+# ==============================================================================
+# TAB 3: RISK CALCULATOR (FITUR BARU)
+# ==============================================================================
+with tab_calc:
+    st.header("🧮 Position Sizer & Risk Calculator")
+    
+    # Global Setting
+    c1, c2 = st.columns(2)
+    MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
+    RISK_PCT = c2.slider("Risk per Trade (%)", 0.5, 5.0, 1.0, step=0.1) / 100
+    
+    # Input Data
+    col_in1, col_in2, col_in3 = st.columns(3)
+    ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
+    entry_in = col_in2.number_input("Entry Price", value=6000)
+    sl_in = col_in3.number_input("Stop Loss Price", value=5800)
+    
+    if sl_in >= entry_in:
+        st.error("⚠️ Stop Loss tidak boleh >= Entry Price (Posisi Long)!")
+    else:
+        # Kalkulasi
+        risk_per_share = entry_in - sl_in
+        risk_dist_pct = (risk_per_share / entry_in) * 100
+        
+        # Validasi Jarak SL
+        if risk_dist_pct > 5:
+            st.warning(f"⚠️ Risiko terlalu lebar: {risk_dist_pct:.2f}% (Limit Anda < 5%)")
+        else:
+            st.success(f"✅ Risiko SL: {risk_dist_pct:.2f}% (AMAN)")
+            
+        risk_amount = MODAL * RISK_PCT
+        # Lot calculation (standard 100 lembar per lot)
+        lot_max = math.floor((risk_amount / risk_per_share) / 100)
+        
+        # Display Hasil Utama
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Risk Amount (Rp)", f"Rp{int(risk_amount):,}")
+        m2.metric("Max Lot", f"{lot_max} Lot")
+        m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
+        
+        # Tabel Target Profit (1.5R, 2R, 3R)
+        st.subheader("🎯 Target Profit")
+        data_target = {
+            "Level": ["1.5R", "2R", "3R"],
+            "Price": [
+                entry_in + (risk_per_share * 1.5),
+                entry_in + (risk_per_share * 2),
+                entry_in + (risk_per_share * 3)
+            ],
+            "% Gain": [
+                ((risk_per_share * 1.5) / entry_in) * 100,
+                ((risk_per_share * 2) / entry_in) * 100,
+                ((risk_per_share * 3) / entry_in) * 100
+            ]
+        }
+        df_target = pd.DataFrame(data_target)
+        st.dataframe(df_target, use_container_width=True, hide_index=True, column_config={
+            "Price": st.column_config.NumberColumn("Price Target", format="Rp%d"),
+            "% Gain": st.column_config.NumberColumn("% Gain", format="%.2f%%")
+        })
