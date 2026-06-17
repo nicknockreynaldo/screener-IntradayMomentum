@@ -353,23 +353,23 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 
-# ==============================================================================
-# TAB 3: RISK CALCULATOR (FITUR BARU)
-# ==============================================================================
+
 # ==============================================================================
 # TAB 3: RISK CALCULATOR (FITUR BARU DENGAN TABEL PERSISTEN)
+# ==============================================================================
+# ==============================================================================
+# TAB 3: RISK CALCULATOR (LENGKAP DENGAN KOLOM JARAK SL)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
     # Inisialisasi list untuk menyimpan data trade
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Jarak SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
 
     # Global Setting
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    # Menampilkan format dot (helper)
     c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
     
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.5, 5.0, 1.0, step=0.1) / 100
@@ -409,14 +409,20 @@ with tab_calc:
         
         if st.button("➕ Tambah ke Daftar Trade"):
             new_trade = {
-                "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
-                "Lot": lot_max, "Target 1.5R": int(t1), "Target 2R": int(t2), "Target 3R": int(t3)
+                "Ticker": ticker_in, 
+                "Entry": entry_in, 
+                "SL": sl_in, 
+                "Jarak SL": f"{risk_dist_pct:.2f}%", # KOLOM BARU DITAMBAHKAN
+                "Lot": lot_max, 
+                "Target 1.5R": int(t1), 
+                "Target 2R": int(t2), 
+                "Target 3R": int(t3)
             }
             # Simpan ke session state
             st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
             st.rerun()
 
-        # Tampilan Tabel Target
+        # Tampilan Target Profit (Ringkasan)
         st.subheader("🎯 Target Profit")
         df_target = pd.DataFrame({
             "Level": ["1.5R", "2R", "3R"],
@@ -427,7 +433,7 @@ with tab_calc:
         # Tampilan Daftar Trade
         st.subheader("📋 Daftar Trade Anda")
         if not st.session_state['my_trades'].empty:
-            st.dataframe(st.session_state['my_trades'], use_container_width=True)
+            st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
             if st.button("🗑️ Hapus Semua Daftar"):
-                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
+                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Jarak SL", "Lot", "Target 1.5R", "Target 2R", "Target 3R"])
                 st.rerun()
