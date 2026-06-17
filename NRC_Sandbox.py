@@ -387,27 +387,6 @@ with tab_calc:
     # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
     st.subheader("🎯 Target Price Setup")
     
-    # INJEKSI CSS DIMULAI DI SINI 
-    st.markdown("""
-        <style>
-            table {
-                text-align: center;
-            }
-            th, td {
-                text-align: center !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    # INJEKSI CSS SELESAI
-    
-    df_target_ringkas = pd.DataFrame({
-        "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
-        "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
-        "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-        "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
-    })
-    
-    st.table(df_target_ringkas) # Tabel ini akan otomatis menjadi rata tengah
     
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
