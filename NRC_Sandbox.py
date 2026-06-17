@@ -380,19 +380,18 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (REVISI RINGKAS)
+# TAB 3: RISK CALCULATOR (REVISI FINAL - INTERAKTIF)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
+    # Inisialisasi session state (menambahkan kolom Tanggal)
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
-    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
@@ -402,36 +401,35 @@ with tab_calc:
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
     # --- KALKULASI ---
-    risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
+    risk_amount = MODAL * RISK_PCT
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS (3 Row) ---
+    # --- METRICS (SPOTLIGHT COLOR) ---
     m1, m2, m3 = st.columns(3)
-    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
-    m2.metric("Max Lot", f"{lot_max} Lot")
-    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
+    # Menggunakan HTML/Markdown untuk warna tanpa mengubah ukuran font
+    m1.markdown(f"**Risk Amount**<br><span style='color:#FF4B4B;'>Rp{int(risk_amount):,.0f}</span>", unsafe_allow_html=True)
+    m2.markdown(f"**Max Lot**<br><span style='color:#FF4B4B;'>{lot_max} Lot</span>", unsafe_allow_html=True)
+    m3.markdown(f"**Jarak SL**<br><span style='color:#FF4B4B;'>{risk_dist_pct:.2f}%</span>", unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
-    st.subheader("🎯 Target Price Setup")
-    
-    # Menggunakan dictionary untuk tabel horizontal agar hemat ruang
+    # --- TARGET TABLE ---
     df_target_ringkas = pd.DataFrame({
         "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
         "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
         "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
         "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
     })
-    
     st.table(df_target_ringkas)
 
-    # --- ACTION BUTTON ---
-    if st.button("➕ Tambah ke Daftar Trade"):
+    # --- BUTTONS ---
+    c_btn1, c_btn2 = st.columns(2)
+    if c_btn1.button("➕ Tambah ke Daftar Pre-Trade"):
         new_trade = {
+            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
@@ -439,12 +437,19 @@ with tab_calc:
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
         st.rerun()
 
-    # --- TABEL LIST TRADE ---
-    st.subheader("📋 Daftar Pending")
-    st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
-    
-    if st.button("🗑️ Hapus Semua"):
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+    # --- DAFTAR PRE-TRADE (INTERAKTIF) ---
+    st.subheader("📋 Daftar Pre-Trade")
+    # Menggunakan data_editor untuk menghapus baris via checkbox
+    st.session_state['my_trades'] = st.data_editor(st.session_state['my_trades'], use_container_width=True)
+
+    c_act1, c_act2 = st.columns(2)
+    if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
+        # Logika Kirim ke GSheet (menggunakan fungsi yang sudah ada di script Anda)
+        for _, row in st.session_state['my_trades'].iterrows():
+            data = [row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']]
+            simpan_trade_ke_gsheet(data)
+        st.success("Trade berhasil dikonfirmasi dan dikirim ke Jurnal!")
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
 # ==============================================================================
 # --- TAB JOURNAL (NEW) ---
