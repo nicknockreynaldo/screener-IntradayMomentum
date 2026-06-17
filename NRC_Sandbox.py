@@ -380,16 +380,15 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (REVISI FINAL - INTERAKTIF)
+# TAB 3: RISK CALCULATOR (FIXED LOGIC)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
-    # Inisialisasi session state (menambahkan kolom Tanggal)
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
-    # --- INPUT SECTION ---
+    # --- INPUT SECTION (SAMA) ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
     c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
@@ -402,14 +401,14 @@ with tab_calc:
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # --- KALKULASI ---
+    # --- KALKULASI (SAMA) ---
     risk_per_share = entry_in - sl_in
     risk_amount = MODAL * RISK_PCT
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS ---
+    # --- METRICS (SAMA) ---
     m1, m2, m3 = st.columns(3)
     m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     m2.metric("Max Lot", f"{lot_max} Lot")
@@ -417,7 +416,7 @@ with tab_calc:
 
     st.markdown("---")
 
-    # --- TARGET TABLE ---
+    # --- TARGET PRICE MULTIPLE (SAMA) ---
     st.subheader("🎯 Risk Multiple")
     df_target_ringkas = pd.DataFrame({
         "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
@@ -438,30 +437,37 @@ with tab_calc:
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
         st.rerun()
 
-    # --- DAFTAR PRE-TRADE (INTERAKTIF DENGAN CHECKBOX) ---
+    # --- DAFTAR PRE-TRADE ---
     st.subheader("📋 Daftar Pre-Trade")
     
-    # st.data_editor dengan num_rows="dynamic" memungkinkan pemilihan baris secara UI
+    # KUNCI PERBAIKAN: Gunakan key agar Streamlit melacak perubahan data secara konsisten
     edited_df = st.data_editor(
         st.session_state['my_trades'], 
         use_container_width=True, 
         hide_index=True,
-        num_rows="dynamic" # Memberikan fitur checkbox hapus baris di UI
+        num_rows="dynamic",
+        key="data_editor_trades"
     )
+    
+    # Sinkronisasi otomatis: setiap kali ada perubahan di data_editor (termasuk hapus baris), 
+    # kita update session state.
+    if not edited_df.equals(st.session_state['my_trades']):
+        st.session_state['my_trades'] = edited_df
+        st.rerun()
     
     c_act1, c_act2 = st.columns(2)
     
     # 1. Tombol Confirm
     if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
-        for _, row in edited_df.iterrows():
+        for _, row in st.session_state['my_trades'].iterrows():
             simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
         st.success("Trade berhasil dikonfirmasi!")
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
     
-    # 2. Tombol Hapus Baris Terpilih (Sinkronisasi hasil edit dari editor)
-    if c_act2.button("🗑️ Update/Hapus Baris Terpilih"):
-        st.session_state['my_trades'] = edited_df
+    # 2. Tombol Hapus Semua (Jika ingin cara cepat hapus semua)
+    if c_act2.button("🗑️ Hapus Semua Daftar"):
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
 # ==============================================================================
 # --- TAB JOURNAL (NEW) ---
