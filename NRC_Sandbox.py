@@ -8,10 +8,8 @@ import gspread
 # --- FUNGSI GOOGLE SHEETS ---
 def simpan_trade_ke_gsheet(data_list):
     try:
-        # Mengambil secret dari st.secrets
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
-        # Nama sheet harus sesuai persis
         sh = gc.open("NRC Trading Journal")
         wks = sh.sheet1
         wks.append_row(data_list)
@@ -25,6 +23,9 @@ st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener Suite", page_icon="📈", layout="wide")
 warnings.filterwarnings('ignore')
+
+if 'my_trades' not in st.session_state:
+    st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
 # Inisialisasi Session State untuk Screener
 if 'memori_saham' not in st.session_state:
@@ -369,98 +370,69 @@ with tab_watchlist:
             except Exception as e: st.error(f"Error: {e}")
 
 
-# ==============================================================================
-# TAB 3: RISK CALCULATOR (OPTIMIZED & COMPACT)
-# ==============================================================================
+# --- TAB CALCULATOR (MODIFIED) ---
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
-    if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
-
-    # --- INPUT SECTION ---
+    # INPUT SECTION
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}") # Angka real time
-    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
     ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
     entry_in = col_in2.number_input("Entry Price", value=6000)
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
-    # Manual TP tanpa desimal
     manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
-    # --- CALCULATIONS ---
+    # CALCULATIONS
     risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
     risk_dist_pct = (risk_per_share / entry_in) * 100
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS & STATUS ---
     st.markdown("---")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
-    m2.metric("Max Lot", f"{lot_max} Lot")
-    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%", delta_color="inverse")
-    m4.metric("Manual TP R-Ratio", f"{r_manual:.2f}R")
-    
-    if risk_dist_pct > 5:
-        st.caption(f"⚠️ Peringatan: Risiko {risk_dist_pct:.2f}% (Di atas limit 5%)")
-
-    # --- ACTION BUTTON ---
-    if st.button("➕ Tambah ke Daftar Trade"):
-        # 1. Update Session State
+    if st.button("➕ Tambahkan ke List Pending"):
         new_trade = {
+            "Tanggal": str(pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")),
             "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
         }
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
-        
-        # 2. Simpan ke Google Sheet
-        data_to_save = [
-            str(pd.Timestamp.now()), # Tanggal
-            ticker_in, 
-            entry_in, 
-            sl_in, 
-            manual_tp, 
-            f"{r_manual:.2f}R", 
-            lot_max, 
-            f"{risk_dist_pct:.2f}%"
-        ]
-        success, msg = simpan_trade_ke_gsheet(data_to_save)
-        
-        if success:
-            st.success("✅ Berhasil disimpan ke GSheet!")
-        else:
-            st.error(f"❌ Gagal simpan GSheet: {msg}")
-            
-        st.rerun()
+        st.success(f"Berhasil ditambahkan ke list! Cek Tab Journal.")
 
-    # --- TABLES (COMPACT) ---
-    st.subheader("🎯 Quick Targets & List")
-    c_tab1, c_tab2 = st.columns([1, 2]) # Tabel lebih ramping
+# --- TAB JOURNAL (NEW) ---
+with tab_journal:
+    st.header("📊 Trade Journal & Execution")
+    st.info("Edit tabel di bawah (hapus baris) untuk membatalkan trade, lalu klik tombol Simpan di bawah.")
     
-    with c_tab1:
-        # Tabel Target 1.5R, 2R, 3R + Manual TP
-        df_target = pd.DataFrame({
-            "Level": ["1.5R", "2R", "3R", "Manual TP"],
-            "Price": [
-                entry_in+(risk_per_share*1.5), 
-                entry_in+(risk_per_share*2), 
-                entry_in+(risk_per_share*3), 
-                manual_tp
-            ]
-        })
-        st.dataframe(df_target, use_container_width=True, hide_index=True)
-
-    with c_tab2:
-        # Daftar Trade
+    # Data Editor memungkinkan hapus/edit per row
+    st.session_state['my_trades'] = st.data_editor(
+        st.session_state['my_trades'], 
+        use_container_width=True, 
+        num_rows="dynamic"
+    )
+    
+    c_btn1, c_btn2 = st.columns(2)
+    
+    if c_btn1.button("💾 Simpan Semua ke GSheet"):
         if not st.session_state['my_trades'].empty:
-            st.dataframe(st.session_state['my_trades'], use_container_width=True, hide_index=True)
-            if st.button("🗑️ Hapus Semua"):
-                st.session_state['my_trades'] = pd.DataFrame(columns=["Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
-                st.rerun()
+            count = 0
+            for _, row in st.session_state['my_trades'].iterrows():
+                # Masukkan ke GSheet
+                data_row = [row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']]
+                success, msg = simpan_trade_ke_gsheet(data_row)
+                if success: count += 1
+            
+            st.success(f"Berhasil menyimpan {count} trade ke GSheet!")
+            # Bersihkan list setelah simpan
+            st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+            st.rerun()
+        else:
+            st.warning("List kosong!")
+            
+    if c_btn2.button("🗑️ Hapus Semua Pending"):
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.rerun()
