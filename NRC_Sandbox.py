@@ -408,14 +408,14 @@ with tab_calc:
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    def style_metric_pink(label, value):
+   def style_metric_pink(label, value):
     st.markdown(f"""
         <div style="background-color: #ffe6e6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ffcccc;">
             <div style="font-size: 14px; color: #555;">{label}</div>
             <div style="font-size: 24px; font-weight: bold; color: #000;">{value}</div>
         </div>
     """, unsafe_allow_html=True)
-
+       
     m1, m2, m3 = st.columns(3)
     with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
