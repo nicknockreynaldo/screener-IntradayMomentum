@@ -420,8 +420,7 @@ with tab_calc:
     with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
-    st.markdown("---")
-
+  
     # --- TARGET PRICE (DIPERTAHANKAN) ---
     st.subheader("🎯 Risk Multiple")
     df_target_ringkas = pd.DataFrame({
