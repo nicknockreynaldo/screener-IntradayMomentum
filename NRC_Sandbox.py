@@ -387,12 +387,25 @@ with tab_calc:
     # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
     st.subheader("🎯 Target Price Setup")
     
-    # CSS Injection untuk Center Alignment
+    # CSS Injection untuk Center Alignment (Mencakup st.table dan st.data_editor)
     st.markdown("""
         <style>
+            /* Untuk st.table */
             table { text-align: center !important; }
             th { text-align: center !important; }
             td { text-align: center !important; }
+            
+            /* Untuk st.data_editor */
+            [data-testid="stDataEditor"] {
+                text-align: center !important;
+            }
+            [data-testid="stDataEditor"] div[data-testid="stText"] {
+                text-align: center !important;
+            }
+            /* Memaksa isi sel di data editor rata tengah */
+            [data-testid="stDataEditor"] .st-emotion-cache-1vt4y4j {
+                justify-content: center !important;
+            }
         </style>
     """, unsafe_allow_html=True)
     
