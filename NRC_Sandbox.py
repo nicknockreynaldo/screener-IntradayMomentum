@@ -354,7 +354,6 @@ with tab_watchlist:
             except Exception as e: st.error(f"Error: {e}")
 
 
-
 # ==============================================================================
 # TAB 3: RISK CALCULATOR (OPTIMIZED & COMPACT)
 # ==============================================================================
@@ -367,13 +366,16 @@ with tab_calc:
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
+    c1.caption(f"Format: Rp {f'{MODAL:,.0f}'.replace(',', '.')}") # Angka real time
+    
     RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
     ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
     entry_in = col_in2.number_input("Entry Price", value=6000)
     sl_in = col_in3.number_input("Stop Loss Price", value=5800)
-    manual_tp = col_in4.number_input("Target Manual", value=float(6300))
+    # Manual TP tanpa desimal
+    manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
     
     # --- CALCULATIONS ---
     risk_amount = MODAL * RISK_PCT
@@ -405,13 +407,18 @@ with tab_calc:
 
     # --- TABLES (COMPACT) ---
     st.subheader("🎯 Quick Targets & List")
-    c_tab1, c_tab2 = st.columns([1, 2]) # Tabel dibuat lebih ramping
+    c_tab1, c_tab2 = st.columns([1, 2]) # Tabel lebih ramping
     
     with c_tab1:
-        # Tabel Target 1.5R, 2R, 3R
+        # Tabel Target 1.5R, 2R, 3R + Manual TP
         df_target = pd.DataFrame({
-            "Level": ["1.5R", "2R", "3R"],
-            "Price": [entry_in+(risk_per_share*1.5), entry_in+(risk_per_share*2), entry_in+(risk_per_share*3)]
+            "Level": ["1.5R", "2R", "3R", "Manual TP"],
+            "Price": [
+                entry_in+(risk_per_share*1.5), 
+                entry_in+(risk_per_share*2), 
+                entry_in+(risk_per_share*3), 
+                manual_tp
+            ]
         })
         st.dataframe(df_target, use_container_width=True, hide_index=True)
 
