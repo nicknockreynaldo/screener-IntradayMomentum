@@ -380,7 +380,7 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (UPDATED LAYOUT)
+# TAB 3: RISK CALCULATOR (REVISI RINGKAS)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
@@ -416,20 +416,18 @@ with tab_calc:
 
     st.markdown("---")
 
-    # --- INFORMASI TARGET (Tabel Kecil) ---
-    # Menampilkan 1.5R, 2R, 3R, dan Manual dengan R-Ratio
-    df_target_kecil = pd.DataFrame({
-        "Level": ["1.5R", "2R", "3R", "Manual TP"],
-        "Target Price": [
-            f"{entry_in + (risk_per_share * 1.5):,.0f}",
-            f"{entry_in + (risk_per_share * 2):,.0f}",
-            f"{entry_in + (risk_per_share * 3):,.0f}",
-            f"{manual_tp:,.0f} ({r_manual:.2f}R)" # Menampilkan Angka + R-Ratio
-        ]
+    # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
+    st.subheader("🎯 Target Price Setup")
+    
+    # Menggunakan dictionary untuk tabel horizontal agar hemat ruang
+    df_target_ringkas = pd.DataFrame({
+        "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
+        "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
+        "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
+        "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
     })
     
-    st.subheader("🎯 Target Price Setup")
-    st.table(df_target_kecil)
+    st.table(df_target_ringkas)
 
     # --- ACTION BUTTON ---
     if st.button("➕ Tambah ke Daftar Trade"):
