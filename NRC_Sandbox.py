@@ -380,11 +380,12 @@ with tab_watchlist:
                         st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (KEMBALI KE DEFAULT)
+# TAB 3: RISK CALCULATOR (REVISI FINAL - INTERAKTIF)
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizer & Risk Calculator")
     
+    # Inisialisasi session state (menambahkan kolom Tanggal)
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
@@ -408,23 +409,15 @@ with tab_calc:
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- METRICS (PINK BACKGROUND) ---
-    def style_metric_pink(label, value):
-        st.markdown(f"""
-            <div style="background-color: #ffe6e6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ffcccc;">
-                <div style="font-size: 14px; color: #555;">{label}</div>
-                <div style="font-size: 24px; font-weight: bold; color: #000;">{value}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
+    # --- METRICS ---
     m1, m2, m3 = st.columns(3)
-    with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount):,.0f}")
-    with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
-    with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
+    m1.metric("Risk Amount", f"Rp{int(risk_amount):,.0f}")
+    m2.metric("Max Lot", f"{lot_max} Lot")
+    m3.metric("Jarak SL", f"{risk_dist_pct:.2f}%")
 
     st.markdown("---")
 
-    # --- TARGET PRICE MULTIPLE ---
+    # --- TARGET TABLE ---
     st.subheader("🎯 Risk Multiple")
     df_target_ringkas = pd.DataFrame({
         "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
@@ -445,21 +438,29 @@ with tab_calc:
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], pd.DataFrame([new_trade])], ignore_index=True)
         st.rerun()
 
-    # --- DAFTAR PRE-TRADE (INTERAKTIF) ---
+    # --- DAFTAR PRE-TRADE (INTERAKTIF DENGAN CHECKBOX) ---
     st.subheader("📋 Daftar Pre-Trade")
-    edited_df = st.data_editor(st.session_state['my_trades'], use_container_width=True, hide_index=True)
     
-    # Tombol Aksi (Tanpa CSS kustom, kembali ke style default)
+    # st.data_editor dengan num_rows="dynamic" memungkinkan pemilihan baris secara UI
+    edited_df = st.data_editor(
+        st.session_state['my_trades'], 
+        use_container_width=True, 
+        hide_index=True,
+        num_rows="dynamic" # Memberikan fitur checkbox hapus baris di UI
+    )
+    
     c_act1, c_act2 = st.columns(2)
     
+    # 1. Tombol Confirm
     if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
-        for _, row in st.session_state['my_trades'].iterrows():
+        for _, row in edited_df.iterrows():
             simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
         st.success("Trade berhasil dikonfirmasi!")
         st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
-        
-    if c_act2.button("🗑️ Hapus Baris Terpilih"):
+    
+    # 2. Tombol Hapus Baris Terpilih (Sinkronisasi hasil edit dari editor)
+    if c_act2.button("🗑️ Update/Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df
         st.rerun()
 # ==============================================================================
