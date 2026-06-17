@@ -311,73 +311,85 @@ with tab_screener:
             except Exception as e: st.error(f"Error: {e}")
 
 # ==============================================================================
-# TAB 2: MANUAL WATCHLIST MONITOR (TF: 1H)
+# TAB 2: WATCHLIST MONITOR (SUPER & INTRADAY)
 # ==============================================================================
 with tab_watchlist:
-    st.header("📋 Manual Watchlist Monitor (TF: 1 Hour)")
+    st.header("📈 Super Watchlist")
     
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # Ambil data dari sheet (Default)
-    if 'default_wl' not in st.session_state:
-        try:
-            df_wl_raw = pd.read_csv(URL_WL, header=None)
-            full_content = []
-            for col in df_wl_raw.columns:
-                vals = df_wl_raw[col].dropna().astype(str).tolist()
-                full_content.extend(vals)
-            st.session_state['default_wl'] = ", ".join(full_content)
-        except:
-            st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
-            
-    input_watchlist_manual = st.text_area(
-        "Masukkan Kode Saham Pilihan Anda (pisahkan dengan koma atau enter):",
-        value=st.session_state['default_wl'],
-        help="Input otomatis ditarik dari Google Sheet Tab WL (Sel A1)",
-        key="wl_manual_input"
-    )
-    
-    REFRESH_WATCHLIST = st.button("🔄 Refresh Data Watchlist", use_container_width=True, key="wl_manual_btn")
-    
-    if REFRESH_WATCHLIST or input_watchlist_manual:
-        with st.spinner("Mengunduh data khusus watchlist manual..."):
+    # Inisialisasi Session State Watchlist
+    if 'wl_data' not in st.session_state:
+        st.session_state['wl_data'] = {"Super": "BBCA, BMRI, BBNI, UNVR", "Intraday": "BBCA, BMRI"}
+
+    # Fungsi Helper untuk VWAP: (Sum(Price * Volume) / Sum(Volume))
+    def hitung_vwap(df):
+        return (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
+
+    # --- INPUT 1: SUPER WATCHLIST ---
+    st.subheader("🌟 Super Watchlist (TF: 1H)")
+    input_super = st.text_area("Super Watchlist:", value=st.session_state['wl_data']['Super'], key="input_super")
+    btn_super = st.button("🚀 Refresh Super Watchlist", key="btn_super")
+
+    if btn_super or input_super:
+        with st.spinner("Loading Super Watchlist..."):
             try:
-                raw_wl_tokens = [s.strip().upper() for s in input_watchlist_manual.replace("\n", ",").split(",") if s.strip()]
-                watchlist_wl = [s + ".JK" if not s.endswith(".JK") else s for s in raw_wl_tokens if len(s.split(".")[0]) == 4]
+                tokens = [s.strip().upper() for s in input_super.replace("\n", ",").split(",") if s.strip()]
+                wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
-                if watchlist_wl:
-                    data_bulk_wl = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                    hasil_watchlist_manual = []
+                data = yf.download(wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+                hasil = []
+                for ticker in wl:
+                    df = data[ticker] if len(wl) > 1 else data
+                    df = df.dropna(subset=['Close'])
+                    if len(df) < 50: continue
                     
-                    for ticker in watchlist_wl:
-                        df_wl_single = data_bulk_wl[ticker] if len(watchlist_wl) > 1 else data_bulk_wl
-                        df_wl_single = df_wl_single.sort_index()
-                        df_wl_single['Close'] = df_wl_single['Close'].ffill()
-                        df_wl_single = df_wl_single.dropna(subset=['Close'])
-                        
-                        if df_wl_single.empty or len(df_wl_single) < 50: continue
-                        
-                        close_wl = float(df_wl_single['Close'].iloc[-1])
-                        open_wl = float(df_wl_single['Open'].iloc[-1])
-                        change_pct_wl = ((close_wl - open_wl) / open_wl) * 100 if open_wl != 0 else 0
-                        
-                        ma10_wl = float(df_wl_single['Close'].rolling(10).mean().iloc[-1])
-                        ma20_wl = float(df_wl_single['Close'].rolling(20).mean().iloc[-1])
-                        ma50_wl = float(df_wl_single['Close'].rolling(50).mean().iloc[-1])
-                        
-                        hasil_watchlist_manual.append({
-                            "Kode Saham": ticker.replace(".JK", ""),
-                            "Price": f"Rp{close_wl:,.0f}",
-                            "Change %": f"{change_pct_wl:+.2f}%",
-                            "% Jarak ke MA10 (1H)": f"{((close_wl - ma10_wl) / ma10_wl) * 100:+.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close_wl - ma20_wl) / ma20_wl) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%"
-                        })
+                    close = float(df['Close'].iloc[-1])
+                    ma10 = float(df['Close'].rolling(10).mean().iloc[-1])
+                    ma20 = float(df['Close'].rolling(20).mean().iloc[-1])
+                    ma50 = float(df['Close'].rolling(50).mean().iloc[-1])
                     
-                    if hasil_watchlist_manual:
-                        df_render_wl = pd.DataFrame(hasil_watchlist_manual)
-                        st.success(f"🎯 Watchlist Berhasil Dimuat!")
-                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
+                    hasil.append({
+                        "Kode Saham": ticker.replace(".JK", ""),
+                        "Price": f"Rp{close:,.0f}",
+                        "% Dist to DMA10": f"{((close - ma10) / ma10) * 100:+.2f}%",
+                        "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:+.2f}%",
+                        "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:+.2f}%"
+                    })
+                if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
+            except Exception as e: st.error(f"Error: {e}")
+
+    st.markdown("---")
+
+    # --- INPUT 2: INTRADAY WATCHLIST ---
+    st.subheader("⚡ Intraday Momentum Watchlist (TF: 5m)")
+    input_intra = st.text_area("Intraday Watchlist:", value=st.session_state['wl_data']['Intraday'], key="input_intra")
+    btn_intra = st.button("⚡ Refresh Intraday Watchlist", key="btn_intra")
+
+    if btn_intra or input_intra:
+        with st.spinner("Loading Intraday Data..."):
+            try:
+                tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
+                wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
+                
+                # Mengambil data 5 menit untuk perhitungan VWAP intraday hari ini
+                data = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
+                hasil = []
+                for ticker in wl:
+                    df = data[ticker] if len(wl) > 1 else data
+                    df = df.dropna(subset=['Close', 'Volume'])
+                    if df.empty: continue
+                    
+                    close = float(df['Close'].iloc[-1])
+                    vwap = hitung_vwap(df)
+                    
+                    hasil.append({
+                        "Kode Saham": ticker.replace(".JK", ""),
+                        "Price": f"Rp{close:,.0f}",
+                        "VWAP Intraday": f"Rp{vwap:,.0f}",
+                        "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
+                    })
+                if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
 # TAB 3: RISK CALCULATOR
