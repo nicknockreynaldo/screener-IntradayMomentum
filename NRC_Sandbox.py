@@ -314,9 +314,10 @@ with tab_screener:
 # TAB 2: WATCHLIST MONITOR (SUPER & INTRADAY)
 # ==============================================================================
 with tab_watchlist:
+    # --- 1. SUPER WATCHLIST (LOGIKA ASLI YANG 100% BERHASIL) ---
     URL_WL = "https://docs.google.com/spreadsheets/d/16FBTNzXHRELk3NINhzk8XEymE_m34OLo4dpWldm9nKw/export?format=csv&gid=720440950"
     
-    # --- LOGIKA PENARIKAN DATA ASLI (Dikembalikan ke semula) ---
+    # Ambil data dari sheet (Default)
     if 'default_wl' not in st.session_state:
         try:
             df_wl_raw = pd.read_csv(URL_WL, header=None)
@@ -327,48 +328,56 @@ with tab_watchlist:
             st.session_state['default_wl'] = ", ".join(full_content)
         except:
             st.session_state['default_wl'] = "BBCA, BMRI, BBNI, UNVR"
-
-    # --- 1. SUPER WATCHLIST ---
-    st.subheader("🌟 Super Watchlist (TF: 1H)")
-    input_super = st.text_area(
-        "Super Watchlist (Default dari Sheet):", 
-        value=st.session_state['default_wl'], 
-        key="input_super"
+            
+    input_watchlist_manual = st.text_area(
+        "Super Watchlist (Input Manual atau dari Google Sheet):",
+        value=st.session_state['default_wl'],
+        help="Input otomatis ditarik dari Google Sheet Tab WL (Sel A1)",
+        key="wl_manual_input"
     )
-    btn_super = st.button("🚀 Refresh Super Watchlist", key="btn_super")
-
-    if btn_super or input_super:
-        with st.spinner("Loading Super Watchlist..."):
+    
+    REFRESH_WATCHLIST = st.button("🚀 Refresh Super Watchlist", use_container_width=True, key="wl_manual_btn")
+    
+    if REFRESH_WATCHLIST or input_watchlist_manual:
+        with st.spinner("Mengunduh data Super Watchlist..."):
             try:
-                tokens = [s.strip().upper() for s in input_super.replace("\n", ",").split(",") if s.strip()]
-                wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
+                raw_wl_tokens = [s.strip().upper() for s in input_watchlist_manual.replace("\n", ",").split(",") if s.strip()]
+                watchlist_wl = [s + ".JK" if not s.endswith(".JK") else s for s in raw_wl_tokens if len(s.split(".")[0]) == 4]
                 
-                data = yf.download(wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                hasil = []
-                for ticker in wl:
-                    df = data[ticker] if len(wl) > 1 else data
-                    df = df.dropna(subset=['Close'])
-                    if len(df) < 50: continue
+                if watchlist_wl:
+                    data_bulk_wl = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
+                    hasil_watchlist_manual = []
                     
-                    close = float(df['Close'].iloc[-1])
-                    ma10 = float(df['Close'].rolling(10).mean().iloc[-1])
-                    ma20 = float(df['Close'].rolling(20).mean().iloc[-1])
-                    ma50 = float(df['Close'].rolling(50).mean().iloc[-1])
+                    for ticker in watchlist_wl:
+                        df_wl_single = data_bulk_wl[ticker] if len(watchlist_wl) > 1 else data_bulk_wl
+                        df_wl_single = df_wl_single.sort_index()
+                        df_wl_single['Close'] = df_wl_single['Close'].ffill()
+                        df_wl_single = df_wl_single.dropna(subset=['Close'])
+                        
+                        if df_wl_single.empty or len(df_wl_single) < 50: continue
+                        
+                        close_wl = float(df_wl_single['Close'].iloc[-1])
+                        ma10_wl = float(df_wl_single['Close'].rolling(10).mean().iloc[-1])
+                        ma20_wl = float(df_wl_single['Close'].rolling(20).mean().iloc[-1])
+                        ma50_wl = float(df_wl_single['Close'].rolling(50).mean().iloc[-1])
+                        
+                        hasil_watchlist_manual.append({
+                            "Kode Saham": ticker.replace(".JK", ""),
+                            "Price": f"Rp{close_wl:,.0f}",
+                            "% Dist to MA10 (1H)": f"{((close_wl - ma10_wl) / ma10_wl) * 100:+.2f}%",
+                            "% Jarak ke MA20 (1H)": f"{((close_wl - ma20_wl) / ma20_wl) * 100:+.2f}%",
+                            "% Jarak ke MA50 (1H)": f"{((close_wl - ma50_wl) / ma50_wl) * 100:+.2f}%"
+                        })
                     
-                    hasil.append({
-                        "Kode Saham": ticker.replace(".JK", ""),
-                        "Price": f"Rp{close:,.0f}",
-                        "% Dist to MA10 (1H)": f"{((close - ma10) / ma10) * 100:+.2f}%",
-                        "% Jarak ke MA20 (1H)": f"{((close - ma20) / ma20) * 100:+.2f}%",
-                        "% Jarak ke MA50 (1H)": f"{((close - ma50) / ma50) * 100:+.2f}%"
-                    })
-                if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
+                    if hasil_watchlist_manual:
+                        df_render_wl = pd.DataFrame(hasil_watchlist_manual)
+                        st.dataframe(df_render_wl, use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 
     st.markdown("---")
 
-    # --- 2. INTRADAY MOMENTUM WATCHLIST ---
-    st.subheader("⚡ Intraday Momentum Watchlist (TF: 5m)")
+    # --- 2. INTRADAY MOMENTUM WATCHLIST (TF: 5m) ---
+    st.subheader("⚡ Intraday Momentum Watchlist")
     input_intra = st.text_area("Input Watchlist Intraday Manual:", value="", key="input_intra")
     btn_intra = st.button("⚡ Refresh Intraday Watchlist", key="btn_intra")
 
@@ -378,6 +387,7 @@ with tab_watchlist:
                 tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
                 wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
+                # Mengambil data intraday 1 hari
                 data = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
                 hasil = []
                 for ticker in wl:
@@ -386,6 +396,7 @@ with tab_watchlist:
                     if df.empty: continue
                     
                     close = float(df['Close'].iloc[-1])
+                    # VWAP = Sum(P*V) / Sum(V)
                     vwap = (df['Close'] * df['Volume']).sum() / df['Volume'].sum()
                     
                     hasil.append({
