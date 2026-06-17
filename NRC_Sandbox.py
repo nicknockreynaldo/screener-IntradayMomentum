@@ -437,7 +437,6 @@ with tab_watchlist:
 with tab_calc:
     st.header("🧮 Position Sizing & Risk Management")
     # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
-    st.subheader("🎯 Target Price Setup")
     
     # CSS Injection untuk Center Alignment (Mencakup st.table dan st.data_editor)
     st.markdown("""
