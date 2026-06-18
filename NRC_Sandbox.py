@@ -619,7 +619,7 @@ with tab_calc:
         st.rerun()
 
 # ==============================================================================
-# TAB: ACTIVE TRADE
+# TAB 4: ACTIVE TRADE
 # ==============================================================================
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
@@ -627,23 +627,29 @@ with tab_active_trade:
     # 1. Load Data menggunakan gspread (metode yang sudah Anda miliki)
     # Pastikan fungsi tarik_data_dari_gsheet Anda menggunakan gspread
     df_active = tarik_data_dari_gsheet("Active_Trades")
+    
+    cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
+    df_clean = df_active.drop(columns=[c for c in cols_to_drop if c in df_active.columns])
 
     st.subheader("📝 Live Position Monitor")
     
-    # Hapus kolom yang tidak diperlukan agar saat di-sync tidak error
-    if 'Risk Multiple' in df_active.columns:
-        df_active = df_active.drop(columns=['Risk Multiple'])
 
     # 2. Tabel Editor
     edited_df = st.data_editor(
-        df_active,
+        df_clean,
         column_config={
             "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
-            "Lot": st.column_config.NumberColumn("Total Lot"),
-            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+            "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+            "SL": st.column_config.NumberColumn("SL", disabled=True),
+            "Target": st.column_config.NumberColumn("Target", disabled=True),
+            # HANYA INI YANG BOLEH DIEDIT:
+            "Lot": st.column_config.NumberColumn("Total Lot", disabled=False),
+            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d", disabled=False),
         },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        key="active_trade_editor" # Key ini menjaga status editor tetap stabil
     )
 
     # 3. Tombol Sinkronisasi dengan gspread
