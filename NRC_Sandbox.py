@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import yfinance as yf
 import pandas as pd
 import warnings
@@ -6,6 +7,8 @@ import math
 import gspread
 import time
 
+
+conn = st.connection("gsheets", type=GSheetsConnection)
 # --- FUNGSI GOOGLE SHEETS ---
 def simpan_trade_ke_gsheet(data_list):
     try:
@@ -601,15 +604,20 @@ with tab_active_trade:
     st.info("Data di sini tersinkronisasi dengan GSheet 'Active_Trades'. Edit harga real eksekusi Anda di sini.")
 
     # 1. Load Data dari GSheet
-    try:
-        df_active = tarik_data_dari_gsheet("Active_Trades")
+   try:
+        df_active = conn.read(worksheet="Active_Trades") # Menggunakan conn langsung
     except:
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
-
+        
     # --- DEKLARASI VARIABEL DI LUAR BLOK AGAR SELALU TERSEDIA ---
-    trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
-    options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
-    id_map = dict(zip(options, trade_ids))
+   if 'Trade_ID' not in df_active.columns:
+        st.error(f"Kolom 'Trade_ID' tidak ditemukan. Kolom yang terbaca: {df_active.columns.tolist()}")
+    else:
+        # Deklarasi variabel
+        trade_ids = df_active['Trade_ID'].astype(str).tolist()
+        # Potong string untuk dropdown
+        options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
+        id_map = dict(zip(options, trade_ids))
     # ------------------------------------------------------------
 
     # 2. Bagian Update Weighted Average
