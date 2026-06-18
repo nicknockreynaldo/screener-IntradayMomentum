@@ -604,17 +604,18 @@ with tab_active_trade:
     try:
         df_active = tarik_data_dari_gsheet("Active_Trades")
     except:
-        # Menyesuaikan kolom dengan struktur yang kita buat di tab_calc
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
 
-     # Ambil daftar Trade_ID
+    # --- DEKLARASI VARIABEL DI LUAR BLOK AGAR SELALU TERSEDIA ---
     trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
     options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
     id_map = dict(zip(options, trade_ids))
+    # ------------------------------------------------------------
+
     # 2. Bagian Update Weighted Average
     with st.expander("➕ Add Entry / Avg Up-Down"):
         col_id, col_px, col_lot = st.columns([2, 1, 1])
-        with col_id:           
+        with col_id:            
             selected_label = st.selectbox("Pilih Ticker:", options if not df_active.empty else ["None"])
             trade_to_update = id_map.get(selected_label)
         with col_px:
@@ -626,7 +627,7 @@ with tab_active_trade:
             if trade_to_update != "None":
                 idx = df_active[df_active['Trade_ID'] == trade_to_update].index[0]
                 old_px = df_active.at[idx, 'Avg_Entry']
-                old_lot = df_active.at[idx, 'Lot'] # Sesuaikan nama kolom dari 'Lots' ke 'Lot'
+                old_lot = df_active.at[idx, 'Lot'] 
                 
                 updated_avg = ((old_px * old_lot) + (new_px * new_lot)) / (old_lot + new_lot)
                 updated_total_lot = old_lot + new_lot
@@ -662,13 +663,11 @@ with tab_active_trade:
             st.toast("Data tersimpan ke GSheet Active_Trades!")
 
     with col_close:
-        # Gunakan 'options' dan 'id_map' yang sama agar konsisten
         selected_label_close = st.selectbox("Pilih Ticker untuk di-CLOSE:", options if not edited_df.empty else ["None"])
-        selected_trade_id = id_map.get(selected_label_close) # Ini ID asli (timestamp.ticker)
+        selected_trade_id = id_map.get(selected_label_close)
         
         if st.button("🚀 Close Trade & Move to Journal"):
             if selected_trade_id != "None" and selected_trade_id is not None:
-                # ... (logika pindah ke jurnal tetap pakai selected_trade_id)
                 with st.spinner("Memindahkan data ke Jurnal..."):
                     row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade_id]
                     
@@ -678,6 +677,5 @@ with tab_active_trade:
                     
                     new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade_id]
                     conn.update(worksheet="Active_Trades", data=new_active_df)
-                    
-                    st.success(f"Trade {selected_trade} berhasil dipindahkan ke Jurnal!")
+                    st.success(f"Trade {selected_trade_id} berhasil dipindahkan ke Jurnal!")
                     st.rerun()
