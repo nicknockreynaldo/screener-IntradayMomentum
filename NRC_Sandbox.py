@@ -471,9 +471,11 @@ with tab_calc:
         </style>
     """, unsafe_allow_html=True)
     
+  
     if 'my_trades' not in st.session_state:
-        # Inisialisasi dengan urutan kolom baru
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=[
+            "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+        ])ate['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
