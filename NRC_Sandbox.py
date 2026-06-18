@@ -401,9 +401,11 @@ with tab_watchlist:
                 
                 hasil = []
                 for ticker in wl:
-                    df_1h = data_1h[ticker] if len(wl) > 1 else data_1h
-                    df_1d = data_1d[ticker] if len(wl) > 1 else data_1d
-                    df_5m = data_5m[ticker] if len(wl) > 1 else data_5m
+                    # Menggunakan .xs (cross-section) agar struktur kolom selalu flat (Open, Close, Volume)
+                    # baik untuk 1 ticker maupun banyak ticker
+                    df_1h = data_1h.xs(ticker, axis=1, level=0, drop_level=True)
+                    df_1d = data_1d.xs(ticker, axis=1, level=0, drop_level=True)
+                    df_5m = data_5m.xs(ticker, axis=1, level=0, drop_level=True)
                     
                     df_1h = df_1h.dropna(subset=['Close'])
                     df_1d = df_1d.dropna(subset=['Close'])
