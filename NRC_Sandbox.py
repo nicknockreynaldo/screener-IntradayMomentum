@@ -419,7 +419,9 @@ with tab_watchlist:
                     ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
                     ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
                     
-                    vwap = (df_5m['Close'] * df_5m['Volume']).sum() / df_5m['Volume'].sum()
+                   
+                    typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
+                    vwap = (typical_price * df_5m['Volume']).sum() / df_5m['Volume'].sum()
                     
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
