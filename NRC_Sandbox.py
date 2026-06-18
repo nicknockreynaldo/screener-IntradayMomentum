@@ -542,9 +542,9 @@ with tab_calc:
             "R-Ratio": f"{r_manual:.2f}R",
             "Grade": grade_in,
             "Action": False  # Ini menggantikan kolom 'Pilih'
-    }])
-    st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
-    st.rerun()
+        }])
+        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
+        st.rerun()
 
     # --- DAFTAR PRE-TRADE ---
     st.subheader("📋 Daftar Pre-Trade")
