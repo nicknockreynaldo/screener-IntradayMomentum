@@ -550,9 +550,7 @@ with tab_calc:
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df[edited_df["Pilih"] == False]
         st.rerun()
-import streamlit as st
-import pandas as pd
-from datetime import datetime
+
 
 # ==============================================================================
 # TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
