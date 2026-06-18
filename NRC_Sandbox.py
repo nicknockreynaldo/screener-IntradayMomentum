@@ -470,14 +470,19 @@ with tab_calc:
     """, unsafe_allow_html=True)
     
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Grade", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
     MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
     c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
     
-    RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, 1.0, step=0.1) / 100
+    # Penambahan Setup Grade
+    grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
+    risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
+    
+    # Slider dengan nilai default mengikuti Grade
+    RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, risk_map[grade_in], step=0.1) / 100
     
     col_in1, col_in2, col_in3, col_in4 = st.columns(4)
     ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
@@ -523,7 +528,7 @@ with tab_calc:
         new_row = pd.DataFrame([{
             "Pilih": False,
             "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Ticker": ticker_in, "Entry": entry_in, "SL": sl_in, 
+            "Ticker": ticker_in, "Grade": grade_in, "Entry": entry_in, "SL": sl_in, 
             "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
             "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
         }])
@@ -542,15 +547,14 @@ with tab_calc:
     c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade"):
         for _, row in st.session_state['my_trades'].iterrows():
-            simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
+            simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Grade'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
         st.success("Trade berhasil dikonfirmasi!")
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Grade", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
         st.rerun()
         
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df[edited_df["Pilih"] == False]
         st.rerun()
-
 
 # ==============================================================================
 # TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
