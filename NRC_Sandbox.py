@@ -22,10 +22,14 @@ def tarik_data_dari_gsheet():
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
-        wks = sh.sheet1
+        
+        # Ganti sh.sheet1 dengan ini agar spesifik per tab
+        wks = sh.worksheet("Active_Trades") 
+        
         data = wks.get_all_records()
         return pd.DataFrame(data)
-    except:
+    except Exception as e:
+        st.error(f"Gagal tarik data dari sheet {nama_tab}: {e}")
         return pd.DataFrame()
 
 # --- KETERANGAN MODE ---
