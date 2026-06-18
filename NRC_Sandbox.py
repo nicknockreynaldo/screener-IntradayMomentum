@@ -41,6 +41,22 @@ def tarik_data_dari_gsheet(nama_tab):
     except Exception as e:
         st.error(f"Gagal tarik data dari sheet {nama_tab}: {e}")
         return pd.DataFrame()
+        
+def append_ke_gsheet(worksheet_name, dataframe_row):
+    try:
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        sh = gc.open("NRC Trading Journal")
+        wks = sh.worksheet(worksheet_name)
+        
+        # Mengubah baris dataframe menjadi list untuk di-append
+        data_to_append = dataframe_row.values.tolist()[0]
+        
+        wks.append_row(data_to_append)
+        return True, "Sukses"
+    except Exception as e:
+        return False, str(e)
+
 
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
@@ -634,7 +650,7 @@ with tab_active_trade:
     if st.button("💾 Sync Update ke GSheet"):
         # Kita panggil fungsi update gspread yang sebelumnya sudah Anda pakai
         # Misal fungsi Anda bernama simpan_ke_gsheet atau sejenisnya
-        simpan_ke_gsheet(worksheet_name="Active_Trades", dataframe=edited_df)
+        simpan_trade_ke_gsheet((worksheet_name="Active_Trades", dataframe=edited_df)
         st.success("Data berhasil di-sync ke GSheet!")
         st.rerun()
 
@@ -652,7 +668,7 @@ with tab_active_trade:
                 
                 # Hapus dari Active_Trades
                 new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
-                simpan_ke_gsheet("Active_Trades", new_active_df)
+                simpan_trade_ke_gsheet(("Active_Trades", new_active_df)
                 
                 st.success("Trade ditutup dan di-log ke Journal_Final!")
                 st.rerun()
