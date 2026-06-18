@@ -647,7 +647,7 @@ with tab_active_trade:
     edited_df = st.data_editor(
         df_active,
         column_config={
-           "Trade_ID": st.column_config.TextColumn("Trade ID", hidden=True),
+            "Trade_ID": st.column_config.TextColumn("Trade ID", hidden=True),
             "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
             "SL": st.column_config.NumberColumn("Real SL", format="Rp %d"),
