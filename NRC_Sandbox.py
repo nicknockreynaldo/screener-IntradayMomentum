@@ -617,9 +617,20 @@ with tab_calc:
         # Filter menggunakan kolom 'Action'
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
         st.rerun()
+        
 
+# ==============================================================================
+# TAB 4: ACTIVE TRADE
+# ==============================================================================
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
+
+    # Fungsi callback untuk mengupdate session_state saat ada interaksi di editor
+    def update_state():
+        # Karena kita memakai form, data editor akan tersimpan di key 'active_trade_editor'
+        # saat tombol submit ditekan. 
+        if "active_trade_editor" in st.session_state:
+            st.session_state.df_active = st.session_state["active_trade_editor"]
 
     if 'df_active' not in st.session_state:
         st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
@@ -637,20 +648,25 @@ with tab_active_trade:
             df_clean,
             column_config={
                 "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+                "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
+                "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+                "SL": st.column_config.NumberColumn("SL", disabled=True),
+                "Target": st.column_config.NumberColumn("Target", disabled=True),
                 "Lot": st.column_config.NumberColumn("Total Lot"),
                 "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
             },
             hide_index=True,
-            use_container_width=True
+            use_container_width=True,
+            key="active_trade_editor" # Key ini penting untuk menyimpan status editor
         )
         
         # 2. Tombol di dalam form
-        submitted = st.form_submit_button("💾 Sync & Save Changes")
+        submitted = st.form_submit_button("💾 Sync & Save Changes", on_click=update_state)
         
         if submitted:
             # Update ke session_state dan GSheet HANYA saat tombol ditekan
-            st.session_state.df_active = edited_df
-            success, msg = simpan_trade_ke_gsheet("Active_Trades", edited_df)
+            # Catatan: update_state sudah dipanggil via on_click
+            success, msg = simpan_trade_ke_gsheet("Active_Trades", st.session_state.df_active)
             if success:
                 st.success("Data tersimpan!")
             else:
