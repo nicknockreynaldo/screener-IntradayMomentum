@@ -470,7 +470,8 @@ with tab_calc:
     """, unsafe_allow_html=True)
     
     if 'my_trades' not in st.session_state:
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Grade", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        # Inisialisasi dengan urutan kolom baru
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
@@ -528,9 +529,14 @@ with tab_calc:
         new_row = pd.DataFrame([{
             "Pilih": False,
             "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Ticker": ticker_in, "Grade": grade_in, "Entry": entry_in, "SL": sl_in, 
-            "Target": manual_tp, "R-Ratio": f"{r_manual:.2f}R",
-            "Lot": lot_max, "Jarak SL": f"{risk_dist_pct:.2f}%"
+            "Ticker": ticker_in, 
+            "Lot": lot_max, 
+            "Entry": entry_in, 
+            "SL": sl_in, 
+            "Target": manual_tp, 
+            "Jarak SL": f"{risk_dist_pct:.2f}%",
+            "R-Ratio": f"{r_manual:.2f}R",
+            "Grade": grade_in
         }])
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
         st.rerun()
@@ -547,9 +553,13 @@ with tab_calc:
     c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade"):
         for _, row in st.session_state['my_trades'].iterrows():
-            simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Grade'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
+            # Kirim sesuai urutan kolom baru ke GSheet
+            simpan_trade_ke_gsheet([
+                row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], 
+                row['SL'], row['Target'], row['Jarak SL'], row['R-Ratio'], row['Grade']
+            ])
         st.success("Trade berhasil dikonfirmasi!")
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Grade", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
         st.rerun()
         
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
