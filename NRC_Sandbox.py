@@ -40,7 +40,9 @@ st.set_page_config(page_title="IHSG Screener Suite", page_icon="📈", layout="w
 warnings.filterwarnings('ignore')
 
 if 'my_trades' not in st.session_state:
-    st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Entry", "SL", "Target", "R-Ratio", "Lot", "Jarak SL"])
+    st.session_state['my_trades'] = pd.DataFrame(columns=[
+        "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+    ])
 
 # Inisialisasi Session State untuk Screener
 if 'memori_saham' not in st.session_state:
@@ -526,45 +528,53 @@ with tab_calc:
 
     # --- BUTTON TAMBAH ---
     if st.button("➕ Tambah ke Daftar Pre-Trade"):
-        new_row = pd.DataFrame([{
-            "Pilih": False,
-            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Ticker": ticker_in, 
-            "Lot": lot_max, 
-            "Entry": entry_in, 
-            "SL": sl_in, 
-            "Target": manual_tp, 
-            "Jarak SL": f"{risk_dist_pct:.2f}%",
-            "R-Ratio": f"{r_manual:.2f}R",
-            "Grade": grade_in
-        }])
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
-        st.rerun()
+    new_row = pd.DataFrame([{
+        "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
+        "Ticker": ticker_in,
+        "Lot": lot_max,
+        "Entry": entry_in,
+        "SL": sl_in,
+        "Jarak SL": f"{risk_dist_pct:.2f}%",
+        "Target": manual_tp,
+        "R-Ratio": f"{r_manual:.2f}R",
+        "Grade": grade_in,
+        "Action": False  # Ini menggantikan kolom 'Pilih'
+    }])
+    st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
+    st.rerun()
 
     # --- DAFTAR PRE-TRADE ---
     st.subheader("📋 Daftar Pre-Trade")
     edited_df = st.data_editor(
         st.session_state['my_trades'],
-        column_config={"Pilih": st.column_config.CheckboxColumn("Pilih", default=False)},
+        column_config={
+            "Action": st.column_config.CheckboxColumn("Action", default=False)
+        },
         use_container_width=True,
         hide_index=True
     )
     
     c_act1, c_act2 = st.columns(2)
+  # Confirm Trade
     if c_act1.button("🚀 Confirm Trade"):
         for _, row in st.session_state['my_trades'].iterrows():
-            # Kirim sesuai urutan kolom baru ke GSheet
+            # Pastikan list yang dikirim ke GSheet urutannya sesuai dengan header GSheet Anda
             simpan_trade_ke_gsheet([
                 row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], 
-                row['SL'], row['Target'], row['Jarak SL'], row['R-Ratio'], row['Grade']
+                row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']
             ])
         st.success("Trade berhasil dikonfirmasi!")
-        st.session_state['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
+        # Reset dengan kolom baru
+        st.session_state['my_trades'] = pd.DataFrame(columns=[
+            "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+        ])
         st.rerun()
-        
-    if c_act2.button("🗑️ Hapus Baris Terpilih"):
-        st.session_state['my_trades'] = edited_df[edited_df["Pilih"] == False]
-        st.rerun()
+
+# Hapus Baris
+if c_act2.button("🗑️ Hapus Baris Terpilih"):
+    # Filter menggunakan kolom 'Action'
+    st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
+    st.rerun()
 
 # ==============================================================================
 # TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
