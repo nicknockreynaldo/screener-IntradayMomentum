@@ -668,7 +668,7 @@ with tab_active_trade:
                 
                 # Hapus dari Active_Trades
                 new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
-                simpan_trade_ke_gsheet(("Active_Trades", new_active_df)
+                simpan_trade_ke_gsheet("Active_Trades", new_active_df)
                 
                 st.success("Trade ditutup dan di-log ke Journal_Final!")
                 st.rerun()
