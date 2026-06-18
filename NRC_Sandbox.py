@@ -655,6 +655,7 @@ with tab_active_trade:
     st.subheader("📝 Live Position Monitor")
 
     # 3. Form untuk Editor (Anti-Flickering)
+    # 3. Form untuk Editor (Anti-Flickering)
     with st.form("editor_form"):
         edited_df = st.data_editor(
             df_clean,
@@ -675,10 +676,11 @@ with tab_active_trade:
         submitted = st.form_submit_button("💾 Sync & Save Changes")
         
         if submitted:
-            # Ambil data dari UI
-            updated_data = st.session_state["active_trade_editor"]
+            # --- PERBAIKAN KUNCI DI SINI ---
+            # Jangan ambil dari session_state, langsung gunakan edited_df
+            updated_data = edited_df 
             
-            # Gabungkan dengan data master
+            # Gabungkan dengan data master (agar Jarak SL, dll tidak hilang)
             master_df = st.session_state.df_active.copy()
             for col in ['Lot', 'Avg_Entry']:
                 if col in updated_data.columns:
