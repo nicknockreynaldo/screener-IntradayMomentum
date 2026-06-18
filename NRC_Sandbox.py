@@ -593,3 +593,82 @@ with tab_calc:
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
         st.rerun()
 
+# ==============================================================================
+# TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
+# ==============================================================================
+with tab_active_trade:
+    st.header("⚡ Active Trade Management")
+    st.info("Data di sini tersinkronisasi dengan GSheet 'Active_Trades'. Edit harga real eksekusi Anda di sini.")
+
+    # 1. Load Data dari GSheet
+    try:
+        df_active = tarik_data_dari_gsheet("Active_Trades")
+    except:
+        # Menyesuaikan kolom dengan struktur yang kita buat di tab_calc
+        df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
+
+    # 2. Bagian Update Weighted Average
+    with st.expander("➕ Add Entry / Avg Up-Down"):
+        col_id, col_px, col_lot = st.columns([2, 1, 1])
+        with col_id:
+            trade_to_update = st.selectbox("Pilih Trade ID:", df_active['Trade_ID'].tolist() if not df_active.empty else ["None"])
+        with col_px:
+            new_px = st.number_input("Harga Beli Baru:", min_value=0)
+        with col_lot:
+            new_lot = st.number_input("Lot Tambahan:", min_value=0)
+        
+        if st.button("Calculate & Update Weighted Avg"):
+            if trade_to_update != "None":
+                idx = df_active[df_active['Trade_ID'] == trade_to_update].index[0]
+                old_px = df_active.at[idx, 'Avg_Entry']
+                old_lot = df_active.at[idx, 'Lot'] # Sesuaikan nama kolom dari 'Lots' ke 'Lot'
+                
+                updated_avg = ((old_px * old_lot) + (new_px * new_lot)) / (old_lot + new_lot)
+                updated_total_lot = old_lot + new_lot
+                
+                df_active.at[idx, 'Avg_Entry'] = round(updated_avg)
+                df_active.at[idx, 'Lot'] = updated_total_lot
+                st.success(f"Harga Rata-rata baru: Rp {updated_avg:,.0f}")
+
+    # 3. Data Editor
+    st.subheader("📝 Live Position Monitor")
+    
+    edited_df = st.data_editor(
+        df_active,
+        column_config={
+            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+            "SL": st.column_config.NumberColumn("Real SL", format="Rp %d"),
+            "Target": st.column_config.NumberColumn("Real TP", format="Rp %d"),
+            "Lot": st.column_config.NumberColumn("Total Lot"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="active_trade_editor"
+    )
+
+    # 4. Tombol Sinkronisasi
+    col_save, col_close, _ = st.columns([1, 1, 2])
+    
+    with col_save:
+        if st.button("💾 Save Changes to GSheet"):
+            conn.update(worksheet="Active_Trades", data=edited_df)
+            st.toast("Data tersimpan ke GSheet Active_Trades!")
+
+    with col_close:
+        selected_trade = st.selectbox("Pilih Trade untuk di-CLOSE:", edited_df['Trade_ID'].tolist() if not edited_df.empty else ["None"])
+        if st.button("🚀 Close Trade & Move to Journal"):
+            if selected_trade != "None":
+                with st.spinner("Memindahkan data ke Jurnal..."):
+                    row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
+                    
+                    current_journal = conn.read(worksheet="Journal")
+                    updated_journal = pd.concat([current_journal, row_to_move], ignore_index=True)
+                    conn.update(worksheet="Journal", data=updated_journal)
+                    
+                    new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
+                    conn.update(worksheet="Active_Trades", data=new_active_df)
+                    
+                    st.success(f"Trade {selected_trade} berhasil dipindahkan ke Jurnal!")
+                    st.rerun()
