@@ -608,9 +608,9 @@ with tab_active_trade:
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
 
      # Ambil daftar Trade_ID
-        trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
-        options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
-        id_map = dict(zip(options, trade_ids))
+    trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
+    options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
+    id_map = dict(zip(options, trade_ids))
     # 2. Bagian Update Weighted Average
     with st.expander("➕ Add Entry / Avg Up-Down"):
         col_id, col_px, col_lot = st.columns([2, 1, 1])
