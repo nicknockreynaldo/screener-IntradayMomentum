@@ -528,17 +528,17 @@ with tab_calc:
 
     # --- BUTTON TAMBAH ---
     if st.button("➕ Tambah ke Daftar Pre-Trade"):
-    new_row = pd.DataFrame([{
-        "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-        "Ticker": ticker_in,
-        "Lot": lot_max,
-        "Entry": entry_in,
-        "SL": sl_in,
-        "Jarak SL": f"{risk_dist_pct:.2f}%",
-        "Target": manual_tp,
-        "R-Ratio": f"{r_manual:.2f}R",
-        "Grade": grade_in,
-        "Action": False  # Ini menggantikan kolom 'Pilih'
+        new_row = pd.DataFrame([{
+            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
+            "Ticker": ticker_in,
+            "Lot": lot_max,
+            "Entry": entry_in,
+            "SL": sl_in,
+            "Jarak SL": f"{risk_dist_pct:.2f}%",
+            "Target": manual_tp,
+            "R-Ratio": f"{r_manual:.2f}R",
+            "Grade": grade_in,
+            "Action": False  # Ini menggantikan kolom 'Pilih'
     }])
     st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
     st.rerun()
