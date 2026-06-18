@@ -607,20 +607,14 @@ with tab_active_trade:
         # Menyesuaikan kolom dengan struktur yang kita buat di tab_calc
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
 
+     # Ambil daftar Trade_ID
+        trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
+        options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
+        id_map = dict(zip(options, trade_ids))
     # 2. Bagian Update Weighted Average
     with st.expander("➕ Add Entry / Avg Up-Down"):
         col_id, col_px, col_lot = st.columns([2, 1, 1])
-        with col_id:
-            # Ambil daftar Trade_ID
-            trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
-            
-            # Buat list label untuk user (Potong string: 1781...BBCA -> BBCA)
-            # Jika ada posisi yang sama, tambahkan sedikit identitas agar tidak membingungkan
-            options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
-            
-            # Mapping agar sistem tahu hubungan Label ke ID asli
-            id_map = dict(zip(options, trade_ids))
-            
+        with col_id:           
             selected_label = st.selectbox("Pilih Ticker:", options if not df_active.empty else ["None"])
             trade_to_update = id_map.get(selected_label)
         with col_px:
@@ -676,13 +670,13 @@ with tab_active_trade:
             if selected_trade_id != "None" and selected_trade_id is not None:
                 # ... (logika pindah ke jurnal tetap pakai selected_trade_id)
                 with st.spinner("Memindahkan data ke Jurnal..."):
-                    row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
+                    row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade_id]
                     
                     current_journal = conn.read(worksheet="Journal")
                     updated_journal = pd.concat([current_journal, row_to_move], ignore_index=True)
                     conn.update(worksheet="Journal", data=updated_journal)
                     
-                    new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
+                    new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade_id]
                     conn.update(worksheet="Active_Trades", data=new_active_df)
                     
                     st.success(f"Trade {selected_trade} berhasil dipindahkan ke Jurnal!")
