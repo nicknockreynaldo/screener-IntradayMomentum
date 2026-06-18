@@ -618,66 +618,40 @@ with tab_calc:
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
         st.rerun()
 
-# ==============================================================================
-# TAB 4: ACTIVE TRADE
-# ==============================================================================
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
 
-    # 1. Fetch data dengan Cache agar tidak loading terus menerus
-    @st.cache_data(ttl=60) # Cache selama 60 detik
-    def get_cached_data(sheet_name):
-        return tarik_data_dari_gsheet(sheet_name)
-
     if 'df_active' not in st.session_state:
-        st.session_state.df_active = get_cached_data("Active_Trades")
+        st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
     
-    # 2. Persiapan Data (Hapus kolom yang tidak diedit di UI saja, jangan hapus di data aslinya)
-    df_to_show = st.session_state.df_active.copy()
+    # Persiapan data
+    df_temp = st.session_state.df_active.copy()
     cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
-    df_show = df_to_show.drop(columns=[c for c in cols_to_drop if c in df_to_show.columns])
+    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_temp.columns])
 
     st.subheader("📝 Live Position Monitor")
-    
-    # 3. Data Editor
-    edited_df = st.data_editor(
-        df_show,
-        column_config={
-            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
-            "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
-            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
-            "SL": st.column_config.NumberColumn("SL", disabled=True),
-            "Target": st.column_config.NumberColumn("Target", disabled=True),
-            "Lot": st.column_config.NumberColumn("Total Lot"),
-            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="active_trade_editor"
-    )
 
-    # 4. Sinkronisasi Manual
-    if st.button("💾 Sync Update ke GSheet"):
-        # Gabungkan kembali data yang di-edit dengan kolom yang sebelumnya di-drop (jika perlu)
-        # Karena di GSheet kolom aslinya lengkap, kita harus hati-hati agar tidak menghapus kolom lain
-        st.session_state.df_active = edited_df # Update lokal
-        success, msg = simpan_trade_ke_gsheet("Active_Trades", edited_df)
-        if success:
-            st.success("Data tersimpan!")
-            st.cache_data.clear() # Hapus cache agar data berikutnya fresh
-        else:
-            st.error(msg)
-
-    # 5. Close Trade
-    selected_trade = st.selectbox("Pilih Trade untuk di-CLOSE:", edited_df['Trade_ID'].tolist() if not edited_df.empty else ["None"])
-    if st.button("✅ Close Trade & Pindah ke Journal"):
-        if selected_trade != "None":
-            row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
-            append_ke_gsheet("Journal_Final", row_to_move)
-            
-            # Update lokal dan GSheet
-            st.session_state.df_active = edited_df[edited_df['Trade_ID'] != selected_trade]
-            simpan_trade_ke_gsheet("Active_Trades", st.session_state.df_active)
-            
-            st.cache_data.clear()
-            st.rerun() # Disini baru kita rerun karena data sudah benar-benar berubah
+    # 1. GUNAKAN FORM agar perubahan tidak langsung me-rerun aplikasi
+    with st.form("editor_form"):
+        edited_df = st.data_editor(
+            df_clean,
+            column_config={
+                "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+                "Lot": st.column_config.NumberColumn("Total Lot"),
+                "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # 2. Tombol di dalam form
+        submitted = st.form_submit_button("💾 Sync & Save Changes")
+        
+        if submitted:
+            # Update ke session_state dan GSheet HANYA saat tombol ditekan
+            st.session_state.df_active = edited_df
+            success, msg = simpan_trade_ke_gsheet("Active_Trades", edited_df)
+            if success:
+                st.success("Data tersimpan!")
+            else:
+                st.error(msg)
