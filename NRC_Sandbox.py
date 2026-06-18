@@ -650,7 +650,7 @@ with tab_active_trade:
     if st.button("💾 Sync Update ke GSheet"):
         # Kita panggil fungsi update gspread yang sebelumnya sudah Anda pakai
         # Misal fungsi Anda bernama simpan_ke_gsheet atau sejenisnya
-        simpan_trade_ke_gsheet((worksheet_name="Active_Trades", dataframe=edited_df)
+        simpan_trade_ke_gsheet(worksheet_name="Active_Trades", dataframe=edited_df)
         st.success("Data berhasil di-sync ke GSheet!")
         st.rerun()
 
