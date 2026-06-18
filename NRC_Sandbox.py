@@ -580,16 +580,16 @@ with tab_calc:
                 row['Grade']
             ])
         st.success("Trade berhasil dikonfirmasi!")
-    # Reset list
-    st.session_state['my_trades'] = pd.DataFrame(columns=[
-        "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
-    ])
-    st.rerun()
+        # Reset list
+        st.session_state['my_trades'] = pd.DataFrame(columns=[
+            "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+        ])
+        st.rerun()
     
 
-# Hapus Baris
-if c_act2.button("🗑️ Hapus Baris Terpilih"):
-    # Filter menggunakan kolom 'Action'
-    st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
-    st.rerun()
+    # Hapus Baris
+    if c_act2.button("🗑️ Hapus Baris Terpilih"):
+        # Filter menggunakan kolom 'Action'
+        st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
+        st.rerun()
 
