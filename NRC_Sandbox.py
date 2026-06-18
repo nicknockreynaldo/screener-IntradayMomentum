@@ -630,14 +630,15 @@ with tab_active_trade:
         st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
     
     cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
-    df_clean = df_active.drop(columns=[c for c in cols_to_drop if c in df_active.columns])
+    df_temp = st.session_state.df_active.copy()
+    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_active.columns])
 
     st.subheader("📝 Live Position Monitor")
     
 
     # 2. Tabel Editor
     edited_df = st.data_editor(
-        st.session_state.df_active,
+        df_clean,
         column_config={
             "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
             "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
@@ -654,12 +655,14 @@ with tab_active_trade:
 
     # 3. Tombol Sinkronisasi dengan gspread
     if st.button("💾 Sync Update ke GSheet"):
-        # Update session state dulu agar tampilan langsung berubah
         st.session_state.df_active = edited_df
+        # Pastikan fungsi simpan_trade_ke_gsheet menerima (nama_sheet, dataframe)
+        success, msg = simpan_trade_ke_gsheet("Active_Trades", edited_df)
         
-        # Kirim ke GSheet
-        simpan_trade_ke_gsheet("Active_Trades", edited_df)
-        st.success("Data berhasil di-sync ke GSheet!")
+        if success:
+            st.success("Data berhasil di-sync!")
+        else:
+            st.error(f"Gagal simpan: {msg}")
 
     # 4. Close Trade
     col_close, _ = st.columns([1, 1])
