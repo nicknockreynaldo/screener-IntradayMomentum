@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import yfinance as yf
 import pandas as pd
 import warnings
