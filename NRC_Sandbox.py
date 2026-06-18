@@ -12,8 +12,17 @@ def simpan_trade_ke_gsheet(data_list):
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
-        wks = sh.sheet1
-        wks.append_row(data_list)
+        
+        # Memilih sheet berdasarkan nama (bukan hanya sheet1)
+        wks = sh.worksheet(worksheet_name)
+        
+        # Hapus data lama dan tulis ulang dengan data baru dari dataframe
+        # Bersihkan dulu sheet-nya
+        wks.clear()
+        
+        # Tulis header dan data
+        wks.update([dataframe.columns.values.tolist()] + dataframe.values.tolist())
+        
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
