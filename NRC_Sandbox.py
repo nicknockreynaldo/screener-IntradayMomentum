@@ -622,34 +622,39 @@ with tab_calc:
 # ==============================================================================
 # TAB 4: ACTIVE TRADE
 # ==============================================================================
+
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
 
-    # 1. Pastikan data berhasil diambil dan bukan None
+    # 1. Tarik Data & Konversi Paksa ke DataFrame
     if 'df_active' not in st.session_state or st.session_state.df_active is None:
-        data = tarik_data_dari_gsheet("Active_Trades")
-        if data is not None and not data.empty:
-            st.session_state.df_active = data
+        raw_data = tarik_data_dari_gsheet("Active_Trades")
+        
+        # --- BAGIAN KRUSIAL PENYELAMAT ERROR ---
+        # Mengubah data mentah GSheet (List) menjadi Pandas DataFrame
+        if isinstance(raw_data, list):
+            if len(raw_data) > 0 and isinstance(raw_data[0], list):
+                # Jika gspread menggunakan get_all_values()
+                df_parsed = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+            else:
+                # Jika gspread menggunakan get_all_records()
+                df_parsed = pd.DataFrame(raw_data)
+            st.session_state.df_active = df_parsed
+        elif isinstance(raw_data, pd.DataFrame):
+            st.session_state.df_active = raw_data
         else:
-            st.error("Gagal mengambil data dari Google Sheets. Pastikan koneksi dan worksheet benar.")
-            st.stop() # Hentikan proses jika tidak ada data
+            st.error("Gagal membaca data. Pastikan Sheet 'Active_Trades' tidak kosong.")
+            st.stop()
 
-    # 2. Persiapan Data yang Aman
+    # 2. Persiapan Data untuk Tampilan (Sekarang sudah dijamin aman!)
     df_temp = st.session_state.df_active.copy()
-    
-    # Pastikan df_temp adalah DataFrame
-    if hasattr(df_temp, 'columns'):
-        cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
-        # Gunakan filter yang lebih aman
-        cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
-        df_clean = df_temp[cols_to_show]
-    else:
-        st.error("Data tidak dalam format tabel yang benar.")
-        st.stop()
+    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
+    cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
+    df_clean = df_temp[cols_to_show]
 
     st.subheader("📝 Live Position Monitor")
 
-    # 3. Form untuk Editor
+    # 3. Form untuk Editor (Anti-Flickering)
     with st.form("editor_form"):
         edited_df = st.data_editor(
             df_clean,
@@ -670,20 +675,22 @@ with tab_active_trade:
         submitted = st.form_submit_button("💾 Sync & Save Changes")
         
         if submitted:
-            # PENTING: Gabungkan kembali kolom yang disembunyikan
-            # Kita ambil data dari editor (hasil perubahan Lot/Avg_Entry)
+            # Ambil data dari UI
             updated_data = st.session_state["active_trade_editor"]
             
-            # Kita merge kembali ke df_active asli (yang masih lengkap kolomnya)
+            # Gabungkan dengan data master (agar Jarak SL, dll tidak hilang)
             master_df = st.session_state.df_active.copy()
             for col in ['Lot', 'Avg_Entry']:
                 if col in updated_data.columns:
                     master_df[col] = updated_data[col]
             
-            # Simpan data lengkap ke GSheet
+            # Gspread tidak suka nilai NaN/Kosong, kita ubah jadi string kosong agar aman
+            master_df = master_df.fillna("")
+
+            # Simpan ke GSheet
             success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
             if success:
-                st.session_state.df_active = master_df
+                st.session_state.df_active = master_df # Update memori lokal
                 st.success("Data berhasil di-sync!")
             else:
-                st.error(f"Gagal simpan: {msg}")
+                st.error(f"Gagal simpan ke GSheet: {msg}")
