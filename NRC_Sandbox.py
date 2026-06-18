@@ -7,7 +7,7 @@ import gspread
 import time
 
 # --- FUNGSI GOOGLE SHEETS ---
-def simpan_trade_ke_gsheet(data_list):
+def simpan_trade_ke_gsheet(worksheet_name, dataframe):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
