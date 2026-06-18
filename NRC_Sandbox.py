@@ -628,9 +628,20 @@ with tab_active_trade:
     # Fungsi callback untuk mengupdate session_state saat ada interaksi di editor
     def update_state():
         # Karena kita memakai form, data editor akan tersimpan di key 'active_trade_editor'
-        # saat tombol submit ditekan. 
         if "active_trade_editor" in st.session_state:
-            st.session_state.df_active = st.session_state["active_trade_editor"]
+            # Ambil data hasil edit
+            edited_df = st.session_state["active_trade_editor"]
+            
+            # Kita perlu menggabungkan kembali kolom yang di-drop ke session_state.df_active
+            # Agar data yang tersimpan ke GSheet tetap lengkap
+            original_df = st.session_state.df_active
+            
+            # Update hanya kolom Lot dan Avg_Entry ke dataframe original
+            for col in ['Lot', 'Avg_Entry']:
+                if col in edited_df.columns:
+                    original_df[col] = edited_df[col]
+            
+            st.session_state.df_active = original_df
 
     if 'df_active' not in st.session_state:
         st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
@@ -657,15 +668,14 @@ with tab_active_trade:
             },
             hide_index=True,
             use_container_width=True,
-            key="active_trade_editor" # Key ini penting untuk menyimpan status editor
+            key="active_trade_editor"
         )
         
         # 2. Tombol di dalam form
         submitted = st.form_submit_button("💾 Sync & Save Changes", on_click=update_state)
         
         if submitted:
-            # Update ke session_state dan GSheet HANYA saat tombol ditekan
-            # Catatan: update_state sudah dipanggil via on_click
+            # Update ke GSheet menggunakan data yang sudah digabung di update_state
             success, msg = simpan_trade_ke_gsheet("Active_Trades", st.session_state.df_active)
             if success:
                 st.success("Data tersimpan!")
