@@ -625,36 +625,31 @@ with tab_calc:
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
 
-    # Fungsi callback untuk mengupdate session_state saat ada interaksi di editor
-    def update_state():
-        # Karena kita memakai form, data editor akan tersimpan di key 'active_trade_editor'
-        if "active_trade_editor" in st.session_state:
-            # Ambil data hasil edit
-            edited_df = st.session_state["active_trade_editor"]
-            
-            # Kita perlu menggabungkan kembali kolom yang di-drop ke session_state.df_active
-            # Agar data yang tersimpan ke GSheet tetap lengkap
-            original_df = st.session_state.df_active
-            
-            # Update hanya kolom Lot dan Avg_Entry ke dataframe original
-            for col in ['Lot', 'Avg_Entry']:
-                if col in edited_df.columns:
-                    original_df[col] = edited_df[col]
-            
-            st.session_state.df_active = original_df
+    # 1. Pastikan data berhasil diambil dan bukan None
+    if 'df_active' not in st.session_state or st.session_state.df_active is None:
+        data = tarik_data_dari_gsheet("Active_Trades")
+        if data is not None and not data.empty:
+            st.session_state.df_active = data
+        else:
+            st.error("Gagal mengambil data dari Google Sheets. Pastikan koneksi dan worksheet benar.")
+            st.stop() # Hentikan proses jika tidak ada data
 
-    if 'df_active' not in st.session_state:
-        st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
-    
-    # Persiapan data
+    # 2. Persiapan Data yang Aman
     df_temp = st.session_state.df_active.copy()
-    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
-    cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
-    df_clean = df_temp[cols_to_show]
     
+    # Pastikan df_temp adalah DataFrame
+    if hasattr(df_temp, 'columns'):
+        cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
+        # Gunakan filter yang lebih aman
+        cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
+        df_clean = df_temp[cols_to_show]
+    else:
+        st.error("Data tidak dalam format tabel yang benar.")
+        st.stop()
+
     st.subheader("📝 Live Position Monitor")
 
-    # 1. GUNAKAN FORM agar perubahan tidak langsung me-rerun aplikasi
+    # 3. Form untuk Editor
     with st.form("editor_form"):
         edited_df = st.data_editor(
             df_clean,
@@ -672,13 +667,23 @@ with tab_active_trade:
             key="active_trade_editor"
         )
         
-        # 2. Tombol di dalam form
-        submitted = st.form_submit_button("💾 Sync & Save Changes", on_click=update_state)
+        submitted = st.form_submit_button("💾 Sync & Save Changes")
         
         if submitted:
-            # Update ke GSheet menggunakan data yang sudah digabung di update_state
-            success, msg = simpan_trade_ke_gsheet("Active_Trades", st.session_state.df_active)
+            # PENTING: Gabungkan kembali kolom yang disembunyikan
+            # Kita ambil data dari editor (hasil perubahan Lot/Avg_Entry)
+            updated_data = st.session_state["active_trade_editor"]
+            
+            # Kita merge kembali ke df_active asli (yang masih lengkap kolomnya)
+            master_df = st.session_state.df_active.copy()
+            for col in ['Lot', 'Avg_Entry']:
+                if col in updated_data.columns:
+                    master_df[col] = updated_data[col]
+            
+            # Simpan data lengkap ke GSheet
+            success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
             if success:
-                st.success("Data tersimpan!")
+                st.session_state.df_active = master_df
+                st.success("Data berhasil di-sync!")
             else:
-                st.error(msg)
+                st.error(f"Gagal simpan: {msg}")
