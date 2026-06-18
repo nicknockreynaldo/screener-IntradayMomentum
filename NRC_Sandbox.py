@@ -472,10 +472,11 @@ with tab_calc:
     """, unsafe_allow_html=True)
     
   
+    # Pastikan urutan kolom di sini SAMA PERSIS dengan di new_row
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=[
             "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
-        ])ate['my_trades'] = pd.DataFrame(columns=["Pilih", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Target", "Jarak SL", "R-Ratio", "Grade"])
+        ])
 
     # --- INPUT SECTION ---
     c1, c2 = st.columns(2)
