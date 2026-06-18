@@ -564,7 +564,7 @@ with tab_active_trade:
     # 1. Load Data dari GSheet (Sheet: Active_Trades)
     # Diasumsikan 'conn' adalah st.connection("gsheets", type=GSheetsConnection)
     try:
-        df_active = conn.read(worksheet="Active_Trades")
+        df_active = tarik_data_dari_gsheet("Active_Trades")
     except:
         # Jika sheet kosong/baru, buat struktur dasar
         df_active = pd.DataFrame(columns=['Trade_ID', 'Symbol', 'Avg_Entry', 'Lots', 'Stop_Loss', 'Take_Profit', 'Status'])
