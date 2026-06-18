@@ -594,67 +594,56 @@ with tab_calc:
         st.rerun()
 
 # ==============================================================================
-# TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
+# TAB: ACTIVE TRADE
 # ==============================================================================
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
-    st.info("Data di sini adalah cerminan real portofolio sekuritas Anda. Update angka final di sini.")
 
-    # 1. Load Data
-    try:
-        df_active = tarik_data_dari_gsheet("Active_Trades")
-    except:
-        df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
+    # 1. Load Data menggunakan gspread (metode yang sudah Anda miliki)
+    # Pastikan fungsi tarik_data_dari_gsheet Anda menggunakan gspread
+    df_active = tarik_data_dari_gsheet("Active_Trades")
 
-    # 2. Tabel Monitor (Pasif) - HANYA KOLOM PENTING YANG TAMPIL
     st.subheader("📝 Live Position Monitor")
     
-    # Kita buat editor agar bisa diubah angkanya langsung sesuai sekuritas
+    # Hapus kolom yang tidak diperlukan agar saat di-sync tidak error
+    if 'Risk Multiple' in df_active.columns:
+        df_active = df_active.drop(columns=['Risk Multiple'])
+
+    # 2. Tabel Editor
     edited_df = st.data_editor(
         df_active,
         column_config={
             "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
-            "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
-            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
             "Lot": st.column_config.NumberColumn("Total Lot"),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
-            # Kolom lainnya disembunyikan dari UI, tapi tetap ada di dalam edited_df
-            "SL": None, "Jarak SL": None, "Target": None, "R-Ratio": None, "Grade": None
         },
         hide_index=True,
-        use_container_width=True,
-        key="active_trade_editor"
+        use_container_width=True
     )
 
-    # 3. Sinkronisasi (Update Posisi ke GSheet)
+    # 3. Tombol Sinkronisasi dengan gspread
     if st.button("💾 Sync Update ke GSheet"):
-        conn.update(worksheet="Active_Trades", data=edited_df)
-        st.success("Data berhasil di-sync sesuai input real Anda!")
+        # Kita panggil fungsi update gspread yang sebelumnya sudah Anda pakai
+        # Misal fungsi Anda bernama simpan_ke_gsheet atau sejenisnya
+        simpan_ke_gsheet(worksheet_name="Active_Trades", dataframe=edited_df)
+        st.success("Data berhasil di-sync ke GSheet!")
         st.rerun()
 
-    st.markdown("---")
-
-    # 4. Bagian Close Trade (Pemisahan Logika)
-    st.subheader("🚀 Close Position")
+    # 4. Close Trade
     col_close, _ = st.columns([1, 1])
-    
     with col_close:
         selected_trade = st.selectbox("Pilih Trade untuk di-CLOSE:", edited_df['Trade_ID'].tolist() if not edited_df.empty else ["None"])
-        
         if st.button("✅ Close Trade & Pindah ke Journal"):
             if selected_trade != "None":
-                with st.spinner("Memindahkan ke Jurnal..."):
-                    # Ambil baris yang mau ditutup
-                    row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
-                    
-                    # Log ke Journal_Final (sebagai history)
-                    current_journal = conn.read(worksheet="Journal_Final")
-                    updated_journal = pd.concat([current_journal, row_to_move], ignore_index=True)
-                    conn.update(worksheet="Journal_Final", data=updated_journal)
-                    
-                    # Hapus dari Active
-                    new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
-                    conn.update(worksheet="Active_Trades", data=new_active_df)
-                    
-                    st.success("Trade ditutup dan di-log ke Journal_Final!")
-                    st.rerun()
+                # Logika pindah ke Journal_Final (menggunakan gspread)
+                row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
+                
+                # Append ke Journal_Final
+                append_ke_gsheet("Journal_Final", row_to_move)
+                
+                # Hapus dari Active_Trades
+                new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
+                simpan_ke_gsheet("Active_Trades", new_active_df)
+                
+                st.success("Trade ditutup dan di-log ke Journal_Final!")
+                st.rerun()
