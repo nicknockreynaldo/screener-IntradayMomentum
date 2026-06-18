@@ -420,8 +420,30 @@ with tab_watchlist:
                     ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
                     
                    
-                    typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
-                    vwap = (typical_price * df_5m['Volume']).sum() / df_5m['Volume'].sum()
+                    # Hapus/komen kode VWAP yang lama
+                    # Tambahkan ini untuk melihat apa yang sedang diproses
+                    st.write("--- DEBUG VWAP ---")
+                    
+                    # Hitung komponennya satu per satu
+                    h_val = df_5m['High']
+                    l_val = df_5m['Low']
+                    c_val = df_5m['Close']
+                    v_val = df_5m['Volume']
+                    
+                    # Tampilkan 5 data pertama untuk cek apakah ada isinya
+                    st.write("Cek Data (First 5 Rows):")
+                    st.write(df_5m[['High', 'Low', 'Close']].head())
+                    
+                    # Hitung manual dengan print hasil
+                    tp = (h_val + l_val + c_val) / 3
+                    vwap_baru = (tp * v_val).sum() / v_val.sum()
+                    vwap_lama = (c_val * v_val).sum() / v_val.sum()
+                    
+                    st.write(f"VWAP (HLC/3): {vwap_baru:,.2f}")
+                    st.write(f"VWAP (Close saja): {vwap_lama:,.2f}")
+                    
+                    # Gunakan vwap_baru untuk tampilan
+                    vwap = vwap_baru
                     
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
