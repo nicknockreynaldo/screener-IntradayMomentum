@@ -536,7 +536,7 @@ with tab_calc:
     )
     
     c_act1, c_act2 = st.columns(2)
-    if c_act1.button("🚀 Confirm Trade (Kirim ke Jurnal)"):
+    if c_act1.button("🚀 Confirm Trade"):
         for _, row in st.session_state['my_trades'].iterrows():
             simpan_trade_ke_gsheet([row['Tanggal'], row['Ticker'], row['Entry'], row['SL'], row['Target'], row['R-Ratio'], row['Lot'], row['Jarak SL']])
         st.success("Trade berhasil dikonfirmasi!")
