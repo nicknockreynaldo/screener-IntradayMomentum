@@ -42,7 +42,7 @@ warnings.filterwarnings('ignore')
 
 if 'my_trades' not in st.session_state:
     st.session_state['my_trades'] = pd.DataFrame(columns=[
-        "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+        "Trade_ID","Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
     ])
 
 # Inisialisasi Session State untuk Screener
@@ -476,7 +476,7 @@ with tab_calc:
     # Pastikan urutan kolom di sini SAMA PERSIS dengan di new_row
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=[
-            "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+            "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
         ])
 
     # --- INPUT SECTION ---
