@@ -626,7 +626,8 @@ with tab_active_trade:
 
     # 1. Load Data menggunakan gspread (metode yang sudah Anda miliki)
     # Pastikan fungsi tarik_data_dari_gsheet Anda menggunakan gspread
-    df_active = tarik_data_dari_gsheet("Active_Trades")
+    if 'df_active' not in st.session_state:
+        st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
     
     cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
     df_clean = df_active.drop(columns=[c for c in cols_to_drop if c in df_active.columns])
@@ -636,29 +637,29 @@ with tab_active_trade:
 
     # 2. Tabel Editor
     edited_df = st.data_editor(
-        df_clean,
+        st.session_state.df_active,
         column_config={
             "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
             "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
             "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
             "SL": st.column_config.NumberColumn("SL", disabled=True),
             "Target": st.column_config.NumberColumn("Target", disabled=True),
-            # HANYA INI YANG BOLEH DIEDIT:
             "Lot": st.column_config.NumberColumn("Total Lot", disabled=False),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d", disabled=False),
         },
         hide_index=True,
         use_container_width=True,
-        key="active_trade_editor" # Key ini menjaga status editor tetap stabil
+        key="active_trade_editor"
     )
 
     # 3. Tombol Sinkronisasi dengan gspread
     if st.button("💾 Sync Update ke GSheet"):
-        # Kita panggil fungsi update gspread yang sebelumnya sudah Anda pakai
-        # Misal fungsi Anda bernama simpan_ke_gsheet atau sejenisnya
-        simpan_trade_ke_gsheet(worksheet_name="Active_Trades", dataframe=edited_df)
+        # Update session state dulu agar tampilan langsung berubah
+        st.session_state.df_active = edited_df
+        
+        # Kirim ke GSheet
+        simpan_trade_ke_gsheet("Active_Trades", edited_df)
         st.success("Data berhasil di-sync ke GSheet!")
-        st.rerun()
 
     # 4. Close Trade
     col_close, _ = st.columns([1, 1])
