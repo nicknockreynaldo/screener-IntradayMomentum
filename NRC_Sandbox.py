@@ -621,21 +621,46 @@ with tab_calc:
 # ==============================================================================
 # TAB 4: ACTIVE TRADE
 # ==============================================================================
+
 with tab_active_trade:
     st.header("⚡ Active Trade Management")
 
+    # --- 1. SOLUSI ANTI-MEMBAL: Inisialisasi nomor versi key editor ---
+    if 'editor_version' not in st.session_state:
+        st.session_state.editor_version = 0
+
+    # Proteksi pembersihan memori jika tipe data salah
+    if 'df_active' in st.session_state:
+        if not isinstance(st.session_state.df_active, pd.DataFrame):
+            del st.session_state.df_active
+
+    # Tarik data asli dari Google Sheets
     if 'df_active' not in st.session_state:
-        st.session_state.df_active = tarik_data_dari_gsheet("Active_Trades")
-    
-    # Persiapan data
+        raw_data = tarik_data_dari_gsheet("Active_Trades")
+        if isinstance(raw_data, pd.DataFrame):
+            st.session_state.df_active = raw_data
+        elif isinstance(raw_data, list) and len(raw_data) > 0:
+            st.session_state.df_active = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+        else:
+            st.session_state.df_active = pd.DataFrame(columns=[
+                'Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 
+                'SL', 'Jarak SL', 'Target', 'Risk Multiple', 'Grade'
+            ])
+
+    # 2. Sembunyikan kolom kalkulasi dari UI tampilan
     df_temp = st.session_state.df_active.copy()
-    cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
-    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_temp.columns])
+    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
+    cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
+    df_clean = df_temp[cols_to_show]
 
     st.subheader("📝 Live Position Monitor")
 
-    # 1. GUNAKAN FORM agar perubahan tidak langsung me-rerun aplikasi
+    # 3. Form Editor dengan Key Versi Dinamis
     with st.form("editor_form"):
+        # Kita buat nama key berubah setiap kali berhasil sync (misal: v_0, v_1, v_2)
+        # Cara ini otomatis menghapus cache memori lama dengan aman tanpa memicu StreamlitAPIException
+        dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
+        
         edited_df = st.data_editor(
             df_clean,
             column_config={
@@ -649,37 +674,33 @@ with tab_active_trade:
             },
             hide_index=True,
             use_container_width=True,
-            key="active_trade_editor" # Key statis yang aman
+            key=dynamic_key
         )
         
-        # 2. Tombol di dalam form
         submitted = st.form_submit_button("💾 Sync & Save Changes")
         
         if submitted:
-            # Ambil data hasil edit langsung dari variabel edited_df
+            # Ambil data langsung dari variabel tabel
             updated_data = edited_df
             
-            # Gabungkan kembali ke data master (agar 'Jarak SL', 'Grade', dll tidak hilang)
+            # Gabungkan ke master_df agar kolom tersembunyi tidak ikut hilang
             master_df = st.session_state.df_active.copy()
             for col in ['Lot', 'Avg_Entry']:
                 if col in updated_data.columns:
                     master_df[col] = updated_data[col]
             
-            # Pastikan tidak ada nilai kosong yang membuat gspread error
             master_df = master_df.fillna("")
 
-            # Simpan ke GSheet
+            # Kirim data ke GSheet
             success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
             if success:
-                # 1. Update data utama di session state
+                # Update memori lokal data master
                 st.session_state.df_active = master_df
                 
-                # 2. KUNCI UTAMA: Paksa hapus riwayat komponen editor agar tidak membal di edit ke-2
-                st.session_state["active_trade_editor"] = {"edited_rows": {}, "added_rows": [], "deleted_rows": []}
+                # NAIKKAN VERSI KEY: Trik utama untuk mereset cache editor tanpa error
+                st.session_state.editor_version += 1
                 
-                st.success("Data tersimpan!")
-                
-                # 3. Paksa aplikasi refresh instan dengan state yang sudah bersih total
-                st.rerun()
+                st.success("Data berhasil di-sync!")
+                st.rerun() # Refresh halaman dengan key baru yang bersih total
             else:
-                st.error(msg)
+                st.error(f"Gagal simpan ke GSheet: {msg}")
