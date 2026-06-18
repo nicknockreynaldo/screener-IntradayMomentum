@@ -611,7 +611,18 @@ with tab_active_trade:
     with st.expander("➕ Add Entry / Avg Up-Down"):
         col_id, col_px, col_lot = st.columns([2, 1, 1])
         with col_id:
-            trade_to_update = st.selectbox("Pilih Trade ID:", df_active['Trade_ID'].tolist() if not df_active.empty else ["None"])
+            # Ambil daftar Trade_ID
+            trade_ids = df_active['Trade_ID'].tolist() if not df_active.empty else ["None"]
+            
+            # Buat list label untuk user (Potong string: 1781...BBCA -> BBCA)
+            # Jika ada posisi yang sama, tambahkan sedikit identitas agar tidak membingungkan
+            options = [tid.split('.')[1] if '.' in tid else tid for tid in trade_ids]
+            
+            # Mapping agar sistem tahu hubungan Label ke ID asli
+            id_map = dict(zip(options, trade_ids))
+            
+            selected_label = st.selectbox("Pilih Ticker:", options if not df_active.empty else ["None"])
+            trade_to_update = id_map.get(selected_label)
         with col_px:
             new_px = st.number_input("Harga Beli Baru:", min_value=0)
         with col_lot:
@@ -636,7 +647,7 @@ with tab_active_trade:
     edited_df = st.data_editor(
         df_active,
         column_config={
-            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+           "Trade_ID": st.column_config.TextColumn("Trade ID", hidden=True),
             "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
             "SL": st.column_config.NumberColumn("Real SL", format="Rp %d"),
@@ -657,9 +668,13 @@ with tab_active_trade:
             st.toast("Data tersimpan ke GSheet Active_Trades!")
 
     with col_close:
-        selected_trade = st.selectbox("Pilih Trade untuk di-CLOSE:", edited_df['Trade_ID'].tolist() if not edited_df.empty else ["None"])
+        # Gunakan 'options' dan 'id_map' yang sama agar konsisten
+        selected_label_close = st.selectbox("Pilih Ticker untuk di-CLOSE:", options if not edited_df.empty else ["None"])
+        selected_trade_id = id_map.get(selected_label_close) # Ini ID asli (timestamp.ticker)
+        
         if st.button("🚀 Close Trade & Move to Journal"):
-            if selected_trade != "None":
+            if selected_trade_id != "None" and selected_trade_id is not None:
+                # ... (logika pindah ke jurnal tetap pakai selected_trade_id)
                 with st.spinner("Memindahkan data ke Jurnal..."):
                     row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
                     
