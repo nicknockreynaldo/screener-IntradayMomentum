@@ -546,44 +546,98 @@ with tab_calc:
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df[edited_df["Pilih"] == False]
         st.rerun()
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
 # ==============================================================================
-# --- TAB JOURNAL (NEW) ---
+# TAB: ACTIVE TRADE (PENGGANTI TAB JOURNAL LAMA)
 # ==============================================================================
-with tab_journal:
-    st.header("📊 Trade Performance Analytics")
+with tab_active_trade:
+    st.header("⚡ Active Trade Management")
+    st.info("Data di sini tersinkronisasi dengan GSheet 'Active_Trades'. Edit harga real eksekusi Anda di sini.")
+
+    # 1. Load Data dari GSheet (Sheet: Active_Trades)
+    # Diasumsikan 'conn' adalah st.connection("gsheets", type=GSheetsConnection)
+    try:
+        df_active = conn.read(worksheet="Active_Trades")
+    except:
+        # Jika sheet kosong/baru, buat struktur dasar
+        df_active = pd.DataFrame(columns=['Trade_ID', 'Symbol', 'Avg_Entry', 'Lots', 'Stop_Loss', 'Take_Profit', 'Status'])
+
+    # 2. Bagian Update Weighted Average (Avg Up/Down)
+    with st.expander("➕ Add Entry / Avg Up-Down"):
+        col_id, col_px, col_lot = st.columns([2, 1, 1])
+        with col_id:
+            # Pilih trade yang mau di-update harganya
+            trade_to_update = st.selectbox("Pilih Trade ID:", df_active['Trade_ID'].tolist() if not df_active.empty else ["None"])
+        with col_px:
+            new_px = st.number_input("Harga Beli Baru:", min_value=0)
+        with col_lot:
+            new_lot = st.number_input("Lot Tambahan:", min_value=0)
+        
+        if st.button("Calculate & Update Weighted Avg"):
+            if trade_to_update != "None":
+                # Cari data lama
+                idx = df_active[df_active['Trade_ID'] == trade_to_update].index[0]
+                old_px = df_active.at[idx, 'Avg_Entry']
+                old_lot = df_active.at[idx, 'Lots']
+                
+                # Rumus Weighted Average
+                updated_avg = ((old_px * old_lot) + (new_px * new_lot)) / (old_lot + new_lot)
+                updated_total_lot = old_lot + new_lot
+                
+                # Update ke DataFrame lokal
+                df_active.at[idx, 'Avg_Entry'] = round(updated_avg)
+                df_active.at[idx, 'Lots'] = updated_total_lot
+                st.success(f"Harga Rata-rata baru: Rp {updated_avg:,.0f}")
+
+    # 3. Data Editor (Tabel yang bisa diedit langsung)
+    st.subheader("📝 Live Position Monitor")
     
-    if st.button("🔄 Refresh Data"):
-        st.rerun()
-        
-    df_jurnal = tarik_data_dari_gsheet()
+    # User bisa edit SL, TP, atau Avg Entry secara manual di sini
+    edited_df = st.data_editor(
+        df_active,
+        column_config={
+            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+            "Symbol": st.column_config.TextColumn("Ticker", disabled=True),
+            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+            "Stop_Loss": st.column_config.NumberColumn("Real SL", format="Rp %d"),
+            "Take_Profit": st.column_config.NumberColumn("Real TP", format="Rp %d"),
+            "Lots": st.column_config.NumberColumn("Total Lot"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="active_trade_editor"
+    )
+
+    # 4. Tombol Sinkronisasi (Rate Limit Protection)
+    col_save, col_close, _ = st.columns([1, 1, 2])
     
-    if not df_jurnal.empty:
-        # Analisis Data
-        total_trade = len(df_jurnal)
-        
-        # Bersihkan R-Ratio untuk grafik (mengambil angka sebelum 'R')
-        try:
-            df_jurnal['R_val'] = df_jurnal['R-Ratio'].astype(str).str.replace('R', '').astype(float)
-            win_rate = (len(df_jurnal[df_jurnal['R_val'] > 0]) / total_trade) * 100
-            avg_r = df_jurnal['R_val'].mean()
-        except:
-            win_rate = 0
-            avg_r = 0
-            
-        # Tampilan Metrik
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Trade", total_trade)
-        c2.metric("Win Rate", f"{win_rate:.1f}%")
-        c3.metric("Avg R-Ratio", f"{avg_r:.2f} R")
-        
-        st.markdown("---")
-        # Grafik
-        st.subheader("📈 Profitability (R-Ratio History)")
-        if 'R_val' in df_jurnal.columns:
-            st.bar_chart(df_jurnal['R_val'])
-            
-        # Tabel History
-        st.subheader("📜 Trade History Log")
-        st.dataframe(df_jurnal, use_container_width=True)
-    else:
-        st.info("Belum ada data. Silakan lakukan eksekusi trade di Tab Calculator.")
+    with col_save:
+        if st.button("💾 Save Changes to GSheet"):
+            # Update seluruh sheet Active_Trades dengan data terbaru dari editor
+            conn.update(worksheet="Active_Trades", data=edited_df)
+            st.toast("Data tersimpan ke GSheet Active_Trades!")
+
+    with col_close:
+        # Fitur untuk memindahkan trade ke Journal
+        selected_trade = st.selectbox("Pilih Trade untuk di-CLOSE:", edited_df['Trade_ID'].tolist() if not edited_df.empty else ["None"])
+        if st.button("🚀 Close Trade & Move to Journal"):
+            if selected_trade != "None":
+                with st.spinner("Memindahkan data ke Jurnal..."):
+                    # 1. Ambil baris yang akan di-close
+                    row_to_move = edited_df[edited_df['Trade_ID'] == selected_trade]
+                    
+                    # 2. Append ke sheet 'Journal'
+                    # Pastikan struktur kolom di 'Journal' cocok
+                    current_journal = conn.read(worksheet="Journal")
+                    updated_journal = pd.concat([current_journal, row_to_move], ignore_index=True)
+                    conn.update(worksheet="Journal", data=updated_journal)
+                    
+                    # 3. Hapus dari sheet 'Active_Trades'
+                    new_active_df = edited_df[edited_df['Trade_ID'] != selected_trade]
+                    conn.update(worksheet="Active_Trades", data=new_active_df)
+                    
+                    st.success(f"Trade {selected_trade} berhasil dipindahkan ke Jurnal!")
+                    st.rerun() # Refresh tampilan
