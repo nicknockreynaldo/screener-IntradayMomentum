@@ -604,7 +604,7 @@ with tab_active_trade:
     st.info("Data di sini tersinkronisasi dengan GSheet 'Active_Trades'. Edit harga real eksekusi Anda di sini.")
 
     # 1. Load Data dari GSheet
-   try:
+    try:
         df_active = conn.read(worksheet="Active_Trades") # Menggunakan conn langsung
     except:
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
