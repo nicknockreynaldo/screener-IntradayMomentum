@@ -631,7 +631,7 @@ with tab_active_trade:
     
     cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
     df_temp = st.session_state.df_active.copy()
-    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_active.columns])
+    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_temp.columns])
 
     st.subheader("📝 Live Position Monitor")
     
