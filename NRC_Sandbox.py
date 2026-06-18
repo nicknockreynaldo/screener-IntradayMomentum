@@ -17,7 +17,7 @@ def simpan_trade_ke_gsheet(data_list):
     except Exception as e:
         return False, str(e)
 
-def tarik_data_dari_gsheet():
+def tarik_data_dari_gsheet(nama_tab):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
