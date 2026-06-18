@@ -561,25 +561,25 @@ with tab_calc:
     c_act1, c_act2 = st.columns(2)
   # Confirm Trade
     if c_act1.button("🚀 Confirm Trade"):
-    for _, row in st.session_state['my_trades'].iterrows():
-        # Generate Trade_ID unik: [Waktu Detik].[Ticker]
-        # Contoh: 1718695200.BBCA
-        trade_id = f"{int(time.time())}.{row['Ticker']}"
-        
-        # Kirim ke GSheet dengan Trade_ID sebagai kolom pertama (kolom A)
-        simpan_trade_ke_gsheet([
-            trade_id,          # <--- Kolom Baru: Trade_ID
-            row['Tanggal'], 
-            row['Ticker'], 
-            row['Lot'], 
-            row['Entry'], 
-            row['SL'], 
-            row['Jarak SL'], 
-            row['Target'], 
-            row['R-Ratio'], 
-            row['Grade']
-        ])
-    st.success("Trade berhasil dikonfirmasi!")
+        for _, row in st.session_state['my_trades'].iterrows():
+            # Generate Trade_ID unik: [Waktu Detik].[Ticker]
+            # Contoh: 1718695200.BBCA
+            trade_id = f"{int(time.time())}.{row['Ticker']}"
+            
+            # Kirim ke GSheet dengan Trade_ID sebagai kolom pertama (kolom A)
+            simpan_trade_ke_gsheet([
+                trade_id,          # <--- Kolom Baru: Trade_ID
+                row['Tanggal'], 
+                row['Ticker'], 
+                row['Lot'], 
+                row['Entry'], 
+                row['SL'], 
+                row['Jarak SL'], 
+                row['Target'], 
+                row['R-Ratio'], 
+                row['Grade']
+            ])
+        st.success("Trade berhasil dikonfirmasi!")
     # Reset list
     st.session_state['my_trades'] = pd.DataFrame(columns=[
         "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
