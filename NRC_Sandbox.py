@@ -420,10 +420,10 @@ with tab_watchlist:
                     ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
                     
                    
-                   # Ganti menjadi:
-                    typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
-                    vwap = (typical_price * df_5m['Volume']).sum() / df_5m['Volume'].sum()
-                                        
+                  # Ganti logika perhitungan vwap menjadi OHLC/4 (sesuai preferensi profesional)
+                    ohlc_avg = (df_5m['Open'] + df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 4
+                    vwap = (ohlc_avg * df_5m['Volume']).sum() / df_5m['Volume'].sum()
+                                                            
                     hasil.append({
                         "Kode Saham": ticker.replace(".JK", ""),
                         "Price": f"Rp{close:,.0f}",
