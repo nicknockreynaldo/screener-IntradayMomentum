@@ -648,9 +648,10 @@ with tab_active_trade:
     
     # Persiapan data
     df_temp = st.session_state.df_active.copy()
-    cols_to_drop = ['Jarak SL', 'Risk Multiple', 'Grade']
-    df_clean = df_temp.drop(columns=[c for c in cols_to_drop if c in df_temp.columns])
-
+    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
+    cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
+    df_clean = df_temp[cols_to_show]
+    
     st.subheader("📝 Live Position Monitor")
 
     # 1. GUNAKAN FORM agar perubahan tidak langsung me-rerun aplikasi
