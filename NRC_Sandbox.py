@@ -610,7 +610,7 @@ with tab_active_trade:
         df_active = pd.DataFrame(columns=['Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 'SL', 'Jarak SL', 'Target', 'R-Ratio', 'Grade'])
         
     # --- DEKLARASI VARIABEL DI LUAR BLOK AGAR SELALU TERSEDIA ---
-   if 'Trade_ID' not in df_active.columns:
+    if 'Trade_ID' not in df_active.columns:
         st.error(f"Kolom 'Trade_ID' tidak ditemukan. Kolom yang terbaca: {df_active.columns.tolist()}")
     else:
         # Deklarasi variabel
