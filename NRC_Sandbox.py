@@ -582,37 +582,40 @@ with tab_calc:
     c_act1, c_act2 = st.columns(2)
   # Confirm Trade
     if c_act1.button("🚀 Confirm Trade"):
-        for _, row in st.session_state['my_trades'].iterrows():
-            # Generate Trade_ID unik: [Waktu Detik].[Ticker]
-            # Contoh: 1718695200.BBCA
-            trade_id = f"{int(time.time())}.{row['Ticker']}"
+        if not st.session_state['my_trades'].empty:
+            for _, row in st.session_state['my_trades'].iterrows():
+                # Generate ID unik
+                trade_id = f"{int(time.time())}.{row['Ticker']}"
+                
+                # Bungkus data ke dalam LIST (bukan DataFrame)
+                data_list = [
+                    trade_id, 
+                    row['Tanggal'], 
+                    row['Ticker'], 
+                    row['Lot'], 
+                    row['Entry'], 
+                    row['SL'], 
+                    row['Jarak SL'], 
+                    row['Target'], 
+                    row['R-Ratio'], 
+                    row['Grade']
+                ]
+                
+                # Kirim ke Pre-Trade
+                simpan_trade_ke_gsheet("Pre_Trades", data_list)
+                
+                # Kirim ke Active_Trades
+                simpan_trade_ke_gsheet("Active_Trades", data_list)
             
-            # Kirim ke GSheet dengan Trade_ID sebagai kolom pertama (kolom A)
-            df_to_send = pd.DataFrame([{
-                "Trade_ID": trade_id,
-                "Tanggal": row['Tanggal'],
-                "Ticker": row['Ticker'],
-                "Lot": row['Lot'],
-                "Avg_Entry": row['Entry'],
-                "SL": row['SL'],
-                "Jarak SL": row['Jarak SL'],
-                "Target": row['Target'],
-                "Risk Multiple": row['R-Ratio'],
-                "Grade": row['Grade']
-            }])
-
-            # 1. Kirim ke sheet Pre Trade (10 Kolom)
-            simpan_trade_ke_gsheet("Pre_Trades", df_to_send)
-        
-            # 2. Kirim ke sheet Active Trade (10 Kolom - Sama persis!)
-            simpan_trade_ke_gsheet("Active_Trades", df_to_send)
+            st.success("Trade berhasil dikonfirmasi ke kedua sheet!")
             
-        st.success("Trade berhasil dikonfirmasi!")
-        # Reset list
-        st.session_state['my_trades'] = pd.DataFrame(columns=[
-            "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
-        ])
-        st.rerun()
+            # Reset daftar
+            st.session_state['my_trades'] = pd.DataFrame(columns=[
+                "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+            ])
+            st.rerun()
+        else:
+            st.warning("Daftar trade masih kosong!")
     
 
     # Hapus Baris
