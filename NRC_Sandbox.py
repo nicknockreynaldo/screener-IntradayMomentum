@@ -8,14 +8,17 @@ import time
 
 # --- FUNGSI GOOGLE SHEETS ---
 
-def simpan_trade_ke_gsheet(worksheet_name, dataframe):
+def simpan_trade_ke_gsheet(worksheet_name, data_list):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
         
-        data_to_append = dataframe.values.tolist()
-        wks.append_rows(data_to_append)
+        # Pilih tab berdasarkan nama
+        wks = sh.worksheet(worksheet_name)
+        
+        # Gunakan append_row untuk menambah data ke baris paling bawah
+        wks.append_row(data_list)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
