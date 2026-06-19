@@ -602,7 +602,7 @@ with tab_calc:
                 ]
                 
                 # Kirim ke Pre-Trade
-                simpan_trade_ke_gsheet("Pre_Trades", data_list)
+                simpan_trade_ke_gsheet("Plan_PreTrade", data_list)
                 
                 # Kirim ke Active_Trades
                 simpan_trade_ke_gsheet("Active_Trades", data_list)
