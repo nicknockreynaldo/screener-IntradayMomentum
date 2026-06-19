@@ -545,12 +545,22 @@ with tab_calc:
 
     st.markdown("---")
     st.subheader("🎯 Risk Multiple")
-    df_target_ringkas = pd.DataFrame({
-        "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
-        "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
-        "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-        "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
-    })
+    
+    # Membuat dictionary data
+    data_target = {
+        "Level": ["1.5R", "2R", "3R", "Manual TP"],
+        "Price": [
+            f"{entry_in + (risk_per_share * 1.5):,.0f}",
+            f"{entry_in + (risk_per_share * 2):,.0f}",
+            f"{entry_in + (risk_per_share * 3):,.0f}",
+            f"{manual_tp:,.0f} ({r_manual:.2f}R)"
+        ]
+    }
+    
+    df_target_ringkas = pd.DataFrame(data_target)
+    
+    # Menampilkan tabel
+    # use_container_width=False akan membuat tabel mengikuti lebar isinya saja
     st.table(df_target_ringkas)
 
     st.subheader("📋 Daftar Pre-Trade")
