@@ -14,21 +14,11 @@ def simpan_trade_ke_gsheet(worksheet_name, dataframe):
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
         
-        # Memilih sheet berdasarkan nama (bukan hanya sheet1)
-        wks = sh.worksheet(worksheet_name)
-        
-        # Hapus data lama dan tulis ulang dengan data baru dari dataframe
-        # Bersihkan dulu sheet-nya
-        wks.clear()
-        
-        # Tulis header dan data
-        wks.update([dataframe.columns.values.tolist()] + dataframe.values.tolist())
-        
+        data_to_append = dataframe.values.tolist()
+        wks.append_rows(data_to_append)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
-
-
 
 def tarik_data_dari_gsheet(nama_tab):
     try:
