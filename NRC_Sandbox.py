@@ -465,18 +465,20 @@ with tab_watchlist:
                 if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
-# TAB 3: RISK CALCULATOR (VERSI LENGKAP & STABIL)
+# TAB 3: RISK CALCULATOR
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizing & Risk Management")
     
-    # CSS Injection
+    # CSS Injection (Tetap sama)
     st.markdown("""
         <style>
             table { text-align: center !important; }
             th { text-align: center !important; }
             td { text-align: center !important; }
             [data-testid="stDataEditor"] { text-align: center !important; }
+            [data-testid="stDataEditor"] div[data-testid="stText"] { text-align: center !important; }
+            [data-testid="stDataEditor"] .st-emotion-cache-1vt4y4j { justify-content: center !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -485,7 +487,7 @@ with tab_calc:
             "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
         ])
 
-    # --- INPUT SECTION (DIBUNGKUS FORM UNTUK MENCEGAH FLICKERING) ---
+    # --- INPUT SECTION (DIBUNGKUS FORM) ---
     with st.form("input_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
         MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
@@ -500,8 +502,9 @@ with tab_calc:
         sl_in = col_in3.number_input("Stop Loss Price", value=5800)
         manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
         
+        # Tombol Submit di dalam form
         submitted = st.form_submit_button("➕ Tambah ke Daftar Pre-Trade")
-    
+
     # --- KALKULASI ---
     risk_amount = MODAL * RISK_PCT
     risk_per_share = entry_in - sl_in
@@ -509,10 +512,9 @@ with tab_calc:
     r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
     lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
 
-    # --- LOGIKA TAMBAH KE TABEL (Dijalankan hanya saat tombol diklik) ---
+    # --- LOGIKA TAMBAH (JALANKAN KETIKA SUBMIT) ---
     if submitted:
         new_row = pd.DataFrame([{
-            "Trade_ID": "", 
             "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
             "Ticker": ticker_in,
             "Lot": lot_max,
@@ -527,7 +529,7 @@ with tab_calc:
         st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
         st.rerun()
 
-    # --- METRICS PINK ---
+    # --- METRICS & SISA KODE (TETAP DI LUAR FORM) ---
     def style_metric_pink(label, value):
         st.markdown(f"""
             <div style="background-color: #ffe6e6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ffcccc;">
@@ -542,8 +544,6 @@ with tab_calc:
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
 
     st.markdown("---")
-
-    # --- TARGET PRICE MULTIPLE ---
     st.subheader("🎯 Risk Multiple")
     df_target_ringkas = pd.DataFrame({
         "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
@@ -553,52 +553,24 @@ with tab_calc:
     })
     st.table(df_target_ringkas)
 
-    # --- DAFTAR PRE-TRADE (TIDAK DIHAPUS) ---
     st.subheader("📋 Daftar Pre-Trade")
     edited_df = st.data_editor(
         st.session_state['my_trades'],
         column_config={"Action": st.column_config.CheckboxColumn("Action", default=False)},
-        use_container_width=True,
-        hide_index=True
+        use_container_width=True, hide_index=True
     )
     
-    # --- CONFIRM & HAPUS ---
+    c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade"):
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
-                # Generate ID unik
                 trade_id = f"{int(time.time())}.{row['Ticker']}"
-                
-                # Bungkus data ke dalam LIST (bukan DataFrame)
-                data_list = [
-                    trade_id, 
-                    row['Tanggal'], 
-                    row['Ticker'], 
-                    row['Lot'], 
-                    row['Entry'], 
-                    row['SL'], 
-                    row['Jarak SL'], 
-                    row['Target'], 
-                    row['R-Ratio'], 
-                    row['Grade']
-                ]
-                
-                # Kirim ke Pre-Trade
+                data_list = [trade_id, row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']]
                 simpan_trade_ke_gsheet("Plan_PreTrade", data_list)
-                
-                # Kirim ke Active_Trades
                 simpan_trade_ke_gsheet("Active_Trades", data_list)
-            
-            st.success("Trade berhasil dikonfirmasi ke kedua sheet!")
-            
-            # Reset daftar
-            st.session_state['my_trades'] = pd.DataFrame(columns=[
-                "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
-            ])
+            st.success("Trade berhasil dikonfirmasi!")
+            st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"])
             st.rerun()
-        else:
-            st.warning("Daftar trade masih kosong!")
-
 
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
