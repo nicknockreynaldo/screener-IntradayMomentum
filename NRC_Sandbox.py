@@ -544,10 +544,9 @@ with tab_calc:
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
 
     st.markdown("---")
+    # --- TABEL VERTIKAL (RINGKAS) ---
     st.subheader("🎯 Risk Multiple")
-    
-    # Membuat dictionary data
-    data_target = {
+    df_target_ringkas = pd.DataFrame({
         "Level": ["1.5R", "2R", "3R", "Manual TP"],
         "Price": [
             f"{entry_in + (risk_per_share * 1.5):,.0f}",
@@ -555,12 +554,7 @@ with tab_calc:
             f"{entry_in + (risk_per_share * 3):,.0f}",
             f"{manual_tp:,.0f} ({r_manual:.2f}R)"
         ]
-    }
-    
-    df_target_ringkas = pd.DataFrame(data_target)
-    
-    # Menampilkan tabel
-    # use_container_width=False akan membuat tabel mengikuti lebar isinya saja
+    })
     st.table(df_target_ringkas)
 
     st.subheader("📋 Daftar Pre-Trade")
