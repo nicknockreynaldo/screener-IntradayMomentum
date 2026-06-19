@@ -595,27 +595,24 @@ with tab_calc:
             trade_id = f"{int(time.time())}.{row['Ticker']}"
             
             # Kirim ke GSheet dengan Trade_ID sebagai kolom pertama (kolom A)
-            data_list = [
-                trade_id,          
-                row['Tanggal'], 
-                row['Ticker'], 
-                row['Lot'], 
-                row['Entry'],     # Mengambil dari session state 'Entry'
-                row['SL'], 
-                row['Jarak SL'], 
-                row['Target'], 
-                row['R-Ratio'],   # Mengambil dari session state 'R-Ratio'
-                row['Grade']
-            ]
-            df_kirim = pd.DataFrame([data_list], columns=[
-                'Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 
-                'SL', 'Jarak SL', 'Target', 'Risk Multiple', 'Grade'
-            ])
+            df_to_send = pd.DataFrame([{
+                "Trade_ID": trade_id,
+                "Tanggal": row['Tanggal'],
+                "Ticker": row['Ticker'],
+                "Lot": row['Lot'],
+                "Avg_Entry": row['Entry'],
+                "SL": row['SL'],
+                "Jarak SL": row['Jarak SL'],
+                "Target": row['Target'],
+                "Risk Multiple": row['R-Ratio'],
+                "Grade": row['Grade']
+            }])
+
             # 1. Kirim ke sheet Pre Trade (10 Kolom)
-            simpan_trade_ke_gsheet("Pre_Trades", df_kirim)
+            simpan_trade_ke_gsheet("Pre_Trades", df_to_send)
         
             # 2. Kirim ke sheet Active Trade (10 Kolom - Sama persis!)
-            simpan_trade_ke_gsheet("Active_Trades", df_kirim)
+            simpan_trade_ke_gsheet("Active_Trades", df_to_send)
             
         st.success("Trade berhasil dikonfirmasi!")
         # Reset list
