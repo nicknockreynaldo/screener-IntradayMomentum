@@ -565,13 +565,36 @@ with tab_calc:
     # --- CONFIRM & HAPUS ---
     c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade"):
-        # Logika confirm tetap sama...
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
+                # Pastikan trade_id dibuat
                 trade_id = f"{int(time.time())}.{row['Ticker']}"
-                simpan_trade_ke_gsheet([trade_id, row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']])
+                
+                # URUTAN HARUS SAMA PERSIS DENGAN KOLOM DI GOOGLE SHEET
+                # Sesuaikan urutan ini dengan file GSheet Anda:
+                data_to_send = [
+                    trade_id,          # 1
+                    row['Tanggal'],    # 2
+                    row['Ticker'],     # 3
+                    row['Lot'],        # 4
+                    row['Entry'],      # 5
+                    row['SL'],         # 6
+                    row['Jarak SL'],   # 7
+                    row['Target'],     # 8
+                    row['R-Ratio'],    # 9
+                    row['Grade']       # 10
+                ]
+                
+                success, msg = simpan_trade_ke_gsheet(data_to_send)
+                if not success:
+                    st.error(f"Gagal kirim ke GSheet: {msg}")
+                    st.stop()
+            
             st.success("Trade berhasil dikonfirmasi!")
-            st.session_state['my_trades'] = pd.DataFrame(columns=["Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"])
+            # Reset daftar di session state
+            st.session_state['my_trades'] = pd.DataFrame(columns=[
+                "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+            ])
             st.rerun()
 
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
