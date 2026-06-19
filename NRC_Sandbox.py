@@ -563,39 +563,42 @@ with tab_calc:
     )
     
     # --- CONFIRM & HAPUS ---
-    c_act1, c_act2 = st.columns(2)
-    if c_act1.button("🚀 Confirm Trade"):
+     if c_act1.button("🚀 Confirm Trade"):
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
-                # Pastikan trade_id dibuat
+                # Generate ID unik
                 trade_id = f"{int(time.time())}.{row['Ticker']}"
                 
-                # URUTAN HARUS SAMA PERSIS DENGAN KOLOM DI GOOGLE SHEET
-                # Sesuaikan urutan ini dengan file GSheet Anda:
-                data_to_send = [
-                    trade_id,          # 1
-                    row['Tanggal'],    # 2
-                    row['Ticker'],     # 3
-                    row['Lot'],        # 4
-                    row['Entry'],      # 5
-                    row['SL'],         # 6
-                    row['Jarak SL'],   # 7
-                    row['Target'],     # 8
-                    row['R-Ratio'],    # 9
-                    row['Grade']       # 10
+                # Bungkus data ke dalam LIST (bukan DataFrame)
+                data_list = [
+                    trade_id, 
+                    row['Tanggal'], 
+                    row['Ticker'], 
+                    row['Lot'], 
+                    row['Entry'], 
+                    row['SL'], 
+                    row['Jarak SL'], 
+                    row['Target'], 
+                    row['R-Ratio'], 
+                    row['Grade']
                 ]
                 
-                success, msg = simpan_trade_ke_gsheet(data_to_send)
-                if not success:
-                    st.error(f"Gagal kirim ke GSheet: {msg}")
-                    st.stop()
+                # Kirim ke Pre-Trade
+                simpan_trade_ke_gsheet("Plan_PreTrade", data_list)
+                
+                # Kirim ke Active_Trades
+                simpan_trade_ke_gsheet("Active_Trades", data_list)
             
-            st.success("Trade berhasil dikonfirmasi!")
-            # Reset daftar di session state
+            st.success("Trade berhasil dikonfirmasi ke kedua sheet!")
+            
+            # Reset daftar
             st.session_state['my_trades'] = pd.DataFrame(columns=[
-                "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
+                "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
             ])
             st.rerun()
+        else:
+            st.warning("Daftar trade masih kosong!")
+
 
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
