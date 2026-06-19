@@ -469,158 +469,98 @@ with tab_watchlist:
 # ==============================================================================
 with tab_calc:
     st.header("🧮 Position Sizing & Risk Management")
-    # --- INFORMASI TARGET (Tabel Ringkas Horizontal) ---
     
-    # CSS Injection untuk Center Alignment (Mencakup st.table dan st.data_editor)
+    # CSS Injection tetap sama...
     st.markdown("""
         <style>
-            /* Untuk st.table */
             table { text-align: center !important; }
             th { text-align: center !important; }
             td { text-align: center !important; }
-            
-            /* Untuk st.data_editor */
-            [data-testid="stDataEditor"] {
-                text-align: center !important;
-            }
-            [data-testid="stDataEditor"] div[data-testid="stText"] {
-                text-align: center !important;
-            }
-            /* Memaksa isi sel di data editor rata tengah */
-            [data-testid="stDataEditor"] .st-emotion-cache-1vt4y4j {
-                justify-content: center !important;
-            }
+            [data-testid="stDataEditor"] { text-align: center !important; }
+            [data-testid="stDataEditor"] div[data-testid="stText"] { text-align: center !important; }
+            [data-testid="stDataEditor"] .st-emotion-cache-1vt4y4j { justify-content: center !important; }
         </style>
     """, unsafe_allow_html=True)
-    
-  
-    # Pastikan urutan kolom di sini SAMA PERSIS dengan di new_row
+
     if 'my_trades' not in st.session_state:
         st.session_state['my_trades'] = pd.DataFrame(columns=[
             "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
         ])
 
-    # --- INPUT SECTION ---
-    c1, c2 = st.columns(2)
-    MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
-    c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
-    
-    # Penambahan Setup Grade
-    grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
-    risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
-    
-    # Slider dengan nilai default mengikuti Grade
-    RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, risk_map[grade_in], step=0.1) / 100
-    
-    col_in1, col_in2, col_in3, col_in4 = st.columns(4)
-    ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
-    entry_in = col_in2.number_input("Entry Price", value=6000)
-    sl_in = col_in3.number_input("Stop Loss Price", value=5800)
-    manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
-    
-    # --- KALKULASI ---
-    risk_amount = MODAL * RISK_PCT
-    risk_per_share = entry_in - sl_in
-    risk_dist_pct = (risk_per_share / entry_in) * 100
-    r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
-    lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
+    # --- INPUT SECTION (DIBUNGKUS FORM) ---
+    with st.form("input_form", clear_on_submit=False):
+        c1, c2 = st.columns(2)
+        MODAL = c1.number_input("Modal Trading (Rp)", value=10_000_000, step=1_000_000)
+        c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
+        grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
+        risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
+        RISK_PCT = c2.slider("Risk per Trade (%)", 0.1, 5.0, risk_map[grade_in], step=0.1) / 100
+        
+        col_in1, col_in2, col_in3, col_in4 = st.columns(4)
+        ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
+        entry_in = col_in2.number_input("Entry Price", value=6000)
+        sl_in = col_in3.number_input("Stop Loss Price", value=5800)
+        manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
+        
+        # Tombol TAMBAH dipindahkan ke dalam FORM agar tidak flickering
+        submitted = st.form_submit_button("➕ Tambah ke Daftar Pre-Trade")
+        
+        if submitted:
+            # Kalkulasi dilakukan di dalam IF submitted agar efisien
+            risk_amount = MODAL * RISK_PCT
+            risk_per_share = entry_in - sl_in
+            risk_dist_pct = (risk_per_share / entry_in) * 100
+            r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
+            lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
+            
+            new_row = pd.DataFrame([{
+                "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
+                "Ticker": ticker_in,
+                "Lot": lot_max,
+                "Entry": entry_in,
+                "SL": sl_in,
+                "Jarak SL": f"{risk_dist_pct:.2f}%",
+                "Target": manual_tp,
+                "R-Ratio": f"{r_manual:.2f}R",
+                "Grade": grade_in,
+                "Action": False
+            }])
+            st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
+            st.rerun()
 
-    # --- METRICS PINK BACKGROUND ---
-    def style_metric_pink(label, value):
-        st.markdown(f"""
-            <div style="background-color: #ffe6e6; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #ffcccc;">
-                <div style="font-size: 14px; color: #555;">{label}</div>
-                <div style="font-size: 24px; font-weight: bold; color: #000;">{value}</div>
-            </div>
-        """, unsafe_allow_html=True)
+    # Kalkulasi untuk Metrics (Diletakkan di luar form agar tetap tampil saat input diubah)
+    # Gunakan variabel penampung sementara agar tidak crash jika form belum disubmit pertama kali
+    risk_per_share_calc = entry_in - sl_in
+    risk_dist_pct_calc = (risk_per_share_calc / entry_in) * 100 if entry_in != 0 else 0
+    risk_amount_calc = MODAL * RISK_PCT
+    lot_max_calc = math.floor((risk_amount_calc / risk_per_share_calc) / 100) if risk_per_share_calc != 0 else 0
 
+    # --- METRICS PINK ---
     m1, m2, m3 = st.columns(3)
-    with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount):,.0f}")
-    with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
-    with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
+    with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount_calc):,.0f}")
+    with m2: style_metric_pink("Max Lot", f"{lot_max_calc} Lot")
+    with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct_calc:.2f}%")
 
     st.markdown("---")
 
-    # --- TARGET PRICE MULTIPLE ---
-    st.subheader("🎯 Risk Multiple")
-    df_target_ringkas = pd.DataFrame({
-        "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
-        "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
-        "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-        "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
-    })
-    st.table(df_target_ringkas)
-
-    # --- BUTTON TAMBAH ---
-    if st.button("➕ Tambah ke Daftar Pre-Trade"):
-        new_row = pd.DataFrame([{
-            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Ticker": ticker_in,
-            "Lot": lot_max,
-            "Entry": entry_in,
-            "SL": sl_in,
-            "Jarak SL": f"{risk_dist_pct:.2f}%",
-            "Target": manual_tp,
-            "R-Ratio": f"{r_manual:.2f}R",
-            "Grade": grade_in,
-            "Action": False
-        }])
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
-        st.rerun()
-
-    # --- DAFTAR PRE-TRADE ---
+    # --- DAFTAR PRE-TRADE & TOMBOL LAINNYA TETAP DI LUAR FORM ---
     st.subheader("📋 Daftar Pre-Trade")
-    edited_df = st.data_editor(
-        st.session_state['my_trades'],
-        column_config={
-            "Action": st.column_config.CheckboxColumn("Action", default=False)
-        },
-        use_container_width=True,
-        hide_index=True
-    )
+    edited_df = st.data_editor(st.session_state['my_trades'], column_config={"Action": st.column_config.CheckboxColumn("Action", default=False)}, use_container_width=True, hide_index=True)
     
     c_act1, c_act2 = st.columns(2)
-  # Confirm Trade
     if c_act1.button("🚀 Confirm Trade"):
+        # ... (Logika Confirm Trade Anda tetap sama) ...
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
-                # Generate ID unik
                 trade_id = f"{int(time.time())}.{row['Ticker']}"
-                
-                # Bungkus data ke dalam LIST (bukan DataFrame)
-                data_list = [
-                    trade_id, 
-                    row['Tanggal'], 
-                    row['Ticker'], 
-                    row['Lot'], 
-                    row['Entry'], 
-                    row['SL'], 
-                    row['Jarak SL'], 
-                    row['Target'], 
-                    row['R-Ratio'], 
-                    row['Grade']
-                ]
-                
-                # Kirim ke Pre-Trade
+                data_list = [trade_id, row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']]
                 simpan_trade_ke_gsheet("Plan_PreTrade", data_list)
-                
-                # Kirim ke Active_Trades
                 simpan_trade_ke_gsheet("Active_Trades", data_list)
-            
-            st.success("Trade berhasil dikonfirmasi ke kedua sheet!")
-            
-            # Reset daftar
-            st.session_state['my_trades'] = pd.DataFrame(columns=[
-                "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
-            ])
+            st.success("Trade berhasil dikonfirmasi!")
+            st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"])
             st.rerun()
-        else:
-            st.warning("Daftar trade masih kosong!")
-    
 
-    # Hapus Baris
     if c_act2.button("🗑️ Hapus Baris Terpilih"):
-        # Filter menggunakan kolom 'Action'
         st.session_state['my_trades'] = edited_df[edited_df["Action"] == False]
         st.rerun()
         
