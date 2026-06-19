@@ -7,6 +7,7 @@ import gspread
 import time
 
 # --- FUNGSI GOOGLE SHEETS ---
+
 def simpan_trade_ke_gsheet(worksheet_name, dataframe):
     try:
         creds_dict = dict(st.secrets["gcp"])
@@ -26,6 +27,8 @@ def simpan_trade_ke_gsheet(worksheet_name, dataframe):
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
+
+
 
 def tarik_data_dari_gsheet(nama_tab):
     try:
@@ -604,6 +607,11 @@ with tab_calc:
                 row['R-Ratio'], 
                 row['Grade']
             ])
+            # 1. Kirim ke sheet Pre Trade (10 Kolom)
+            simpan_trade_ke_gsheet("Pre_Trades", data_yang_dikirim)
+        
+            # 2. Kirim ke sheet Active Trade (10 Kolom - Sama persis!)
+            simpan_trade_ke_gsheet("Active_Trades", data_yang_dikirim)
         st.success("Trade berhasil dikonfirmasi!")
         # Reset list
         st.session_state['my_trades'] = pd.DataFrame(columns=[
