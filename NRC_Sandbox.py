@@ -563,7 +563,7 @@ with tab_calc:
     )
     
     # --- CONFIRM & HAPUS ---
-     if c_act1.button("🚀 Confirm Trade"):
+    if c_act1.button("🚀 Confirm Trade"):
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
                 # Generate ID unik
