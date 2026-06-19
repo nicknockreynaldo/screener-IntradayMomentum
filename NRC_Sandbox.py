@@ -490,7 +490,7 @@ with tab_calc:
     # --- INPUT SECTION (DIBUNGKUS FORM) ---
     with st.form("input_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
-        MODAL = c1.number_input("Modal Trading (Rp)", value=100_000_000, step=1_000_000)
+        MODAL = c1.number_input("Modal Trading (Rp)", value=10_000_000, step=1_000_000)
         c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
         grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
         risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
