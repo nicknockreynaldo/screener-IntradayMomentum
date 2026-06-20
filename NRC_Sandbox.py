@@ -629,13 +629,7 @@ with tab_active_trade:
     if 'df_active' in st.session_state:
         if not isinstance(st.session_state.df_active, pd.DataFrame):
             del st.session_state.df_active
-            
-    if st.button("🔄 Refresh Data dari GSheet"):
-        # Hapus data lama agar dipaksa tarik ulang
-        if 'df_active' in st.session_state:
-            del st.session_state.df_active
-        st.rerun()
-    
+
     # Tarik data asli dari Google Sheets
     if 'df_active' not in st.session_state:
         raw_data = tarik_data_dari_gsheet("Active_Trades")
@@ -678,6 +672,12 @@ with tab_active_trade:
             use_container_width=True,
             key=dynamic_key
         )
+
+        if st.button("🔄 Refresh"):
+            # Hapus data lama agar dipaksa tarik ulang
+            if 'df_active' in st.session_state:
+                del st.session_state.df_active
+            st.rerun()
         
         submitted = st.form_submit_button("💾 Sync & Save Changes")
         
