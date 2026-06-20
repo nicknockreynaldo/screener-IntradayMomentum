@@ -78,10 +78,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         if risk_per_share != 0:
             r_val = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
             realized_r_str = f"{r_val:.2f}R"
-        # 3. Tentukan Result
-        if profit_loss > 0: result = "Profit"
-        elif profit_loss < 0: result = "Loss"
-        else: result = "BE"
+        
             
         # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
         data_jurnal = [
