@@ -525,7 +525,8 @@ with tab_calc:
         risk_dist_pct = (risk_per_share / entry_in) * 100
         r_manual = (manual_tp - entry_in) / risk_per_share
         lot_max = math.floor((risk_amount / risk_per_share) / 100)
-
+    
+    st.markdown("---")  
     # --- METRICS & SISA KODE (TETAP DI LUAR FORM) ---
     def style_metric_pink(label, value):
         st.markdown(f"""
@@ -540,7 +541,7 @@ with tab_calc:
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
 
-    st.markdown("---")  
+    
     
     st.subheader("🎯 Risk Multiple")
     col_tabel1, col_tabel2 = st.columns([3, 1]) # [3, 1] berarti tabel hanya menempati 3/4 lebar layar
