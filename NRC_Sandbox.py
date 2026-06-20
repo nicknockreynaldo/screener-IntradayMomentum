@@ -76,7 +76,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         risk_per_share = float(row['Avg_Entry']) - float(row['SL'])
         realized_r = 0
         if risk_per_share != 0:
-            realized_r = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
+            r_val = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
             realized_r_str = f"{r_val:.2f}R"
         # 3. Tentukan Result
         if profit_loss > 0: result = "Profit"
