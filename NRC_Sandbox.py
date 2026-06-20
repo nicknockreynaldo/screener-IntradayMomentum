@@ -38,17 +38,18 @@ def tarik_data_dari_gsheet(nama_tab):
         st.error(f"Gagal tarik data dari sheet {nama_tab}: {e}")
         return pd.DataFrame()
         
-def append_ke_gsheet(worksheet_name, dataframe_row):
+def update_seluruh_gsheet(worksheet_name, df):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
         wks = sh.worksheet(worksheet_name)
         
-        # Mengubah baris dataframe menjadi list untuk di-append
-        data_to_append = dataframe_row.values.tolist()[0]
+        # Bersihkan tabel & update dengan data dari DataFrame
+        wks.clear()
+        data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
+        wks.update(range_name='A1', values=data_to_upload)
         
-        wks.append_row(data_to_append)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
@@ -693,7 +694,7 @@ with tab_active_trade:
         master_df = master_df.fillna("")
 
         # Kirim data ke GSheet
-        success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
+        success, msg = update_seluruh_gsheet("Active_Trades", master_df)
         if success:
             st.session_state.df_active = master_df
             st.session_state.editor_version += 1
