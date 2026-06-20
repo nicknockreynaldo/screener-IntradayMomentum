@@ -56,21 +56,39 @@ def update_seluruh_gsheet(worksheet_name, df):
         
 def proses_jual_posisi(trade_id, harga_jual, lot_jual):
     try:
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        sh = gc.open("NRC Trading Journal")
+        
         # Ambil baris data dari memori
         df_active = st.session_state.df_active
         row = df_active[df_active['Trade_ID'] == trade_id].iloc[0]
         
         # Hitung P/L
-        profit_loss = (float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual)
+        profit_loss = (float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual) * 100
         status = "Profit" if profit_loss > 0 else ("Loss" if profit_loss < 0 else "BE")
-        
+
+        # 2. Hitung Realized R
+        risk_per_share = float(row['Avg_Entry']) - float(row['SL'])
+        realized_r = 0
+        if risk_per_share != 0:
+            realized_r = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share
+
+        # 3. Tentukan Result
+        if profit_loss > 0: result = "Profit"
+        elif profit_loss < 0: result = "Loss"
+        else: result = "BE"
+            
         # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
-        data_jurnal = [row['Trade_ID'], row['Ticker'], "Sell", row['Tanggal'], 
-                       lot_jual, harga_jual, profit_loss, status]
+        data_jurnal = [
+            row['Trade_ID'], row['Tanggal'], row['Ticker'], 
+            lot_jual, row['Avg_Entry'], harga_jual, 
+            profit_loss, result, round(realized_r, 2)
+        ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
         # Pastikan worksheet "Journal_Final" ada di GSheet Anda
-        wks_journal = sh.worksheet("Journal_Final") # Sesuaikan cara buka worksheet Anda
+        wks_journal = sh.worksheet("Journal_Final")
         wks_journal.append_row(data_jurnal)
         
         # Update Sisa Lot di Active_Trades
