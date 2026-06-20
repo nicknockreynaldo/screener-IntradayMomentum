@@ -53,10 +53,6 @@ def append_ke_gsheet(worksheet_name, dataframe_row):
     except Exception as e:
         return False, str(e)
         
-def update_risk_slider():
-    risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
-    st.session_state['risk_val'] = risk_map[st.session_state['grade_key']]
-
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
 
@@ -69,9 +65,6 @@ if 'my_trades' not in st.session_state:
         "Trade_ID","Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
     ])
     
-if 'risk_val' not in st.session_state:
-    st.session_state['risk_val'] = 1.0 # Default untuk grade B
-
 # Inisialisasi Session State untuk Screener
 if 'memori_saham' not in st.session_state:
     st.session_state['memori_saham'] = {
@@ -498,20 +491,15 @@ with tab_calc:
         c1, c2 = st.columns(2)
         MODAL = c1.number_input("Modal Trading (Rp)", value=10_000_000, step=1_000_000)
         c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
-        grade_in = c2.selectbox(
-            "Setup Grade", ["A", "B", "C", "D"], 
-            index=1, 
-            key='grade_key', 
-            on_change=update_risk_slider
-        )
-        RISK_PCT = c2.slider(
+        grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
+        risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
+        RISK_PCT_VAL = c2.slider(
             "Risk per Trade (%)", 
             0.1, 5.0, 
-            value=st.session_state['risk_val'], 
-            step=0.1,
-            key='risk_slider_key'
-        ) / 100
-        
+            value=risk_map[grade_in], 
+            step=0.1
+        )
+        RISK_PCT = RISK_PCT_VAL / 100
         col_in1, col_in2, col_in3, col_in4 = st.columns(4)
         ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
         entry_in = col_in2.number_input("Entry Price", value=6000)
