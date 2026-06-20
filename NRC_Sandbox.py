@@ -61,8 +61,9 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         sh = gc.open("NRC Trading Journal")
         
         # Ambil baris data dari memori
-        df_active = st.session_state.df_active
-        row = df_active[df_active['Trade_ID'] == trade_id].iloc[0]
+        df = st.session_state.df_active
+        idx = df.index[df['Trade_ID'] == trade_id].tolist()[0]
+        row = df.loc[idx]
         
         # Hitung P/L
         profit_loss = (float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual) * 100
@@ -88,8 +89,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
         # Pastikan worksheet "Journal_Final" ada di GSheet Anda
-        wks_journal = sh.worksheet("Journal_Final")
-        wks_journal.append_row(data_jurnal)
+        sh.worksheet("Journal_Final").append_row(data_jurnal)
         
         # Update Sisa Lot di Active_Trades
         sisa_lot = int(row['Lot']) - int(lot_jual)
