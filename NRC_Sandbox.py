@@ -553,26 +553,7 @@ with tab_calc:
             hr { margin-top: 5px !important; margin-bottom: 5px !important; }
         </style>
     """, unsafe_allow_html=True)
-    st.markdown("""
-        <style>
-            /* Mengurangi spasi antara Metrik (kotak pink) dan elemen di bawahnya */
-            div[data-testid="column"] { 
-                padding-bottom: 0px !important; 
-            }
-            
-            /* Mengatur ulang margin pembatas (horizontal rule) agar lebih rapat */
-            hr { 
-                margin-top: 5px !important; 
-                margin-bottom: 5px !important; 
-            }
-            
-            /* Mengatur margin atas subheader agar tidak terlalu jauh ke bawah */
-            h3 { 
-                margin-top: 5px !important; 
-                margin-bottom: 10px !important; 
-            }
-        </style>
-    """, unsafe_allow_html=True)
+
 
     st.subheader("🎯 Risk Multiple")
     col_tabel1, col_tabel2 = st.columns([3, 1]) # [3, 1] berarti tabel hanya menempati 3/4 lebar layar
