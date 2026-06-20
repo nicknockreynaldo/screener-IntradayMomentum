@@ -66,7 +66,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         row = df.loc[idx]
         
         # Hitung P/L
-        profit_loss = (float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual) * 100
+        profit_loss = float((float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual) * 100)
         status = "Profit" if profit_loss > 0 else ("Loss" if profit_loss < 0 else "BE")
 
         # 2. Hitung Realized R
@@ -74,7 +74,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         realized_r = 0
         if risk_per_share != 0:
             realized_r = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share
-
+            realized_r = float(realized_r)
         # 3. Tentukan Result
         if profit_loss > 0: result = "Profit"
         elif profit_loss < 0: result = "Loss"
@@ -82,9 +82,9 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             
         # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
         data_jurnal = [
-            row['Trade_ID'], row['Tanggal'], row['Ticker'], 
-            lot_jual, row['Avg_Entry'], harga_jual, 
-            profit_loss, result, round(realized_r, 2)
+            str(row['Trade_ID']), str(row['Tanggal']), str(row['Ticker']), 
+            int(lot_jual), float(row['Avg_Entry']), float(harga_jual), 
+            profit_loss, str(result), round(float(realized_r), 2)
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
