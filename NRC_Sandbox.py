@@ -54,6 +54,39 @@ def update_seluruh_gsheet(worksheet_name, df):
     except Exception as e:
         return False, str(e)
         
+def proses_jual_posisi(trade_id, harga_jual, lot_jual):
+    try:
+        # Ambil baris data dari memori
+        df_active = st.session_state.df_active
+        row = df_active[df_active['Trade_ID'] == trade_id].iloc[0]
+        
+        # Hitung P/L
+        profit_loss = (float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual)
+        status = "Profit" if profit_loss > 0 else ("Loss" if profit_loss < 0 else "BE")
+        
+        # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
+        data_jurnal = [row['Trade_ID'], row['Ticker'], "Sell", row['Tanggal'], 
+                       lot_jual, harga_jual, profit_loss, status]
+        
+        # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
+        # Pastikan worksheet "Journal_Final" ada di GSheet Anda
+        wks_journal = sh.worksheet("Journal_Final") # Sesuaikan cara buka worksheet Anda
+        wks_journal.append_row(data_jurnal)
+        
+        # Update Sisa Lot di Active_Trades
+        sisa_lot = int(row['Lot']) - int(lot_jual)
+        
+        if sisa_lot > 0:
+            st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == trade_id, 'Lot'] = sisa_lot
+        else:
+            st.session_state.df_active = st.session_state.df_active[st.session_state.df_active['Trade_ID'] != trade_id]
+            
+        # Simpan perubahan ke GSheet (Active_Trades)
+        update_seluruh_gsheet("Active_Trades", st.session_state.df_active)
+        return True, "Sukses"
+    except Exception as e:
+        return False, str(e)
+
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
 
@@ -620,7 +653,7 @@ with tab_calc:
 # ==============================================================================
 
 with tab_active_trade:
-    st.header("⚡ Active Trade Management")
+    st.header("⚡ Trading Portfolio")
 
     # --- 1. SOLUSI ANTI-MEMBAL: Inisialisasi nomor versi key editor ---
     if 'editor_version' not in st.session_state:
@@ -649,8 +682,6 @@ with tab_active_trade:
     cols_to_hide = ['Jarak SL', 'Risk Multiple']
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
-
-    st.subheader("Live Position")
 
     # Inisialisasi key dinamis untuk data_editor
     dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
