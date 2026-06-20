@@ -541,7 +541,7 @@ with tab_calc:
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
 
-   st.markdown("""
+    st.markdown("""
         <style>
             /* Mengurangi spasi setelah Metrics Pink */
             div[data-testid="column"] { padding-bottom: 0px !important; }
