@@ -64,17 +64,20 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         df = st.session_state.df_active
         idx = df.index[df['Trade_ID'] == trade_id].tolist()[0]
         row = df.loc[idx]
-        
-        # Hitung P/L
-        profit_loss = float((float(harga_jual) - float(row['Avg_Entry'])) * float(lot_jual) * 100)
-        status = "Profit" if profit_loss > 0 else ("Loss" if profit_loss < 0 else "BE")
 
+        avg_entry = float(row['Avg_Entry'])
+        sl = float(row['SL'])
+        harga_jual = float(harga_jual)
+        gain_loss_pct = ((harga_jual - avg_entry) / avg_entry) * 100
+        profit_loss_rp = (harga_jual - avg_entry) * float(lot_jual) * 100
+        result = "Profit" if profit_loss_rp > 0 else ("Loss" if profit_loss_rp < 0 else "BE")
+        
         # 2. Hitung Realized R
         risk_per_share = float(row['Avg_Entry']) - float(row['SL'])
         realized_r = 0
         if risk_per_share != 0:
-            realized_r = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share
-            realized_r = float(realized_r)
+            realized_r = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
+            realized_r_str = f"{r_val:.2f}R"
         # 3. Tentukan Result
         if profit_loss > 0: result = "Profit"
         elif profit_loss < 0: result = "Loss"
@@ -88,11 +91,12 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             int(lot_jual),                  # D
             float(row['Avg_Entry']),        # E
             float(harga_jual),              # F
-            float(row['Jarak SL']),         # G 
-            float(row['Target']),           # H 
-            float(profit_loss),             # I
+            f"{gain_loss_pct:.2f}%",        # G: Gain/Loss
+            profit_loss_rp,                 # H: Profit/Loss (Rp)
+            str(row['Grade']),              # I
             str(result),                    # J
-            round(float(realized_r), 2)     # K
+            str(row['Risk Multiple']),      # K
+            round(float(realized_r_str))     # L
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
