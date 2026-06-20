@@ -651,58 +651,54 @@ with tab_active_trade:
 
     st.subheader("📝 Live Position Monitor")
 
-    # 3. Form Editor dengan Key Versi Dinamis
-    with st.form("editor_form"):
-        # Kita buat nama key berubah setiap kali berhasil sync (misal: v_0, v_1, v_2)
-        # Cara ini otomatis menghapus cache memori lama dengan aman tanpa memicu StreamlitAPIException
-        dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
+    # 3. Layout Tombol Sejajar (Diluar Form)
+    c_btn1, c_btn2 = st.columns([1, 1])
+
+    # Inisialisasi key dinamis untuk data_editor
+    dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
+    
+    # Data Editor
+    edited_df = st.data_editor(
+        df_clean,
+        column_config={
+            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+            "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+            "SL": st.column_config.NumberColumn("SL", disabled=True),
+            "Target": st.column_config.NumberColumn("Target", disabled=True),
+            "Lot": st.column_config.NumberColumn("Total Lot"),
+            "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key=dynamic_key
+    )
+
+    # 4. Fungsi Tombol Sync
+    if c_btn1.button("💾 Sync & Save Changes"):
+        # Ambil data langsung dari variabel tabel
+        updated_data = edited_df
         
-        edited_df = st.data_editor(
-            df_clean,
-            column_config={
-                "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
-                "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
-                "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
-                "SL": st.column_config.NumberColumn("SL", disabled=True),
-                "Target": st.column_config.NumberColumn("Target", disabled=True),
-                "Lot": st.column_config.NumberColumn("Total Lot"),
-                "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
-            },
-            hide_index=True,
-            use_container_width=True,
-            key=dynamic_key
-        )
-        submitted = st.form_submit_button("💾 Sync & Save Changes")
+        # Gabungkan ke master_df
+        master_df = st.session_state.df_active.copy()
+        for col in ['Lot', 'Avg_Entry']:
+            if col in updated_data.columns:
+                master_df[col] = updated_data[col]
         
-        if submitted:
-            # Ambil data langsung dari variabel tabel
-            updated_data = edited_df
-            
-            # Gabungkan ke master_df agar kolom tersembunyi tidak ikut hilang
-            master_df = st.session_state.df_active.copy()
-            for col in ['Lot', 'Avg_Entry']:
-                if col in updated_data.columns:
-                    master_df[col] = updated_data[col]
-            
-            master_df = master_df.fillna("")
+        master_df = master_df.fillna("")
 
-            # Kirim data ke GSheet
-            success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
-            if success:
-                # Update memori lokal data master
-                st.session_state.df_active = master_df
-                
-                # NAIKKAN VERSI KEY: Trik utama untuk mereset cache editor tanpa error
-                st.session_state.editor_version += 1
-                
-                st.success("Data berhasil di-sync!")
-                st.rerun() # Refresh halaman dengan key baru yang bersih total
-            else:
-                st.error(f"Gagal simpan ke GSheet: {msg}")
+        # Kirim data ke GSheet
+        success, msg = simpan_trade_ke_gsheet("Active_Trades", master_df)
+        if success:
+            st.session_state.df_active = master_df
+            st.session_state.editor_version += 1
+            st.success("Data berhasil di-sync!")
+            st.rerun() 
+        else:
+            st.error(f"Gagal simpan ke GSheet: {msg}")
 
-    c_btn1, c_btn2 = st.columns([1, 4]) # Kolom kecil untuk refresh, besar untuk space
-
-    if c_btn1.button("🔄 Refresh Data"):
+    # 5. Fungsi Tombol Refresh
+    if c_btn2.button("🔄 Refresh Data"):
         if 'df_active' in st.session_state:
             del st.session_state.df_active
         st.rerun()
