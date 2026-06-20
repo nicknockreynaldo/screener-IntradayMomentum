@@ -735,4 +735,24 @@ with tab_active_trade:
         else:
             st.error(f"Gagal simpan ke GSheet: {msg}")
 
-
+    st.markdown("---")
+    with st.expander("💸 Close/Sell Position"):
+        col1, col2, col3, col4 = st.columns(4)
+        
+        trade_list = st.session_state.df_active['Trade_ID'].tolist()
+        selected_trade = col1.selectbox("Pilih Trade ID", trade_list)
+        
+        # Ambil lot maksimal berdasarkan Trade ID yang dipilih
+        max_lot = int(st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == selected_trade, 'Lot'].values[0])
+        
+        sell_price = col2.number_input("Harga Jual", step=50, min_value=0)
+        sell_lot = col3.number_input("Lot Dijual", step=1, min_value=1, max_value=max_lot)
+        
+        if col4.button("🚀 Execute Sell", use_container_width=True):
+            success, msg = proses_jual_posisi(selected_trade, sell_price, sell_lot)
+            if success:
+                st.session_state.editor_version += 1 # Reset editor agar tabel fresh
+                st.success(f"Trade {selected_trade} terjual {sell_lot} lot!")
+                st.rerun()
+            else:
+                st.error(f"Gagal: {msg}")
