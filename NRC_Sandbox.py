@@ -82,9 +82,17 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             
         # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
         data_jurnal = [
-            str(row['Trade_ID']), str(row['Tanggal']), str(row['Ticker']), 
-            int(lot_jual), float(row['Avg_Entry']), float(harga_jual), 
-            profit_loss, str(result), round(float(realized_r), 2)
+            str(row['Trade_ID']),           # A
+            str(row['Tanggal']),            # B
+            str(row['Ticker']),             # C
+            int(lot_jual),                  # D
+            float(row['Avg_Entry']),        # E
+            float(harga_jual),              # F
+            float(row['Jarak SL']),         # G 
+            float(row['Target']),           # H 
+            float(profit_loss),             # I
+            str(result),                    # J
+            round(float(realized_r), 2)     # K
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
