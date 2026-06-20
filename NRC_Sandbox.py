@@ -490,8 +490,8 @@ with tab_calc:
     grade_in = c_g1.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
     risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
     RISK_PCT = c_g2.slider("Risk per Trade (%)", 0.1, 5.0, value=risk_map[grade_in], step=0.1) / 100
-    # --- INPUT SECTION (DIBUNGKUS FORM) ---
-    with st.form("input_form", clear_on_submit=False):
+
+    with st.container():
         c1, c2 = st.columns(2)
         MODAL = c1.number_input("Modal Trading (Rp)", value=10_000_000, step=1_000_000)
         c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
@@ -500,33 +500,40 @@ with tab_calc:
         entry_in = col_in2.number_input("Entry Price", value=6000)
         sl_in = col_in3.number_input("Stop Loss Price", value=5800)
         manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
-        
-        # Tombol Submit di dalam form
+
+    # 2. LOGIKA KALKULASI & VALIDASI SL < ENTRY
+    if sl_in >= entry_in:
+        st.error("⚠️ Stop Loss harus di bawah Entry Price!")
+        risk_amount, lot_max, risk_dist_pct, r_manual = 0, 0, 0, 0
+    else:
+        risk_amount = MODAL * RISK_PCT
+        risk_per_share = entry_in - sl_in
+        risk_dist_pct = (risk_per_share / entry_in) * 100
+        r_manual = (manual_tp - entry_in) / risk_per_share
+        lot_max = math.floor((risk_amount / risk_per_share) / 100)
+
+    # 3. FORM (Hanya untuk tombol submit)
+    with st.form("input_form", clear_on_submit=False):
         submitted = st.form_submit_button("➕ Tambah ke Daftar Pre-Trade")
+        if submitted:
+            if sl_in >= entry_in:
+                st.error("Input tidak valid!")
+            else:
+                new_row = pd.DataFrame([{
+                    "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
+                    "Ticker": ticker_in,
+                    "Lot": lot_max,
+                    "Entry": entry_in,
+                    "SL": sl_in,
+                    "Jarak SL": f"{risk_dist_pct:.2f}%",
+                    "Target": manual_tp,
+                    "R-Ratio": f"{r_manual:.2f}R",
+                    "Grade": grade_in,
+                    "Action": False
+                }])
+                st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
+                st.rerun()
 
-    # --- KALKULASI ---
-    risk_amount = MODAL * RISK_PCT
-    risk_per_share = entry_in - sl_in
-    risk_dist_pct = (risk_per_share / entry_in) * 100 if entry_in != 0 else 0
-    r_manual = (manual_tp - entry_in) / risk_per_share if risk_per_share != 0 else 0
-    lot_max = math.floor((risk_amount / risk_per_share) / 100) if risk_per_share != 0 else 0
-
-    # --- LOGIKA TAMBAH (JALANKAN KETIKA SUBMIT) ---
-    if submitted:
-        new_row = pd.DataFrame([{
-            "Tanggal": pd.Timestamp.now().strftime("%Y-%m-%d"),
-            "Ticker": ticker_in,
-            "Lot": lot_max,
-            "Entry": entry_in,
-            "SL": sl_in,
-            "Jarak SL": f"{risk_dist_pct:.2f}%",
-            "Target": manual_tp,
-            "R-Ratio": f"{r_manual:.2f}R",
-            "Grade": grade_in,
-            "Action": False
-        }])
-        st.session_state['my_trades'] = pd.concat([st.session_state['my_trades'], new_row], ignore_index=True)
-        st.rerun()
 
     # --- METRICS & SISA KODE (TETAP DI LUAR FORM) ---
     def style_metric_pink(label, value):
