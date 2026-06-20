@@ -646,7 +646,7 @@ with tab_active_trade:
 
     # 2. Sembunyikan kolom kalkulasi dari UI tampilan
     df_temp = st.session_state.df_active.copy()
-    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Grade']
+    cols_to_hide = ['Jarak SL', 'Risk Multiple']
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
 
@@ -666,6 +666,7 @@ with tab_active_trade:
             "Target": st.column_config.NumberColumn("Target", disabled=True),
             "Lot": st.column_config.NumberColumn("Total Lot"),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
+            "Grade": st.column_config.TextColumn("Grade", disabled=True),
         },
         hide_index=True,
         use_container_width=True,
