@@ -49,7 +49,7 @@ def update_seluruh_gsheet(worksheet_name, df):
         wks.clear()
         data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
         wks.update(range_name='A1', values=data_to_upload)
-        
+        df = df.astype(object)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
