@@ -485,18 +485,11 @@ with tab_calc:
         st.session_state['my_trades'] = pd.DataFrame(columns=[
             "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
         ])
-    if 'risk_val' not in st.session_state:
-        st.session_state['risk_val'] = 1.0
 
-    c_grade, c_slider = st.columns(2)
-    grade_in = c_grade.selectbox(
-        "Setup Grade", ["A", "B", "C", "D"], index=1, key='grade_key',
-        on_change=lambda: st.session_state.update({'risk_val': {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}[st.session_state.grade_key]})
-    )
-    RISK_PCT = c_slider.slider(
-        "Risk per Trade (%)", 0.1, 5.0, 
-        value=st.session_state['risk_val'], step=0.1, key='risk_slider_key'
-    ) / 100
+    c_g1, c_g2 = st.columns(2)
+    grade_in = c_g1.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
+    risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
+    RISK_PCT = c_g2.slider("Risk per Trade (%)", 0.1, 5.0, value=risk_map[grade_in], step=0.1) / 100
     # --- INPUT SECTION (DIBUNGKUS FORM) ---
     with st.form("input_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
