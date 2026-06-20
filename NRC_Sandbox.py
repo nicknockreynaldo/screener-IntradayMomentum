@@ -651,13 +651,10 @@ with tab_active_trade:
 
     st.subheader("📝 Live Position Monitor")
 
-    # 3. Layout Tombol Sejajar (Diluar Form)
-    c_btn1, c_btn2 = st.columns([1, 1])
-
     # Inisialisasi key dinamis untuk data_editor
     dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
     
-    # Data Editor
+    # 3. Data Editor
     edited_df = st.data_editor(
         df_clean,
         column_config={
@@ -674,9 +671,17 @@ with tab_active_trade:
         key=dynamic_key
     )
 
-    # 4. Fungsi Tombol Sync
-    if c_btn1.button("💾 Sync & Save Changes"):
-        # Ambil data langsung dari variabel tabel
+    # 4. Layout Tombol di bawah tabel (Refresh kiri, Sync kanan)
+    c_btn_left, c_btn_mid, c_btn_right = st.columns([1, 4, 1])
+
+    # Tombol Refresh di kolom paling kiri
+    if c_btn_left.button("🔄 Refresh Data", use_container_width=True):
+        if 'df_active' in st.session_state:
+            del st.session_state.df_active
+        st.rerun()
+
+    # Tombol Sync di kolom paling kanan
+    if c_btn_right.button("💾 Sync & Save Changes", use_container_width=True):
         updated_data = edited_df
         
         # Gabungkan ke master_df
@@ -697,8 +702,4 @@ with tab_active_trade:
         else:
             st.error(f"Gagal simpan ke GSheet: {msg}")
 
-    # 5. Fungsi Tombol Refresh
-    if c_btn2.button("🔄 Refresh Data"):
-        if 'df_active' in st.session_state:
-            del st.session_state.df_active
-        st.rerun()
+
