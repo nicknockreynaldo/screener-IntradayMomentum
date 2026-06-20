@@ -650,7 +650,7 @@ with tab_active_trade:
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
 
-    st.subheader("📝 Live Position")
+    st.subheader("Live Position")
 
     # Inisialisasi key dinamis untuk data_editor
     dynamic_key = f"active_trade_editor_v_{st.session_state.editor_version}"
