@@ -77,8 +77,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         realized_r = 0
         if risk_per_share != 0:
             r_val = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
-            realized_r_str = f"{r_val:.2f}R"
-        
+            
             
         # Siapkan data untuk Jurnal (sesuaikan urutan kolom jurnal Anda)
         data_jurnal = [
@@ -93,7 +92,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             str(row['Grade']),              # I
             str(result),                    # J
             str(row['Risk Multiple']),      # K
-            round(float(realized_r_str))     # L
+            f"{r_val:.2f}R"                 # L
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
