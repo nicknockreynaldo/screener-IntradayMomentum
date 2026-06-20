@@ -700,8 +700,8 @@ with tab_active_trade:
             else:
                 st.error(f"Gagal simpan ke GSheet: {msg}")
 
-            c_btn1, c_btn2 = st.columns([1, 4]) # Kolom kecil untuk refresh, besar untuk space
-    
+        c_btn1, c_btn2 = st.columns([1, 4]) # Kolom kecil untuk refresh, besar untuk space
+
         if c_btn1.button("🔄 Refresh Data"):
             if 'df_active' in st.session_state:
                 del st.session_state.df_active
