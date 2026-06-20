@@ -75,7 +75,7 @@ if 'memori_saham' not in st.session_state:
 
 # --- KONTROL MENU UTAMA (TABS) ---
 # DITAMBAHKAN tab_calc
-tab_screener, tab_watchlist, tab_calc, tab_active_trade = st.tabs(["🚀 Screener", "📋 Watchlist", "🧮 Calculator", "📊 Portfolio"])
+tab_screener, tab_watchlist, tab_calc, tab_active_trade = st.tabs(["🚀 Screener", "📋 Watchlist", "🧮 Risk & Sizing", "📊 Portfolio"])
 
 # ==============================================================================
 # TAB 1: CODE ASLI SANDBOX (DIPERTAHANKAN SEPENUHNYA)
