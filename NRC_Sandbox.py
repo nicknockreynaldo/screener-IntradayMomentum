@@ -672,13 +672,6 @@ with tab_active_trade:
             use_container_width=True,
             key=dynamic_key
         )
-
-        if st.button("🔄 Refresh"):
-            # Hapus data lama agar dipaksa tarik ulang
-            if 'df_active' in st.session_state:
-                del st.session_state.df_active
-            st.rerun()
-        
         submitted = st.form_submit_button("💾 Sync & Save Changes")
         
         if submitted:
@@ -706,3 +699,10 @@ with tab_active_trade:
                 st.rerun() # Refresh halaman dengan key baru yang bersih total
             else:
                 st.error(f"Gagal simpan ke GSheet: {msg}")
+
+            c_btn1, c_btn2 = st.columns([1, 4]) # Kolom kecil untuk refresh, besar untuk space
+    
+        if c_btn1.button("🔄 Refresh Data"):
+            if 'df_active' in st.session_state:
+                del st.session_state.df_active
+            st.rerun()
