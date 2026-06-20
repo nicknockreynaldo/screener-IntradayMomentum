@@ -541,7 +541,18 @@ with tab_calc:
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
 
-    st.markdown("---")  
+   st.markdown("""
+        <style>
+            /* Mengurangi spasi setelah Metrics Pink */
+            div[data-testid="column"] { padding-bottom: 0px !important; }
+            
+            /* Mengurangi spasi sebelum subheader Risk Multiple */
+            h3 { margin-top: -10px !important; margin-bottom: 5px !important; }
+            
+            /* Jika ada garis pemisah (horizontal rule), buat lebih tipis spasinya */
+            hr { margin-top: 5px !important; margin-bottom: 5px !important; }
+        </style>
+    """, unsafe_allow_html=True)
     
     st.subheader("🎯 Risk Multiple")
     col_tabel1, col_tabel2 = st.columns([3, 1]) # [3, 1] berarti tabel hanya menempati 3/4 lebar layar
