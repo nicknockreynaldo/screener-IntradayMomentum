@@ -485,21 +485,23 @@ with tab_calc:
         st.session_state['my_trades'] = pd.DataFrame(columns=[
             "Trade_ID", "Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"
         ])
+    if 'risk_val' not in st.session_state:
+        st.session_state['risk_val'] = 1.0
 
+    c_grade, c_slider = st.columns(2)
+    grade_in = c_grade.selectbox(
+        "Setup Grade", ["A", "B", "C", "D"], index=1, key='grade_key',
+        on_change=lambda: st.session_state.update({'risk_val': {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}[st.session_state.grade_key]})
+    )
+    RISK_PCT = c_slider.slider(
+        "Risk per Trade (%)", 0.1, 5.0, 
+        value=st.session_state['risk_val'], step=0.1, key='risk_slider_key'
+    ) / 100
     # --- INPUT SECTION (DIBUNGKUS FORM) ---
     with st.form("input_form", clear_on_submit=False):
         c1, c2 = st.columns(2)
         MODAL = c1.number_input("Modal Trading (Rp)", value=10_000_000, step=1_000_000)
         c1.caption(f"Modal: Rp {f'{MODAL:,.0f}'.replace(',', '.')}")
-        grade_in = c2.selectbox("Setup Grade", ["A", "B", "C", "D"], index=1)
-        risk_map = {"A": 1.5, "B": 1.0, "C": 0.5, "D": 0.2}
-        RISK_PCT_VAL = c2.slider(
-            "Risk per Trade (%)", 
-            0.1, 5.0, 
-            value=risk_map[grade_in], 
-            step=0.1
-        )
-        RISK_PCT = RISK_PCT_VAL / 100
         col_in1, col_in2, col_in3, col_in4 = st.columns(4)
         ticker_in = col_in1.text_input("Ticker", "BBCA").upper()
         entry_in = col_in2.number_input("Entry Price", value=6000)
