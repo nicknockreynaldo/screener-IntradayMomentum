@@ -501,10 +501,15 @@ with tab_calc:
         sl_in = col_in3.number_input("Stop Loss Price", value=5800)
         manual_tp = col_in4.number_input("Target Manual", value=6300, step=1, format="%d")
 
-    # 2. LOGIKA KALKULASI & VALIDASI SL < ENTRY
+    # 2. LOGIKA KALKULASI & VALIDASI SL < ENTRY dan TP harus > entry
+    risk_amount, lot_max, risk_dist_pct, r_manual = 0, 0, 0, 0
+    risk_per_share = 0
+    
     if sl_in >= entry_in:
         st.error("⚠️ Stop Loss harus di bawah Entry Price!")
         risk_amount, lot_max, risk_dist_pct, r_manual = 0, 0, 0, 0
+    elif manual_tp <= entry_in:
+        st.error("⚠️ Target Manual harus di atas Entry Price!")
     else:
         risk_amount = MODAL * RISK_PCT
         risk_per_share = entry_in - sl_in
@@ -548,19 +553,21 @@ with tab_calc:
     with m1: style_metric_pink("Risk Amount", f"Rp{int(risk_amount):,.0f}")
     with m2: style_metric_pink("Max Lot", f"{lot_max} Lot")
     with m3: style_metric_pink("Jarak SL", f"{risk_dist_pct:.2f}%")
-
     st.markdown("---")
-    # --- TABEL VERTIKAL (RINGKAS) ---
+  
     st.subheader("🎯 Risk Multiple")
     col_tabel1, col_tabel2 = st.columns([3, 1]) # [3, 1] berarti tabel hanya menempati 3/4 lebar layar
     
     with col_tabel1:
-        df_target_ringkas = pd.DataFrame({
-            "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
-            "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
-            "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-            "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
-        })
+        if risk_per_share > 0:
+            df_target_ringkas = pd.DataFrame({
+                "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
+                "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
+                "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
+                "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
+            })
+        else:
+            df_target_ringkas = pd.DataFrame({"1.5R": ["-"], "2R": ["-"], "3R": ["-"], "Manual TP": ["-"]})
         st.table(df_target_ringkas)
 
     st.subheader("📋 Daftar Pre-Trade")
