@@ -774,7 +774,7 @@ with tab_active_trade:
         default_avg = int(float(row_data['Avg_Entry']))
         
         sell_price = col2.number_input("Harga Jual", step=50, value=default_avg, min_value=1)
-        sell_lot = col3.number_input("Lot Dijual", step=1, min_value=1, max_value=max_lot)
+        sell_lot = col3.number_input("Lot Dijual", step=1, value=max_lot, max_value=max_lot)
 
         col4.write("")
         col4.write("")
