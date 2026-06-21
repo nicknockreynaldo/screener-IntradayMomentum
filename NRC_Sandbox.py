@@ -139,7 +139,7 @@ if 'memori_saham' not in st.session_state:
 tab_screener, tab_watchlist, tab_calc, tab_active_trade = st.tabs(["🚀 Screener", "📋 Watchlist", "🧮 Risk & Sizing", "📊 Portfolio"])
 
 # ==============================================================================
-# TAB 1: CODE ASLI SANDBOX (DIPERTAHANKAN SEPENUHNYA)
+# TAB 1: SCREENER 
 # ==============================================================================
 with tab_screener:
     # Sidebar Parameter (Khusus untuk Tab Screener)
@@ -676,9 +676,10 @@ with tab_calc:
         if not st.session_state['my_trades'].empty:
             for _, row in st.session_state['my_trades'].iterrows():
                 trade_id = f"{int(time.time())}.{row['Ticker']}"
-                data_list = [trade_id, row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']]
-                simpan_trade_ke_gsheet("Plan_PreTrade", data_list)
-                simpan_trade_ke_gsheet("Active_Trades", data_list)
+                data_list_pre = [trade_id, row['Tanggal'], row['Ticker'], row['Lot'], row['Entry'], row['SL'], row['Jarak SL'], row['Target'], row['R-Ratio'], row['Grade']]
+                data_list_active = data_list_pre + [row['Lot']]
+                simpan_trade_ke_gsheet("Plan_PreTrade", data_list_pre)
+                simpan_trade_ke_gsheet("Active_Trades", data_list_active)
             st.success("Trade berhasil dikonfirmasi!")
             st.session_state['my_trades'] = pd.DataFrame(columns=["Tanggal", "Ticker", "Lot", "Entry", "SL", "Jarak SL", "Target", "R-Ratio", "Grade", "Action"])
             st.rerun()
