@@ -748,8 +748,8 @@ with tab_active_trade:
         # Gabungkan ke master_df
         master_df = st.session_state.df_active.copy()
         kolom_untuk_update = ['Lot', 'Avg_Entry', 'Initial_Lot']
-        for col in kolom_untuk_update: 
-            if col in updated_data.columns:
+        for col in updated_data.columns:
+            if col in master_df.columns:
                 master_df[col] = updated_data[col]
         
         master_df = master_df.fillna("")
