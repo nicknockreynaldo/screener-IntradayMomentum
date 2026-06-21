@@ -5,6 +5,7 @@ import warnings
 import math
 import gspread
 import time
+import datetime
 
 # --- FUNGSI GOOGLE SHEETS ---
 
@@ -72,7 +73,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         gain_loss_pct = ((harga_jual - avg_entry) / avg_entry) * 100
         profit_loss_rp = (harga_jual - avg_entry) * float(lot_jual) * 100
         result = "Profit" if profit_loss_rp > 0 else ("Loss" if profit_loss_rp < 0 else "BE")
-        
+        tanggal_jual = datetime.date.today().strftime('%Y-%m-%d')
         # 2. Hitung Realized R
         risk_per_share = float(row['Avg_Entry']) - float(row['SL'])
         realized_r = 0
@@ -94,7 +95,8 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             str(row['Grade']),              # J
             str(result),                    # K
             str(row['Risk Multiple']),      # L
-            f"{r_val:.2f}R"                 # M
+            f"{r_val:.2f}R",                # M
+            str(row['tanggal_jual'])        # N
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
