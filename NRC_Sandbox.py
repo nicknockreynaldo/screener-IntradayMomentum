@@ -909,8 +909,11 @@ with tab_journal:
             
             # Menampilkan kolom detail termasuk 'Realized R'
             st.dataframe(
-                detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)': '{:,.0f}', 'Realized R']], 
-                use_container_width=True, hide_index=True
+                detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)', 'Realized R']].style.format({
+                    'Profit/Loss (Rp)': '{:,.0f}'
+                }), 
+                use_container_width=True, 
+                hide_index=True
             )
         else:
             st.info("Klik pada salah satu baris di tabel ringkasan untuk melihat detail transaksi.")
