@@ -856,60 +856,60 @@ with tab_journal:
     df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
+        # 1. Konversi Tipe Data (PENTING: Harus dilakukan di awal)
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
-        
-        # 1. Formatting Bulan untuk Dropdown (contoh: Juni-2026)
-        # Membuat kolom helper untuk tampilan
-        bulan_map = {1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni', 
-                     7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'}
-        
         df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
-        df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.month.map(bulan_map) + '-' + df_raw['Tanggal'].dt.year.astype(str)
         
-        # Mengurutkan bulan agar terbaru di atas
-        pilihan_bulan = df_raw[['Bulan_Key', 'Bulan_Display']].drop_duplicates().sort_values('Bulan_Key', ascending=False)
+        # Bersihkan Realized R (Hapus 'R')
+        df_raw['Realized_R_Val'] = df_raw['Realized R'].astype(str).str.replace('R', '', regex=False).astype(float)
         
-        # Membuat kolom untuk memperkecil lebar selectbox
-        col_filter, _ = st.columns([1, 3])
-        selected_month_display = col_filter.selectbox("Pilih Bulan", options=pilihan_bulan['Bulan_Display'].tolist())
+        # Konversi ke Numerik agar tidak terjadi string concatenation
+        df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0)
+        df_raw['Profit/Loss (Rp)'] = pd.to_numeric(df_raw['Profit/Loss (Rp)'], errors='coerce').fillna(0)
+
+        # 2. Filter Bulan
+        df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.strftime('%B-%Y')
+        pilihan_bulan = sorted(df_raw['Bulan_Display'].unique(), reverse=True)
         
-        # Filter berdasarkan pilihan
-        selected_key = pilihan_bulan[pilihan_bulan['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
+        col1, _ = st.columns([1, 3])
+        selected_month_display = col1.selectbox("Pilih Bulan", options=pilihan_bulan)
+        
+        # Mapping untuk filter balik ke key (karena drop-down string)
+        selected_key = df_raw[df_raw['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
         df_filtered = df_raw[df_raw['Bulan_Key'] == selected_key].copy()
-        
-        # Agregasi data
+
+        # 3. AGREGASI (Gunakan kolom yang sudah numerik)
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
             'Profit/Loss (Rp)': 'sum',
-            'Realized R': 'first', # Disesuaikan dengan struktur data Anda
+            'Realized_R_Val': 'sum',
             'Grade': 'first'
         })
         
-        # 2. Tabel Utama dengan Fitur Seleksi
         st.subheader("Summary per Trade")
         
-        # Tampilkan tabel dan tangkap aksi klik user
+        # Tampilkan tabel utama
         event = st.dataframe(
-            df_agg, 
+            df_agg.style.format({'Lot': '{:.0f}', 'Profit/Loss (Rp)': '{:,.0f}', 'Realized_R_Val': '{:.2f}R'}), 
             use_container_width=True, 
             selection_mode="single-row", 
-            on_select="rerun" # Otomatis refresh saat diklik
+            on_select="rerun"
         )
         
-        # 3. Logika Menampilkan Detail (Hanya jika ada baris yang diklik)
+        # 4. Detail Transaksi
         if event.selection['rows']:
-            # Ambil Trade_ID dari baris yang dipilih
             selected_row_idx = event.selection['rows'][0]
             selected_trade_id = df_agg.index[selected_row_idx]
             
             st.divider()
             st.subheader(f"Detail Transaksi: {selected_trade_id}")
             
-            # Filter data detail berdasarkan ID yang dipilih
             detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
+            
+            # Menampilkan kolom detail termasuk 'Realized R'
             st.dataframe(
-                detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)']], 
+                detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)', 'Realized R']], 
                 use_container_width=True, hide_index=True
             )
         else:
