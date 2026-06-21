@@ -886,6 +886,28 @@ with tab_journal:
             'Realized_R_Val': 'sum',
             'Grade': 'first'
         })
+
+        sum_r = df_agg['Realized_R_Val'].sum()
+        total_lot = df_agg['Lot'].sum()
+        weighted_r = (df_agg['Realized_R_Val'] * df_agg['Lot']).sum() / total_lot if total_lot != 0 else 0
+        avg_r = df_agg['Realized_R_Val'].mean()
+        
+        win_trades = df_agg[df_agg['Realized_R_Val'] > 0]
+        loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
+        
+        win_rate = len(win_trades) / len(df_agg) if len(df_agg) > 0 else 0
+        avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
+        avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
+        expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_m1.metric("Sum R", f"{sum_r:.2f}")
+        col_m2.metric("Weighted Sum R", f"{weighted_r:.2f}")
+        col_m3.metric("Average R", f"{avg_r:.2f}")
+        col_m4.metric("Expectancy", f"{expectancy:.2f}")
+        st.markdown("---")
+
+
         
         st.subheader("Summary per Trade")
         
