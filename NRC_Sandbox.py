@@ -122,7 +122,8 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
 def load_journal_data():
     # Mengambil data dari GSheet
     df = tarik_data_dari_gsheet("Journal_Final")
-    
+    st.write("Daftar kolom yang ditemukan di GSheet:")
+    st.write(df.columns.tolist())
     # Cleaning data agar siap dihitung
     # Menghapus 'R' dari kolom 'Realized R' dan mengubah jadi angka
     df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
