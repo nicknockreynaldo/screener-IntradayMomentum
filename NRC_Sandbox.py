@@ -657,8 +657,18 @@ with tab_calc:
     st.subheader("📋 Daftar Pre-Trade")
     edited_df = st.data_editor(
         st.session_state['my_trades'],
-        column_config={"Action": st.column_config.CheckboxColumn("Action", default=False)},
-        use_container_width=True, hide_index=True
+           column_config={
+            "Trade_ID": st.column_config.TextColumn("Trade ID", disabled=True),
+            "Tanggal": st.column_config.TextColumn("Tanggal", disabled=True),
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True),
+            "Lot": st.column_config.NumberColumn("Lot", disabled=True),
+            "Entry": st.column_config.NumberColumn("Entry", disabled=True),
+            "SL": st.column_config.NumberColumn("SL", disabled=True),
+            "Jarak SL": st.column_config.TextColumn("Jarak SL", disabled=True),
+            "Target": st.column_config.NumberColumn("Target", disabled=True),
+            "R-Ratio": st.column_config.TextColumn("R-Ratio", disabled=True),
+            "Grade": st.column_config.TextColumn("Grade", disabled=True),
+            use_container_width=True, hide_index=True
     )
     
     c_act1, c_act2 = st.columns(2)
