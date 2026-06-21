@@ -753,7 +753,10 @@ with tab_active_trade:
                 master_df[col] = updated_data[col]
         
         master_df = master_df.fillna("")
-
+        st.write("--- DEBUG DATA ---")
+        st.write("Kolom yang ada di master_df:", master_df.columns.tolist())
+        st.write("Preview data Initial_Lot:", master_df[['Trade_ID', 'Initial_Lot']].head())
+        
         # Kirim data ke GSheet
         success, msg = update_seluruh_gsheet("Active_Trades", master_df)
         if success:
