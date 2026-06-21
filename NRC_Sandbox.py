@@ -124,8 +124,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
 def load_journal_data():
     # Mengambil data dari GSheet
     df = tarik_data_dari_gsheet("Journal_Final")
-    st.write("Daftar kolom yang ditemukan di GSheet:")
-    st.write(df.columns.tolist())
+   
     # Cleaning data agar siap dihitung
     # Menghapus 'R' dari kolom 'Realized R' dan mengubah jadi angka
     df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
@@ -852,34 +851,37 @@ with tab_active_trade:
 # ==============================================================================
 
 with tab_journal:
-    st.header("📊 Performance Dashboard")
-    df = load_journal_data()
+    st.header("📋 Trading Journal")
+    df_journal = tarik_data_dari_gsheet("Journal_Final")
     
-    # Perhitungan Metrik
-    total_trades = len(df)
-    total_profit = df['Profit/Loss (Rp)'].sum()
-    win_rate = (len(df[df['Result'] == 'Profit']) / total_trades) * 100
-    avg_r = df['Realized_R_Val'].mean()
-    
-    # Layout Dashboard
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Trades", total_trades)
-    col2.metric("Win Rate", f"{win_rate:.1f}%")
-    col3.metric("Avg R-Multiple", f"{avg_r:.2f}R")
-    col4.metric("Total Profit", f"Rp{total_profit:,.0f}")
-
-    st.subheader("💡 Analysis: Exit Reasons")
-    
-    # Grouping berdasarkan Kategori
-    analysis_df = df.groupby('Kategori').agg({
-        'Trade_ID': 'count', 
-        'Profit/Loss (Rp)': 'sum',
-        'Realized_R_Val': 'mean'
-    }).rename(columns={'Trade_ID': 'Count'})
-    
-    st.dataframe(analysis_df, use_container_width=True)
-    
-    # Visualisasi sederhana (opsional, menggunakan Bar Chart)
-    st.bar_chart(analysis_df['Count'])
-
+   if not df_journal.empty:
+        # 2. Mapping kolom agar tampilannya persis seperti sheet manual Anda
+        # Format: { 'Kolom_Asli': 'Nama_Tampilan' }
+        mapping_kolom = {
+            'Ticker': 'Quote',
+            'Lot': 'Shares',
+            'Avg. Buy Price': 'Avg. Buy',
+            'Sell Price': 'Avg. Sell',
+            'Profit/Loss (Rp)': 'Profit / Loss (Rp)',
+            'Gain / Loss': 'Gain/Loss(%)',
+            'Realized R': 'Realized R'
+        }
+        
+        # Pilih hanya kolom yang ingin ditampilkan dan rename
+        # Pastikan kolom-kolom ini ada di DataFrame Anda
+        try:
+            df_display = df_journal[list(mapping_kolom.keys())].rename(columns=mapping_kolom)
+            
+            # 3. Tampilkan tabel
+            st.dataframe(df_display, use_container_width=True)
+            
+            # Tampilkan total profit di bawah tabel agar mirip sheet manual
+            total_profit = df_journal['Profit/Loss (Rp)'].astype(float).sum()
+            st.metric("Total Profit (Rp)", f"Rp{total_profit:,.0f}")
+            
+        except KeyError as e:
+            st.error(f"Kolom tidak ditemukan di sheet: {e}. Pastikan nama kolom di Google Sheet sama persis.")
+            st.write("Kolom yang tersedia saat ini:", df_journal.columns.tolist())
+    else:
+        st.info("Data Journal_Final kosong atau belum bisa diakses.")
 
