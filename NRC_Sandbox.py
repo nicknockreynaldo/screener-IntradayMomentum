@@ -852,9 +852,7 @@ with tab_active_trade:
 
 with tab_journal:
     st.header("📋 Trading Journal")
-    df_journal = tarik_data_dari_gsheet("Journal_Final")
-    
-    idf_raw = tarik_data_dari_gsheet("Journal_Final")
+    df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
         # Konversi Tanggal ke format datetime
