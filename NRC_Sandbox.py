@@ -847,75 +847,95 @@ with tab_active_trade:
                 else:
                     st.error(f"Gagal: {msg}")
 # ==============================================================================
-# TAB 5: JOURNAL
+# TAB 5: JOURNAL (Versi Agregasi/Opsi 1)
 # ==============================================================================
 
 with tab_journal:
     st.header("📋 Trading Journal")
+    
+    # 1. Tarik Data
     df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
-        # Konversi Tanggal ke format datetime
+        # Konversi tipe data agar bisa diproses
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
+        df_raw['Bulan'] = df_raw['Tanggal'].dt.to_period('M')
+        
+        # Bersihkan data (Wajib dilakukan sebelum agregasi)
+        df_raw['Realized_R_Val'] = df_raw['Realized R'].astype(str).str.replace('R', '').astype(float)
+        df_raw['Profit/Loss (Rp)'] = pd.to_numeric(df_raw['Profit/Loss (Rp)'], errors='coerce').fillna(0)
+        df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0).astype(int)
         
         # 2. Filter Berdasarkan Bulan
-        df_raw['Bulan'] = df_raw['Tanggal'].dt.to_period('M')
         pilihan_bulan = sorted(df_raw['Bulan'].unique(), reverse=True)
         selected_month = st.selectbox("Pilih Bulan", options=pilihan_bulan)
         
-        # Filter DataFrame
-        df = df_raw[df_raw['Bulan'] == selected_month].copy()
+        # Filter DataFrame mentah
+        df_filtered = df_raw[df_raw['Bulan'] == selected_month].copy()
         
-        # Pastikan data Realized R adalah numerik (bersihkan 'R')
-        df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
-        df['Lot'] = pd.to_numeric(df['Lot']).fillna(0).astype(int)
-        df['Profit/Loss (Rp)'] = pd.to_numeric(df['Profit/Loss (Rp)'])
+        # 3. AGREGASI: Kelompokkan berdasarkan Trade_ID
+        df_agg = df_filtered.groupby('Trade_ID').agg({
+            'Ticker': 'first',
+            'Lot': 'sum',
+            'Profit/Loss (Rp)': 'sum',
+            'Realized_R_Val': 'sum',
+            'Grade': 'first'
+        })
         
-        # 3. Hitung 4 Kalkulasi (Metrik)
-        sum_r = df['Realized_R_Val'].sum()
-        # Weighted Sum R: R dikali Lot, dibagi total Lot
-        weighted_r = (df['Realized_R_Val'] * df['Lot']).sum() / df['Lot'].sum() if df['Lot'].sum() != 0 else 0
-        avg_r = df['Realized_R_Val'].mean()
-        # Expectancy: (WinRate * Avg Win) - (LossRate * Avg Loss)
-        win_trades = df[df['Realized_R_Val'] > 0]
-        loss_trades = df[df['Realized_R_Val'] < 0]
-        win_rate = len(win_trades) / len(df) if len(df) > 0 else 0
-        avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
-        avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
-        expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+        # 4. Hitung Metrik (Berdasarkan data yang sudah diabstraksi/agregasi)
+        sum_r = df_agg['Realized_R_Val'].sum()
+        avg_r = df_agg['Realized_R_Val'].mean()
+        win_trades = df_agg[df_agg['Realized_R_Val'] > 0]
+        loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
+        win_rate = (len(win_trades) / len(df_agg)) * 100 if len(df_agg) > 0 else 0
+        
+        # Expectancy sederhana (Average R)
+        expectancy = df_agg['Realized_R_Val'].mean()
 
         # Layout Metrik
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("Sum R", f"{sum_r:.2f}")
-        col_m2.metric("Weighted Sum R", f"{weighted_r:.2f}")
-        col_m3.metric("Average R", f"{avg_r:.2f}")
-        col_m4.metric("Expectancy", f"{expectancy:.2f}")
+        col_m1.metric("Sum R", f"{sum_r:.2f}R")
+        col_m2.metric("Win Rate", f"{win_rate:.1f}%")
+        col_m3.metric("Average R", f"{avg_r:.2f}R")
+        col_m4.metric("Expectancy", f"{expectancy:.2f}R")
         
         st.divider()
 
-        # 4. Tampilkan Tabel dengan Format Ribuan
-        # Mapping untuk tampilan tabel
-        mapping_kolom = {
+        # 5. Tampilkan Tabel Ringkasan (Summary)
+        st.subheader("Summary per Trade")
+        
+        # Mapping kolom untuk tampilan
+        mapping_display = {
             'Ticker': 'Quote',
             'Lot': 'Lot',
-            'Avg. Buy Price': 'Avg. Buy',
-            'Sell Price': 'Avg. Sell',
             'Profit/Loss (Rp)': 'Profit / Loss (Rp)',
-            'Gain / Loss': 'Gain/Loss(%)',
-            'Realized R': 'Realized R',
+            'Realized_R_Val': 'Realized R',
             'Grade': 'Grade'
-         }
+        }
         
-        df_display = df[list(mapping_kolom.keys())].rename(columns=mapping_kolom)
+        df_display = df_agg.rename(columns=mapping_display)
         
-        # Format ribuan untuk Profit / Loss
         st.dataframe(
-            df_display.style.format({'Profit / Loss (Rp)': '{:,.0f}'}), 
+            df_display.style.format({'Profit / Loss (Rp)': '{:,.0f}', 'Realized R': '{:.2f}R'}), 
             use_container_width=True
         )
-        
+
+        # 6. Detail View (Expander untuk melihat sub-transaksi per Trade_ID)
+        with st.expander("🔍 Lihat Detail Transaksi per Trade"):
+            # Loop unik trade_id yang ada di bulan ini
+            for trade_id in df_agg.index:
+                # Ambil data asli untuk ID ini
+                detail = df_filtered[df_filtered['Trade_ID'] == trade_id]
+                
+                st.write(f"**Trade ID: {trade_id}**")
+                # Tampilkan tabel detail (tanpa index agar bersih)
+                st.dataframe(
+                    detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)']], 
+                    use_container_width=True, hide_index=True
+                )
+
         # Total Profit Bulanan
-        total_profit = df['Profit/Loss (Rp)'].sum()
+        total_profit = df_agg['Profit/Loss (Rp)'].sum()
         st.metric("Total Profit Bulanan (Rp)", f"Rp{total_profit:,.0f}")
         
     else:
