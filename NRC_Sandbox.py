@@ -868,9 +868,9 @@ with tab_journal:
         
         # Pastikan data Realized R adalah numerik (bersihkan 'R')
         df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
-        df['Lot'] = df['Lot'].astype(float)
+        df['Lot'] = pd.to_numeric(df['Lot']).fillna(0).astype(int)
         df['Profit/Loss (Rp)'] = pd.to_numeric(df['Profit/Loss (Rp)'])
-
+        
         # 3. Hitung 4 Kalkulasi (Metrik)
         sum_r = df['Realized_R_Val'].sum()
         # Weighted Sum R: R dikali Lot, dibagi total Lot
@@ -897,13 +897,14 @@ with tab_journal:
         # Mapping untuk tampilan tabel
         mapping_kolom = {
             'Ticker': 'Quote',
-            'Lot': 'Shares',
+            'Lot': 'Lot',
             'Avg. Buy Price': 'Avg. Buy',
             'Sell Price': 'Avg. Sell',
             'Profit/Loss (Rp)': 'Profit / Loss (Rp)',
             'Gain / Loss': 'Gain/Loss(%)',
-            'Realized R': 'Realized R'
-        }
+            'Realized R': 'Realized R',
+            'Grade': 'Grade'
+         }
         
         df_display = df[list(mapping_kolom.keys())].rename(columns=mapping_kolom)
         
