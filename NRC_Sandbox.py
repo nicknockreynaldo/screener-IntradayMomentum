@@ -771,8 +771,9 @@ with tab_active_trade:
         # Ambil lot maksimal berdasarkan Trade ID yang dipilih
         row_data = st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == selected_trade].iloc[0]
         max_lot = int(row_data['Lot'])
+        default_avg = float(row['Avg_Entry'])
         
-        sell_price = col2.number_input("Harga Jual", step=50, min_value=0)
+        sell_price = col2.number_input("Harga Jual", step=50, value=default_avg, min_value=1)
         sell_lot = col3.number_input("Lot Dijual", step=1, min_value=1, max_value=max_lot)
 
         col4.write("")
