@@ -85,15 +85,16 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             str(row['Trade_ID']),           # A
             str(row['Tanggal']),            # B
             str(row['Ticker']),             # C
-            f"{int(lot_jual)} ({pct_dijual:.1f}%)", # Lot + Persentase
-            float(row['Avg_Entry']),        # E
-            float(harga_jual),              # F
-            f"{gain_loss_pct:.2f}%",        # G: Gain/Loss
-            profit_loss_rp,                 # H: Profit/Loss (Rp)
-            str(row['Grade']),              # I
-            str(result),                    # J
-            str(row['Risk Multiple']),      # K
-            f"{r_val:.2f}R"                 # L
+            int(lot_jual),                  # D: Lot_Dijual (ANGKA MURNI)
+            f"{pct_dijual:.1f}%",           # E: Persen_Lot (KETERANGAN)
+            float(row['Avg_Entry']),        # F
+            float(harga_jual),              # G
+            f"{gain_loss_pct:.2f}%",        # H: Gain/Loss
+            profit_loss_rp,                 # I: Profit/Loss (Rp)
+            str(row['Grade']),              # J
+            str(result),                    # K
+            str(row['Risk Multiple']),      # L
+            f"{r_val:.2f}R"                 # M
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
@@ -746,7 +747,8 @@ with tab_active_trade:
         
         # Gabungkan ke master_df
         master_df = st.session_state.df_active.copy()
-        for col in ['Lot', 'Avg_Entry']:
+        kolom_untuk_update = ['Lot', 'Avg_Entry', 'Initial_Lot']
+        for col in kolom_untuk_update: 
             if col in updated_data.columns:
                 master_df[col] = updated_data[col]
         
