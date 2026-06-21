@@ -854,7 +854,7 @@ with tab_journal:
     st.header("📋 Trading Journal")
     df_journal = tarik_data_dari_gsheet("Journal_Final")
     
-   if not df_journal.empty:
+    if not df_journal.empty:
         # 2. Mapping kolom agar tampilannya persis seperti sheet manual Anda
         # Format: { 'Kolom_Asli': 'Nama_Tampilan' }
         mapping_kolom = {
