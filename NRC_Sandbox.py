@@ -76,6 +76,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
         tanggal_jual = datetime.date.today().strftime('%Y-%m-%d')
         # 2. Hitung Realized R
         risk_per_share = float(row['Avg_Entry']) - float(row['SL'])
+        r_val = 0
         realized_r = 0
         if risk_per_share != 0:
             r_val = (float(harga_jual) - float(row['Avg_Entry'])) / risk_per_share 
@@ -96,7 +97,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
             str(result),                    # K
             str(row['Risk Multiple']),      # L
             f"{r_val:.2f}R",                # M
-            str(row['tanggal_jual']),       # N
+            str(tanggal_jual),              # N
             str(alasan_final)               # O
         ]
         
