@@ -24,19 +24,21 @@ def simpan_trade_ke_gsheet(worksheet_name, data_list):
     except Exception as e:
         return False, str(e)
 
-def tarik_data_dari_gsheet(nama_tab):
+def tarik_data_dari_gsheet(worksheet_name):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
         
         # Ganti sh.sheet1 dengan ini agar spesifik per tab
-        wks = sh.worksheet("Active_Trades") 
+        worksheet = sh.worksheet(worksheet_name)
+        data = worksheet.get_all_values()
         
-        data = wks.get_all_records()
-        return pd.DataFrame(data)
+        if len(data) > 0:
+            return pd.DataFrame(data[1:], columns=data[0])
+        return pd.DataFrame()
     except Exception as e:
-        st.error(f"Gagal tarik data dari sheet {nama_tab}: {e}")
+        st.error(f"Error saat tarik data '{worksheet_name}': {e}")
         return pd.DataFrame()
         
 def update_seluruh_gsheet(worksheet_name, df):
