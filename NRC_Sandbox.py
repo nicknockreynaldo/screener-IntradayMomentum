@@ -854,9 +854,49 @@ with tab_journal:
     st.header("📋 Trading Journal")
     df_journal = tarik_data_dari_gsheet("Journal_Final")
     
-    if not df_journal.empty:
-        # 2. Mapping kolom agar tampilannya persis seperti sheet manual Anda
-        # Format: { 'Kolom_Asli': 'Nama_Tampilan' }
+    idf_raw = tarik_data_dari_gsheet("Journal_Final")
+    
+    if not df_raw.empty:
+        # Konversi Tanggal ke format datetime
+        df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
+        
+        # 2. Filter Berdasarkan Bulan
+        df_raw['Bulan'] = df_raw['Tanggal'].dt.to_period('M')
+        pilihan_bulan = sorted(df_raw['Bulan'].unique(), reverse=True)
+        selected_month = st.selectbox("Pilih Bulan", options=pilihan_bulan)
+        
+        # Filter DataFrame
+        df = df_raw[df_raw['Bulan'] == selected_month].copy()
+        
+        # Pastikan data Realized R adalah numerik (bersihkan 'R')
+        df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
+        df['Lot'] = df['Lot'].astype(float)
+        df['Profit/Loss (Rp)'] = pd.to_numeric(df['Profit/Loss (Rp)'])
+
+        # 3. Hitung 4 Kalkulasi (Metrik)
+        sum_r = df['Realized_R_Val'].sum()
+        # Weighted Sum R: R dikali Lot, dibagi total Lot
+        weighted_r = (df['Realized_R_Val'] * df['Lot']).sum() / df['Lot'].sum() if df['Lot'].sum() != 0 else 0
+        avg_r = df['Realized_R_Val'].mean()
+        # Expectancy: (WinRate * Avg Win) - (LossRate * Avg Loss)
+        win_trades = df[df['Realized_R_Val'] > 0]
+        loss_trades = df[df['Realized_R_Val'] < 0]
+        win_rate = len(win_trades) / len(df) if len(df) > 0 else 0
+        avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
+        avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
+        expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+
+        # Layout Metrik
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_m1.metric("Sum R", f"{sum_r:.2f}")
+        col_m2.metric("Weighted Sum R", f"{weighted_r:.2f}")
+        col_m3.metric("Average R", f"{avg_r:.2f}")
+        col_m4.metric("Expectancy", f"{expectancy:.2f}")
+        
+        st.divider()
+
+        # 4. Tampilkan Tabel dengan Format Ribuan
+        # Mapping untuk tampilan tabel
         mapping_kolom = {
             'Ticker': 'Quote',
             'Lot': 'Shares',
@@ -867,21 +907,18 @@ with tab_journal:
             'Realized R': 'Realized R'
         }
         
-        # Pilih hanya kolom yang ingin ditampilkan dan rename
-        # Pastikan kolom-kolom ini ada di DataFrame Anda
-        try:
-            df_display = df_journal[list(mapping_kolom.keys())].rename(columns=mapping_kolom)
-            
-            # 3. Tampilkan tabel
-            st.dataframe(df_display, use_container_width=True)
-            
-            # Tampilkan total profit di bawah tabel agar mirip sheet manual
-            total_profit = df_journal['Profit/Loss (Rp)'].astype(float).sum()
-            st.metric("Total Profit (Rp)", f"Rp{total_profit:,.0f}")
-            
-        except KeyError as e:
-            st.error(f"Kolom tidak ditemukan di sheet: {e}. Pastikan nama kolom di Google Sheet sama persis.")
-            st.write("Kolom yang tersedia saat ini:", df_journal.columns.tolist())
+        df_display = df[list(mapping_kolom.keys())].rename(columns=mapping_kolom)
+        
+        # Format ribuan untuk Profit / Loss
+        st.dataframe(
+            df_display.style.format({'Profit / Loss (Rp)': '{:,.0f}'}), 
+            use_container_width=True
+        )
+        
+        # Total Profit Bulanan
+        total_profit = df['Profit/Loss (Rp)'].sum()
+        st.metric("Total Profit Bulanan (Rp)", f"Rp{total_profit:,.0f}")
+        
     else:
-        st.info("Data Journal_Final kosong atau belum bisa diakses.")
+        st.info("Data jurnal belum tersedia.")
 
