@@ -55,7 +55,7 @@ def update_seluruh_gsheet(worksheet_name, df):
     except Exception as e:
         return False, str(e)
         
-def proses_jual_posisi(trade_id, harga_jual, lot_jual):
+def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
     try:
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
@@ -96,7 +96,8 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             str(result),                    # K
             str(row['Risk Multiple']),      # L
             f"{r_val:.2f}R",                # M
-            str(row['tanggal_jual'])        # N
+            str(row['tanggal_jual']),       # N
+            str(alasan_final)               # O
         ]
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
@@ -790,7 +791,7 @@ with tab_active_trade:
         selected_trade = col1.selectbox("Pilih Trade ID", trade_list)
         # Ambil lot maksimal berdasarkan Trade ID yang dipilih
         row_data = st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == selected_trade].iloc[0]
-        default_avg = int(float(row_data['Avg_Entry']))
+        
         initial_lot = int(row_data['Initial_Lot']) 
         current_lot = int(row_data['Lot'])
         default_avg = int(float(row_data['Avg_Entry']))
@@ -803,12 +804,18 @@ with tab_active_trade:
         col3.caption(f"Jual: {sell_lot} lot ({persen_slider}%)")
         col4.write("")
         col4.write("")
+
+        st.divider()
+        c_r1, c_r2 = st.columns([1, 2])
+        kategori = c_r1.selectbox("Alasan Jual:", ["TP", "SL", "Trailing Stop", "BEP", "Manual Exit", "Lainnya"])
+        catatan = c_r2.text_input("Catatan Detail (Opsional):")
+        alasan_final = f"{kategori} - {catatan}" if catatan else kategori
         
         if col4.button("🚀 Execute Sell", use_container_width=True):
             if sell_lot > current_lot:
                 st.error("Lot yang ingin dijual melebihi sisa lot!")
             else:
-                success, msg = proses_jual_posisi(selected_trade, sell_price, sell_lot)
+                success, msg = proses_jual_posisi(selected_trade, sell_price, sell_lot,alasan_final)
                 if success:
                     st.session_state.editor_version += 1 
                     st.success(f"Trade {selected_trade} terjual {sell_lot} lot!")
