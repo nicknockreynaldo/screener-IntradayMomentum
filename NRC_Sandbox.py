@@ -707,7 +707,7 @@ with tab_active_trade:
 
     # 2. Sembunyikan kolom kalkulasi dari UI tampilan
     df_temp = st.session_state.df_active.copy()
-    df_temp['Remaining %'] = (df_temp['Lot'] / df_temp['Initial_Lot'].replace(0, 1) * 100).round(1)
+    df_temp['Remaining %'] = (df_temp['Lot'] / df_temp['Initial_Lot'].replace(0, 1) * 100).round(0).astype(int)
     cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Initial_Lot']
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
@@ -727,7 +727,7 @@ with tab_active_trade:
             "Lot": st.column_config.NumberColumn("Total Lot"),
             "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %d"),
             "Grade": st.column_config.TextColumn("Grade", disabled=True),
-            "Remaining %": st.column_config.NumberColumn("Remaining %", format="%.1f%%", disabled=True),
+            "Remaining %": st.column_config.NumberColumn("Remaining %", format="%d%%", disabled=True),
         },
         hide_index=True,
         use_container_width=True,
