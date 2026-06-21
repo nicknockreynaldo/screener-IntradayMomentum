@@ -669,7 +669,7 @@ with tab_calc:
             "R-Ratio": st.column_config.TextColumn("R-Ratio", disabled=True),
             "Grade": st.column_config.TextColumn("Grade", disabled=True),
             use_container_width=True, hide_index=True
-    )
+        )
     
     c_act1, c_act2 = st.columns(2)
     if c_act1.button("🚀 Confirm Trade"):
