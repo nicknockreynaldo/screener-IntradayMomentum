@@ -116,7 +116,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         return False, str(e)
 
 # --- KETERANGAN MODE ---
-st.warning("⚠️ MODE SANDBOX WITH GABUNGAN WATCHLIST")
+st.warning("⚠️ MODE SANDBOX")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener Suite", page_icon="📈", layout="wide")
