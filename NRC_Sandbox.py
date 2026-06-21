@@ -118,6 +118,22 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
+        
+def load_journal_data():
+    # Mengambil data dari GSheet
+    df = tarik_data_dari_gsheet("Journal_Final")
+    
+    # Cleaning data agar siap dihitung
+    # Menghapus 'R' dari kolom 'Realized R' dan mengubah jadi angka
+    df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
+    
+    # Pastikan Profit/Loss adalah angka (jika ada koma/titik, bersihkan dulu)
+    df['Profit/Loss (Rp)'] = pd.to_numeric(df['Profit/Loss (Rp)'])
+    
+    # Pecah Alasan_Final menjadi Kategori (TP/SL) dan Detail
+    df[['Kategori', 'Catatan_Detail']] = df['Alasan_Final'].str.split(' - ', n=1, expand=True)
+    
+    return df
 
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX")
@@ -140,8 +156,13 @@ if 'memori_saham' not in st.session_state:
 
 # --- KONTROL MENU UTAMA (TABS) ---
 # DITAMBAHKAN tab_calc
-tab_screener, tab_watchlist, tab_calc, tab_active_trade = st.tabs(["🚀 Screener", "📋 Watchlist", "🧮 Risk & Sizing", "📊 Portfolio"])
-
+tab_screener, tab_watchlist, tab_calc, tab_active_trade, tab_journal = st.tabs([
+    "🚀 Screener", 
+    "📋 Watchlist", 
+    "🧮 Risk & Sizing", 
+    "📊 Portfolio", 
+    "📚 Journal"
+])
 # ==============================================================================
 # TAB 1: SCREENER 
 # ==============================================================================
@@ -823,3 +844,39 @@ with tab_active_trade:
                     st.rerun()
                 else:
                     st.error(f"Gagal: {msg}")
+# ==============================================================================
+# TAB 5: JOURNAL
+# ==============================================================================
+
+with tab_journal:
+    st.header("📊 Performance Dashboard")
+    df = load_journal_data()
+    
+    # Perhitungan Metrik
+    total_trades = len(df)
+    total_profit = df['Profit/Loss (Rp)'].sum()
+    win_rate = (len(df[df['Result'] == 'Profit']) / total_trades) * 100
+    avg_r = df['Realized_R_Val'].mean()
+    
+    # Layout Dashboard
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Trades", total_trades)
+    col2.metric("Win Rate", f"{win_rate:.1f}%")
+    col3.metric("Avg R-Multiple", f"{avg_r:.2f}R")
+    col4.metric("Total Profit", f"Rp{total_profit:,.0f}")
+
+    st.subheader("💡 Analysis: Exit Reasons")
+    
+    # Grouping berdasarkan Kategori
+    analysis_df = df.groupby('Kategori').agg({
+        'Trade_ID': 'count', 
+        'Profit/Loss (Rp)': 'sum',
+        'Realized_R_Val': 'mean'
+    }).rename(columns={'Trade_ID': 'Count'})
+    
+    st.dataframe(analysis_df, use_container_width=True)
+    
+    # Visualisasi sederhana (opsional, menggunakan Bar Chart)
+    st.bar_chart(analysis_df['Count'])
+
+
