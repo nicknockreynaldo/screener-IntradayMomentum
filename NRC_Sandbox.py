@@ -64,7 +64,8 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
         df = st.session_state.df_active
         idx = df.index[df['Trade_ID'] == trade_id].tolist()[0]
         row = df.loc[idx]
-
+        initial_lot = int(row['Initial_Lot'])
+        pct_dijual = (int(lot_jual) / initial_lot) * 100
         avg_entry = float(row['Avg_Entry'])
         sl = float(row['SL'])
         harga_jual = float(harga_jual)
@@ -84,7 +85,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual):
             str(row['Trade_ID']),           # A
             str(row['Tanggal']),            # B
             str(row['Ticker']),             # C
-            int(lot_jual),                  # D
+            f"{int(lot_jual)} ({pct_dijual:.1f}%)", # Lot + Persentase
             float(row['Avg_Entry']),        # E
             float(harga_jual),              # F
             f"{gain_loss_pct:.2f}%",        # G: Gain/Loss
@@ -770,18 +771,23 @@ with tab_active_trade:
         
         # Ambil lot maksimal berdasarkan Trade ID yang dipilih
         row_data = st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == selected_trade].iloc[0]
-        max_lot = int(row_data['Lot'])
+        default_avg = int(float(row_data['Avg_Entry']))
+        initial_lot = int(row_data['Initial_Lot']) 
+        current_lot = int(row_data['Lot'])
         default_avg = int(float(row_data['Avg_Entry']))
         
         sell_price = col2.number_input("Harga Jual", step=50, value=default_avg, min_value=1)
-        sell_lot = col3.number_input("Lot Dijual", step=1, value=max_lot, max_value=max_lot)
-
+        persen_slider = col3.slider("Persentase Jual (%)", 0, 100, 25, step=5)
+        sell_lot = int(initial_lot * (persen_slider / 100))
+        if sell_lot == 0 and persen_slider > 0: sell_lot = 1
+        sell_lot = min(sell_lot, current_lot) # Safety check
+        col3.caption(f"Jual: {sell_lot} lot ({persen_slider}%)")
         col4.write("")
         col4.write("")
         
         if col4.button("🚀 Execute Sell", use_container_width=True):
-            if sell_price <= 0:
-                st.error("Harga jual tidak boleh 0!")
+            if sell_lot > current_lot:
+                st.error("Lot yang ingin dijual melebihi sisa lot!")
             else:
                 success, msg = proses_jual_posisi(selected_trade, sell_price, sell_lot)
                 if success:
