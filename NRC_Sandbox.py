@@ -853,91 +853,68 @@ with tab_active_trade:
 with tab_journal:
     st.header("📋 Trading Journal")
     
-    # 1. Tarik Data
     df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
-        # Konversi tipe data agar bisa diproses
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
-        df_raw['Bulan'] = df_raw['Tanggal'].dt.to_period('M')
         
-        # Bersihkan data (Wajib dilakukan sebelum agregasi)
-        df_raw['Realized_R_Val'] = df_raw['Realized R'].astype(str).str.replace('R', '').astype(float)
-        df_raw['Profit/Loss (Rp)'] = pd.to_numeric(df_raw['Profit/Loss (Rp)'], errors='coerce').fillna(0)
-        df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0).astype(int)
+        # 1. Formatting Bulan untuk Dropdown (contoh: Juni-2026)
+        # Membuat kolom helper untuk tampilan
+        bulan_map = {1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April', 5: 'Mei', 6: 'Juni', 
+                     7: 'Juli', 8: 'Agustus', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember'}
         
-        # 2. Filter Berdasarkan Bulan
-        pilihan_bulan = sorted(df_raw['Bulan'].unique(), reverse=True)
-        selected_month = st.selectbox("Pilih Bulan", options=pilihan_bulan)
+        df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
+        df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.month.map(bulan_map) + '-' + df_raw['Tanggal'].dt.year.astype(str)
         
-        # Filter DataFrame mentah
-        df_filtered = df_raw[df_raw['Bulan'] == selected_month].copy()
+        # Mengurutkan bulan agar terbaru di atas
+        pilihan_bulan = df_raw[['Bulan_Key', 'Bulan_Display']].drop_duplicates().sort_values('Bulan_Key', ascending=False)
         
-        # 3. AGREGASI: Kelompokkan berdasarkan Trade_ID
+        # Membuat kolom untuk memperkecil lebar selectbox
+        col_filter, _ = st.columns([1, 3])
+        selected_month_display = col_filter.selectbox("Pilih Bulan", options=pilihan_bulan['Bulan_Display'].tolist())
+        
+        # Filter berdasarkan pilihan
+        selected_key = pilihan_bulan[pilihan_bulan['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
+        df_filtered = df_raw[df_raw['Bulan_Key'] == selected_key].copy()
+        
+        # Agregasi data
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
             'Profit/Loss (Rp)': 'sum',
-            'Realized_R_Val': 'sum',
+            'Realized R': 'first', # Disesuaikan dengan struktur data Anda
             'Grade': 'first'
         })
         
-        # 4. Hitung Metrik (Berdasarkan data yang sudah diabstraksi/agregasi)
-        sum_r = df_agg['Realized_R_Val'].sum()
-        avg_r = df_agg['Realized_R_Val'].mean()
-        win_trades = df_agg[df_agg['Realized_R_Val'] > 0]
-        loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
-        win_rate = (len(win_trades) / len(df_agg)) * 100 if len(df_agg) > 0 else 0
-        
-        # Expectancy sederhana (Average R)
-        expectancy = df_agg['Realized_R_Val'].mean()
-
-        # Layout Metrik
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("Sum R", f"{sum_r:.2f}R")
-        col_m2.metric("Win Rate", f"{win_rate:.1f}%")
-        col_m3.metric("Average R", f"{avg_r:.2f}R")
-        col_m4.metric("Expectancy", f"{expectancy:.2f}R")
-        
-        st.divider()
-
-        # 5. Tampilkan Tabel Ringkasan (Summary)
+        # 2. Tabel Utama dengan Fitur Seleksi
         st.subheader("Summary per Trade")
         
-        # Mapping kolom untuk tampilan
-        mapping_display = {
-            'Ticker': 'Quote',
-            'Lot': 'Lot',
-            'Profit/Loss (Rp)': 'Profit / Loss (Rp)',
-            'Realized_R_Val': 'Realized R',
-            'Grade': 'Grade'
-        }
-        
-        df_display = df_agg.rename(columns=mapping_display)
-        
-        st.dataframe(
-            df_display.style.format({'Profit / Loss (Rp)': '{:,.0f}', 'Realized R': '{:.2f}R'}), 
-            use_container_width=True
+        # Tampilkan tabel dan tangkap aksi klik user
+        event = st.dataframe(
+            df_agg, 
+            use_container_width=True, 
+            selection_mode="single-row", 
+            on_select="rerun" # Otomatis refresh saat diklik
         )
-
-        # 6. Detail View (Expander untuk melihat sub-transaksi per Trade_ID)
-        with st.expander("🔍 Lihat Detail Transaksi per Trade"):
-            # Loop unik trade_id yang ada di bulan ini
-            for trade_id in df_agg.index:
-                # Ambil data asli untuk ID ini
-                detail = df_filtered[df_filtered['Trade_ID'] == trade_id]
-                
-                st.write(f"**Trade ID: {trade_id}**")
-                # Tampilkan tabel detail (tanpa index agar bersih)
-                st.dataframe(
-                    detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)']], 
-                    use_container_width=True, hide_index=True
-                )
-
-        # Total Profit Bulanan
-        total_profit = df_agg['Profit/Loss (Rp)'].sum()
-        st.metric("Total Profit Bulanan (Rp)", f"Rp{total_profit:,.0f}")
         
+        # 3. Logika Menampilkan Detail (Hanya jika ada baris yang diklik)
+        if event.selection['rows']:
+            # Ambil Trade_ID dari baris yang dipilih
+            selected_row_idx = event.selection['rows'][0]
+            selected_trade_id = df_agg.index[selected_row_idx]
+            
+            st.divider()
+            st.subheader(f"Detail Transaksi: {selected_trade_id}")
+            
+            # Filter data detail berdasarkan ID yang dipilih
+            detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
+            st.dataframe(
+                detail[['Tanggal', 'Avg. Buy Price', 'Sell Price', 'Lot', 'Profit/Loss (Rp)']], 
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("Klik pada salah satu baris di tabel ringkasan untuk melihat detail transaksi.")
+
     else:
         st.info("Data jurnal belum tersedia.")
 
