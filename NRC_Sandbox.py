@@ -768,7 +768,6 @@ with tab_active_trade:
         
         trade_list = st.session_state.df_active['Trade_ID'].tolist()
         selected_trade = col1.selectbox("Pilih Trade ID", trade_list)
-        st.write("Kolom yang terdeteksi:", st.session_state.df_active.columns.tolist())
         # Ambil lot maksimal berdasarkan Trade ID yang dipilih
         row_data = st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == selected_trade].iloc[0]
         default_avg = int(float(row_data['Avg_Entry']))
