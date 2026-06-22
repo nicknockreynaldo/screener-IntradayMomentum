@@ -913,7 +913,7 @@ with tab_journal:
             'Ticker': 'first',
             'Lot': 'sum',
             'Profit/Loss (Rp)': 'sum',
-            'Realized R': 'sum',
+            'Realized_R_Val': 'sum',
             'Grade': 'first',
             'Gain/Loss (%)': 'first',   
             'Alasan_Final': 'first'    
