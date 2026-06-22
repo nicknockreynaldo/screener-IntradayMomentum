@@ -929,22 +929,22 @@ with tab_journal:
         })
 
         # === Kalkulasi ===
-        sum_r = df_agg['Realized_R_Val'].sum()
+        sum_r = df_agg['Realized_R'].sum()
         total_lot = df_agg['Lot'].sum()
-        weighted_r = (df_agg['Realized_R_Val'] * df_agg['Lot']).sum() / total_lot if total_lot != 0 else 0
-        avg_r = df_agg['Realized_R_Val'].mean()
+        weighted_r = (df_agg['Realized_R'] * df_agg['Lot']).sum() / total_lot if total_lot != 0 else 0
+        avg_r = df_agg['Realized_R'].mean()
 
         
-        win_trades = df_agg[df_agg['Realized_R_Val'] > 0]
-        loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
+        win_trades = df_agg[df_agg['Realized_R'] > 0]
+        loss_trades = df_agg[df_agg['Realized_R'] < 0]
 
         total_trades = len(df_agg)
         win_rate = (len(win_trades) / total_trades) * 100 if total_trades > 0 else 0
-        avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
-        avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
+        avg_win = win_trades['Realized_R'].mean() if not win_trades.empty else 0
+        avg_loss = abs(loss_trades['Realized_R'].mean()) if not loss_trades.empty else 0
         expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
-        sum_win_r = win_trades['Realized_R_Val'].sum()
-        sum_loss_r = abs(loss_trades['Realized_R_Val'].sum())
+        sum_win_r = win_trades['Realized_R'].sum()
+        sum_loss_r = abs(loss_trades['Realized_R'].sum())
         profit_factor = sum_win_r / sum_loss_r if sum_loss_r != 0 else (float('inf') if sum_win_r > 0 else 0)
         profit_factor_display = "∞" if sum_loss_r == 0 and sum_win_r > 0 else f"{sum_win_r / sum_loss_r:.2f}" if sum_loss_r != 0 else "0.00"
         
@@ -965,7 +965,7 @@ with tab_journal:
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
-        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R_Val', 'Realized_R_Val', 'Grade', 'Alasan_Final']
+        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R_Val', 'Realized_R', 'Grade', 'Alasan_Final']
         
         # Rename kolom untuk tampilan
         df_display = df_agg[cols_order].rename(columns={'Realized_R_Val': 'Realized R', 'Initial_R_Val': 'Initial R'})
