@@ -8,9 +8,9 @@ import time
 import datetime
 
 # --- FUNGSI GOOGLE SHEETS ---
-
 def simpan_trade_ke_gsheet(worksheet_name, data_list):
     try:
+        data_clean = [str(item) for item in data_list]
         creds_dict = dict(st.secrets["gcp"])
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
@@ -19,7 +19,7 @@ def simpan_trade_ke_gsheet(worksheet_name, data_list):
         wks = sh.worksheet(worksheet_name)
         
         # Gunakan append_row untuk menambah data ke baris paling bawah
-        wks.append_row(data_list)
+        wks.append_row(data_clean)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
@@ -47,12 +47,13 @@ def update_seluruh_gsheet(worksheet_name, df):
         gc = gspread.service_account_from_dict(creds_dict)
         sh = gc.open("NRC Trading Journal")
         wks = sh.worksheet(worksheet_name)
-        
+
+        df_clean = df.astype(str)
         # Bersihkan tabel & update dengan data dari DataFrame
         wks.clear()
-        data_to_upload = [df.columns.values.tolist()] + df.values.tolist()
+        data_to_upload = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
         wks.update(range_name='A1', values=data_to_upload)
-        df = df.astype(object)
+      
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
@@ -105,7 +106,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
         
         # Append ke Journal_Final (gunakan fungsi append_row/append_ke_gsheet Anda)
         # Pastikan worksheet "Journal_Final" ada di GSheet Anda
-        sh.worksheet("Journal_Final").append_row(data_jurnal)
+        simpan_trade_ke_gsheet("Journal_Final", data_jurnal)
         
         # Update Sisa Lot di Active_Trades
         sisa_lot = int(row['Lot']) - int(lot_jual)
