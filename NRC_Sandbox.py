@@ -956,7 +956,7 @@ with tab_journal:
         
         st.markdown("---")
 
-        st.subheader("Summary per Trade")
+        st.subheader("Trade Summary")
         
         # Tampilkan tabel utama
         cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade']
@@ -993,7 +993,7 @@ with tab_journal:
             selected_trade_id = df_agg.index[selected_row_idx]
             
             st.divider()
-            st.subheader(f"Detail Transaksi: {selected_trade_id}")
+            st.subheader(f"Trade Detail: {selected_trade_id}")
             
             detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
             if 'Avg_Entry' in detail.columns:
