@@ -915,6 +915,7 @@ with tab_journal:
         selected_key = df_raw[df_raw['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
         df_filtered = df_raw[df_raw['Bulan_Key'] == selected_key].copy()
 
+        st.write("Daftar kolom yang ada di data:", df_filtered.columns.tolist())
         # 3. AGREGASI (Gunakan kolom yang sudah numerik)
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
