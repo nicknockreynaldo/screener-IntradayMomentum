@@ -931,10 +931,11 @@ with tab_journal:
         loss_trades = df_agg[df_agg['Realized_R'] < 0]
 
         total_trades = len(df_agg)
-        win_rate = (len(win_trades) / total_trades) * 100 if total_trades > 0 else 0
+        win_rate_display = (len(win_trades) / total_trades) * 100 if total_trades > 0 else 0
+        win_rate_decimal = len(win_trades) / total_trades if total_trades > 0 else 0
         avg_win = win_trades['Realized_R'].mean() if not win_trades.empty else 0
         avg_loss = abs(loss_trades['Realized_R'].mean()) if not loss_trades.empty else 0
-        expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+        expectancy = (win_rate_decimal * avg_win) - ((1 - win_rate_decimal) * avg_loss)
         sum_win_r = win_trades['Realized_R'].sum()
         sum_loss_r = abs(loss_trades['Realized_R'].sum())
         if sum_loss_r == 0:
@@ -943,7 +944,7 @@ with tab_journal:
             profit_factor_display = f"{sum_win_r / sum_loss_r:.2f}"
         # Baris 1
         col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Win Rate", f"{win_rate:.1f}%")
+        col_m1.metric("Win Rate", f"{win_rate_decimal:.1f}%")
         col_m2.metric("Profit Factor", profit_factor_display)
         col_m3.metric("Sum R", f"{sum_r:.2f}")
 
