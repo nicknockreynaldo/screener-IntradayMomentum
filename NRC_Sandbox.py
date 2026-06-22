@@ -763,7 +763,14 @@ with tab_active_trade:
 
     # 2. Sembunyikan kolom kalkulasi dari UI tampilan
     df_temp = st.session_state.df_active.copy()
-    df_temp['Remaining %'] = (df_temp['Lot'] / df_temp['Initial_Lot'].replace(0, 1) * 100).round(0).astype(int)
+
+    # Paksa konversi ke numerik dan tangani nilai kosong (NaN)
+    df_temp['Lot'] = pd.to_numeric(df_temp['Lot'], errors='coerce').fillna(0)
+    df_temp['Initial_Lot'] = pd.to_numeric(df_temp['Initial_Lot'], errors='coerce').fillna(1) 
+    
+    # Lakukan kalkulasi hanya setelah data dipastikan angka
+    df_temp['Remaining %'] = ((df_temp['Lot'] / df_temp['Initial_Lot']) * 100).round(0).astype(int)
+    
     cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Initial_Lot']
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
