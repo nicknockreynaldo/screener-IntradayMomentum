@@ -886,12 +886,19 @@ with tab_journal:
     df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
+        mapping_kolom = {
+            'Avg. Buy Price': 'Avg_Entry',
+            'Sell Price': 'Sell_Price',
+            'Risk Multiple': 'Initial_R',
+            'Realized R': 'Realized_R'
+        }
+        df_raw = df_raw.rename(columns=mapping_kolom)
+
         # 1. Konversi Tipe Data (PENTING: Harus dilakukan di awal)
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
         df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
-        
         # Bersihkan Realized R (Hapus 'R')
-        df_raw['Realized_R_Val'] = df_raw['Realized R'].astype(str).str.replace('R', '', regex=False).astype(float)
+        df_raw['Realized_R_Val'] = df_raw['Realized_R'].astype(str).str.replace('R', '', regex=False).astype(float)
         
         # Konversi ke Numerik agar tidak terjadi string concatenation
         df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0)
