@@ -886,6 +886,10 @@ with tab_journal:
         # Konversi ke Numerik agar tidak terjadi string concatenation
         df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0)
         df_raw['Profit_Loss_Rp'] = pd.to_numeric(df_raw['Profit_Loss_Rp'], errors='coerce').fillna(0)
+        df_raw['Realized_R'] = pd.to_numeric(df_raw['Realized_R'], errors='coerce').fillna(0)
+        df_raw['Initial_R'] = pd.to_numeric(df_raw['Initial_R'], errors='coerce').fillna(0)
+        df_raw['Gain_Loss_Pct'] = pd.to_numeric(df_raw['Gain_Loss_Pct'], errors='coerce').fillna(0)
+
         
         # 2. Filter Bulan
         df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.strftime('%B-%Y')
