@@ -914,7 +914,7 @@ with tab_journal:
             'Lot': 'sum',
             'Profit/Loss (Rp)': 'sum',
             'Realized R': 'sum',
-            'Grade': 'first'
+            'Grade': 'first',
             'Gain/Loss (%)': 'first',   
             'Alasan_Final': 'first'    
         })
