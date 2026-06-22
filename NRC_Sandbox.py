@@ -131,7 +131,7 @@ def load_journal_data():
 
     # 2. Pastikan kolom numerik benar-benar angka (mengatasi TypeError)
     # Gunakan errors='coerce' agar data non-angka berubah jadi NaN, lalu isi dengan 0
-    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)', 'Lot_Pct', 'Initial_R'] 
+    numeric_cols = ['Lot', 'Initial_Lot', 'Profit_Loss_Rp', 'Lot_Pct', 'Initial_R']
     
     for col in numeric_cols:
         if col in df.columns:
@@ -889,13 +889,11 @@ with tab_journal:
         # 1. Konversi Tipe Data (PENTING: Harus dilakukan di awal)
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
         df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
-        # Bersihkan Realized R (Hapus 'R')
-        df_raw['Realized_R'] = df_raw['Realized_R'].astype(str).str.replace('R', '', regex=False).astype(float)
-        
+       
         # Konversi ke Numerik agar tidak terjadi string concatenation
         df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0)
-        df_raw['Profit/Loss (Rp)'] = pd.to_numeric(df_raw['Profit/Loss (Rp)'], errors='coerce').fillna(0)
-
+        df_raw['Profit_Loss_Rp'] = pd.to_numeric(df_raw['Profit_Loss_Rp'], errors='coerce').fillna(0)
+        
         # 2. Filter Bulan
         df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.strftime('%B-%Y')
         pilihan_bulan = sorted(df_raw['Bulan_Display'].unique(), reverse=True)
@@ -911,8 +909,8 @@ with tab_journal:
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
-            'Gain/Loss (%)': 'first',   
-            'Profit/Loss (Rp)': 'sum',
+            'Gain_Loss_Pct': 'first',    
+            'Profit_Loss_Rp': 'sum',      
             'Initial_R': 'first',
             'Realized_R': 'sum',
             'Grade': 'first',
@@ -957,16 +955,16 @@ with tab_journal:
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
-        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R', 'Realized_R', 'Grade', 'Alasan_Final']
+        cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade', 'Alasan_Final']
         df_display = df_agg[cols_order].copy()
-        event = st.dataframe(
+        event = st.dataframe(re
             df_display.style.format({
                 'Lot': '{:.0f}', 
-                'Profit/Loss (Rp)': '{:,.0f}', 
+                'Profit_Loss_Rp': '{:,.0f}', 
                 'Realized_R': '{:.2f}R',
                 'Initial_R': '{:.2f}R',
-                'Gain/Loss (%)': '{:.2f}%'
-            }), 
+                'Gain_Loss_Pct': '{:.2f}%'
+            }),
             use_container_width=True, 
             selection_mode="single-row", 
             on_select="rerun"
@@ -984,8 +982,8 @@ with tab_journal:
             
             # Menampilkan kolom detail termasuk 'Realized R'
             st.dataframe(
-                detail[['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Profit/Loss (Rp)', 'Realized_R']].style.format({
-                    'Profit/Loss (Rp)': '{:,.0f}'
+                detail[['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Profit_Loss_Rp', 'Realized_R']].style.format({
+                    'Profit_Loss_Rp': '{:,.0f}'
                 }),
                 use_container_width=True, 
                 hide_index=True
