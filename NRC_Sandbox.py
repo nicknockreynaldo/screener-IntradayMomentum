@@ -889,7 +889,8 @@ with tab_journal:
         df_raw['Realized_R'] = pd.to_numeric(df_raw['Realized_R'], errors='coerce').fillna(0)
         df_raw['Initial_R'] = pd.to_numeric(df_raw['Initial_R'], errors='coerce').fillna(0)
         df_raw['Gain_Loss_Pct'] = pd.to_numeric(df_raw['Gain_Loss_Pct'], errors='coerce').fillna(0)
-
+        df_raw['Avg_Entry'] = pd.to_numeric(df_raw['Avg_Entry'], errors='coerce').fillna(0)
+        df_raw['Sell_Price'] = pd.to_numeric(df_raw['Sell_Price'], errors='coerce').fillna(0)
         
         # 2. Filter Bulan
         df_raw['Bulan_Display'] = df_raw['Tanggal'].dt.strftime('%B-%Y')
@@ -959,14 +960,18 @@ with tab_journal:
         # Tampilkan tabel utama
         cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade']
         df_display = df_agg[cols_order].copy()
+        
         event = st.dataframe(
-            df_display.style.format({
-                'Lot': '{:.0f}', 
-                'Profit_Loss_Rp': '{:,.0f}', 
-                'Realized_R': '{:.2f}R',
-                'Initial_R': '{:.2f}R',
-                'Gain_Loss_Pct': '{:.2f}%'
-            }),
+            df_display,
+            column_config={
+                "Ticker": st.column_config.TextColumn("Ticker"),
+                "Lot": st.column_config.NumberColumn("Lot", format="%d"),
+                "Gain_Loss_Pct": st.column_config.NumberColumn("Gain/Loss %", format="%.2f%%"),
+                "Profit_Loss_Rp": st.column_config.NumberColumn("Profit/Loss (Rp)", format="Rp %,.0f"),
+                "Initial_R": st.column_config.NumberColumn("Initial R", format="%.2fR"),
+                "Realized_R": st.column_config.NumberColumn("Realized R", format="%.2fR"),
+                "Grade": st.column_config.TextColumn("Grade"),
+            },
             use_container_width=True, 
             selection_mode="single-row", 
             on_select="rerun"
@@ -985,16 +990,19 @@ with tab_journal:
             cols_detail = ['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R', 'Alasan_Final']
             
             st.dataframe(
-                detail[cols_detail].style.format({
-                    'Avg_Entry': '{:,.0f}',
-                    'Sell_Price': '{:,.0f}',
-                    'Lot': '{:.0f}',
-                    'Gain_Loss_Pct': '{:.2f}%',      
-                    'Profit_Loss_Rp': '{:,.0f}',
-                    'Realized_R': '{:.2f}R'   
-                }),
+                detail[cols_detail],
+                column_config={
+                    "Tanggal": st.column_config.DatetimeColumn("Tanggal", format="YYYY-MM-DD"),
+                    "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %,.0f"),
+                    "Sell_Price": st.column_config.NumberColumn("Sell Price", format="Rp %,.0f"),
+                    "Lot": st.column_config.NumberColumn("Lot", format="%d"),
+                    "Gain_Loss_Pct": st.column_config.NumberColumn("Gain/Loss %", format="%.2f%%"),
+                    "Profit_Loss_Rp": st.column_config.NumberColumn("Profit/Loss (Rp)", format="Rp %,.0f"),
+                    "Realized_R": st.column_config.NumberColumn("Realized R", format="%.2fR"),
+                    "Alasan_Final": st.column_config.TextColumn("Alasan Final")
+                },
                 use_container_width=True, 
-                hide_index=True
+                hide_index=True # Sekarang hide_index=True aman 100% tanpa error!
             )
         else:
             st.info("Klik pada salah satu baris di tabel ringkasan untuk melihat detail transaksi.")
