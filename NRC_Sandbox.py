@@ -140,13 +140,6 @@ def load_journal_data():
             # 3. Konversi ke angka
             df[col] = df[col].astype(str).str.replace('-', '').str.replace('N/A', '')
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-            
-    # 3. Handle 'Realized R' dengan aman (mengatasi KeyError)
-    if 'Realized_R' in df.columns:
-        df['Realized_R'] = pd.to_numeric(df['Realized_R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
-    else:
-        # Jika kolom tidak ada, buat kolom 0 agar aplikasi tidak crash
-        df['Realized_R'] = 0.0
         
     # 4. Handle 'Alasan_Final'
     if 'Alasan_Final' in df.columns:
