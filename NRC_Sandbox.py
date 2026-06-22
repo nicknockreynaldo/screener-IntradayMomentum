@@ -984,7 +984,7 @@ with tab_journal:
             
             # Menampilkan kolom detail termasuk 'Realized R'
             st.dataframe(
-                detail[['Tanggal', 'Avg_Entry', 'Sell Price', 'Lot', 'Profit/Loss (Rp)', 'Realized_R']].style.format({
+                detail[['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Profit/Loss (Rp)', 'Realized_R']].style.format({
                     'Profit/Loss (Rp)': '{:,.0f}'
                 }),
                 use_container_width=True, 
