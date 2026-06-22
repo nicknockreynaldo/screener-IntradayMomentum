@@ -122,18 +122,36 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
         return False, str(e)
         
 def load_journal_data():
-    # Mengambil data dari GSheet
+    # 1. Tarik data
     df = tarik_data_dari_gsheet("Journal_Final")
-   
-    # Cleaning data agar siap dihitung
-    # Menghapus 'R' dari kolom 'Realized R' dan mengubah jadi angka
-    df['Realized_R_Val'] = df['Realized R'].astype(str).str.replace('R', '').astype(float)
     
-    # Pastikan Profit/Loss adalah angka (jika ada koma/titik, bersihkan dulu)
-    df['Profit/Loss (Rp)'] = pd.to_numeric(df['Profit/Loss (Rp)'])
+    if df.empty:
+        return df
+
+    # 2. Pastikan kolom numerik benar-benar angka (mengatasi TypeError)
+    # Gunakan errors='coerce' agar data non-angka berubah jadi NaN, lalu isi dengan 0
+    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)']
+    for col in numeric_cols:
+        if col in df.columns:
+            # Bersihkan koma jika ada, lalu konversi
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     
-    # Pecah Alasan_Final menjadi Kategori (TP/SL) dan Detail
-    df[['Kategori', 'Catatan_Detail']] = df['Alasan_Final'].str.split(' - ', n=1, expand=True)
+    # 3. Handle 'Realized R' dengan aman (mengatasi KeyError)
+    if 'Realized R' in df.columns:
+        df['Realized_R_Val'] = pd.to_numeric(df['Realized R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
+    else:
+        # Jika kolom tidak ada, buat kolom 0 agar aplikasi tidak crash
+        df['Realized_R_Val'] = 0.0
+        
+    # 4. Handle 'Alasan_Final'
+    if 'Alasan_Final' in df.columns:
+        # Menggunakan split yang aman
+        split_data = df['Alasan_Final'].astype(str).str.split(' - ', n=1, expand=True)
+        df['Kategori'] = split_data[0]
+        df['Catatan_Detail'] = split_data[1] if 1 in split_data.columns else ""
+    else:
+        df['Kategori'] = "N/A"
+        df['Catatan_Detail'] = ""
     
     return df
 
