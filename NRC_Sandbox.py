@@ -886,14 +886,6 @@ with tab_journal:
     df_raw = tarik_data_dari_gsheet("Journal_Final")
     
     if not df_raw.empty:
-        mapping_kolom = {
-            'Avg. Buy Price': 'Avg_Entry',
-            'Sell Price': 'Sell_Price',
-            'Risk Multiple': 'Initial_R',
-            'Realized R': 'Realized_R'
-        }
-        df_raw = df_raw.rename(columns=mapping_kolom)
-
         # 1. Konversi Tipe Data (PENTING: Harus dilakukan di awal)
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
         df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
@@ -965,11 +957,9 @@ with tab_journal:
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
-        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R_Val', 'Realized_R', 'Grade', 'Alasan_Final']
+        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R', 'Realized_R', 'Grade', 'Alasan_Final']
         
-        # Rename kolom untuk tampilan
-        df_display = df_agg[cols_order].rename(columns={'Realized_R_Val': 'Realized R', 'Initial_R_Val': 'Initial R'})
-        
+       
         event = st.dataframe(
             df_display.style.format({
                 'Lot': '{:.0f}', 
