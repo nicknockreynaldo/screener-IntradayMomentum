@@ -909,7 +909,7 @@ with tab_journal:
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
-            'Gain_Loss_Pct_Component': 'sum'   
+            'Gain_Loss_Pct_Component': 'sum',   
             'Profit_Loss_Rp': 'sum',      
             'Initial_R': 'first',
             'Realized_R': 'sum',
