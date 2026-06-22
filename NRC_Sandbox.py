@@ -957,7 +957,7 @@ with tab_journal:
         # Tampilkan tabel utama
         cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade', 'Alasan_Final']
         df_display = df_agg[cols_order].copy()
-        event = st.dataframe(re
+        event = st.dataframe(
             df_display.style.format({
                 'Lot': '{:.0f}', 
                 'Profit_Loss_Rp': '{:,.0f}', 
