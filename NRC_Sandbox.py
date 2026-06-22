@@ -98,7 +98,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
             str(row['Grade']),              # J
             str(result),                    # K
             str(row['Risk Multiple']),      # L
-            f"{r_val:.2f}R",                # M
+            f"{r_val:.2f}",                # M
             str(tanggal_jual),              # N
             str(alasan_final)               # O
         ]
