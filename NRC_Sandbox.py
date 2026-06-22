@@ -912,10 +912,11 @@ with tab_journal:
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
+            'Gain/Loss (%)': 'first',   
             'Profit/Loss (Rp)': 'sum',
+            'Initial_R_Val': 'first',
             'Realized_R_Val': 'sum',
             'Grade': 'first',
-            'Gain/Loss (%)': 'first',   
             'Alasan_Final': 'first'    
         })
 
@@ -930,18 +931,19 @@ with tab_journal:
         loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
 
         total_trades = len(df_agg)
-        win_rate = len(win_trades) / len(df_agg) if len(df_agg) > 0 else 0
+        win_rate = (len(win_trades) / total_trades) * 100 if total_trades > 0 else 0
         avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
         avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
         expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
         sum_win_r = win_trades['Realized_R_Val'].sum()
         sum_loss_r = abs(loss_trades['Realized_R_Val'].sum())
         profit_factor = sum_win_r / sum_loss_r if sum_loss_r != 0 else (float('inf') if sum_win_r > 0 else 0)
+        profit_factor_display = "∞" if sum_loss_r == 0 and sum_win_r > 0 else f"{sum_win_r / sum_loss_r:.2f}" if sum_loss_r != 0 else "0.00"
         
         # Baris 1
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Win Rate", f"{win_rate:.1f}%")
-        col_m2.metric("Profit Factor", f"{profit_factor:.2f}")
+        col_m2.metric("Profit Factor", f"{profit_factor_display:.2f}")
         col_m3.metric("Sum R", f"{sum_r:.2f}")
 
         # Baris 2
@@ -955,8 +957,19 @@ with tab_journal:
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
+        cols_order = ['Ticker', 'Lot', 'Gain/Loss (%)', 'Profit/Loss (Rp)', 'Initial_R_Val', 'Realized_R_Val', 'Grade', 'Alasan_Final']
+        
+        # Rename kolom untuk tampilan
+        df_display = df_agg[cols_order].rename(columns={'Realized_R_Val': 'Realized R', 'Initial_R_Val': 'Initial R'})
+        
         event = st.dataframe(
-            df_agg.style.format({'Lot': '{:.0f}', 'Profit/Loss (Rp)': '{:,.0f}', 'Realized_R_Val': '{:.2f}R'}), 
+            df_display.style.format({
+                'Lot': '{:.0f}', 
+                'Profit/Loss (Rp)': '{:,.0f}', 
+                'Realized R': '{:.2f}R',
+                'Initial R': '{:.2f}R',
+                'Gain/Loss (%)': '{:.2f}%'
+            }), 
             use_container_width=True, 
             selection_mode="single-row", 
             on_select="rerun"
