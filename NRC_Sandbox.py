@@ -902,18 +902,23 @@ with tab_journal:
         selected_key = df_raw[df_raw['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
         df_filtered = df_raw[df_raw['Bulan_Key'] == selected_key].copy()
 
+        df_filtered['Realized_R_Component'] = df_filtered['Realized_R'] * df_filtered['Lot']
+        df_filtered['Gain_Loss_Pct_Component'] = df_filtered['Gain_Loss_Pct'] * df_filtered['Lot']
+        
         # 3. AGREGASI (Gunakan kolom yang sudah numerik)
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
             'Lot': 'sum',
-            'Gain_Loss_Pct': 'first',    
+            'Gain_Loss_Pct_Component': 'sum'   
             'Profit_Loss_Rp': 'sum',      
             'Initial_R': 'first',
             'Realized_R': 'sum',
             'Grade': 'first',
-            'Alasan_Final': 'first'    
+            'Realized_R_Component': 'sum'
         })
-
+        df_agg['Realized_R'] = (df_agg['Realized_R_Component'] / df_agg['Lot']).fillna(0)
+        df_agg['Gain_Loss_Pct'] = (df_agg['Gain_Loss_Pct_Component'] / df_agg['Lot']).fillna(0)
+        
         # === Kalkulasi ===
         sum_r = df_agg['Realized_R'].sum()
         total_lot = df_agg['Lot'].sum()
@@ -952,7 +957,7 @@ with tab_journal:
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
-        cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade', 'Alasan_Final']
+        cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade']
         df_display = df_agg[cols_order].copy()
         event = st.dataframe(
             df_display.style.format({
@@ -977,10 +982,16 @@ with tab_journal:
             
             detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
             
-            # Menampilkan kolom detail termasuk 'Realized R'
+            cols_detail = ['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R', 'Alasan_Final']
+            
             st.dataframe(
-                detail[['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Profit_Loss_Rp', 'Realized_R']].style.format({
-                    'Profit_Loss_Rp': '{:,.0f}'
+                detail[cols_detail].style.format({
+                    'Avg_Entry': '{:,.0f}',
+                    'Sell_Price': '{:,.0f}',
+                    'Lot': '{:.0f}',
+                    'Gain_Loss_Pct': '{:.2f}%',      
+                    'Profit_Loss_Rp': '{:,.0f}',
+                    'Realized_R': '{:.2f}R'   
                 }),
                 use_container_width=True, 
                 hide_index=True
