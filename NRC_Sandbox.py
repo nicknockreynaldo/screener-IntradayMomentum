@@ -963,15 +963,24 @@ with tab_journal:
         df_display = df_agg[cols_order].copy()
         
         event = st.dataframe(
-            df_display,
+            df_display.style.format({
+                'Lot': '{:.0f}', 
+                'Gain_Loss_Pct': lambda x: f"({abs(x):.2f}%)" if x < 0 else f"{x:.2f}%",
+                'Profit_Loss_Rp': lambda x: f"(Rp {abs(x):,.0f})" if x < 0 else f"Rp {x:,.0f}", 
+                'Realized_R': lambda x: f"({abs(x):.2f}R)" if x < 0 else f"{x:.2f}R",
+                'Initial_R': lambda x: f"({abs(x):.2f}R)" if x < 0 else f"{x:.2f}R",
+                'Grade': '{}',
+                'Alasan_Final': '{}'
+            }),
             column_config={
-                "Ticker": st.column_config.TextColumn("Ticker"),
-                "Lot": st.column_config.NumberColumn("Lot", format="%d"),
-                "Gain_Loss_Pct": st.column_config.NumberColumn("Gain/Loss %", format="%.2f%%"),
-                "Profit_Loss_Rp": st.column_config.NumberColumn("Profit/Loss (Rp)", format="Rp %,.0f"),
-                "Initial_R": st.column_config.NumberColumn("Initial R", format="%.2fR"),
-                "Realized_R": st.column_config.NumberColumn("Realized R", format="%.2fR"),
-                "Grade": st.column_config.TextColumn("Grade"),
+                "Ticker": st.column_config.Column(label="Ticker"),
+                "Lot": st.column_config.Column(label="Lot"),
+                "Gain_Loss_Pct": st.column_config.Column(label="Gain/Loss %"),
+                "Profit_Loss_Rp": st.column_config.Column(label="Profit/Loss (Rp)"),
+                "Initial_R": st.column_config.Column(label="Initial R"),
+                "Realized_R": st.column_config.Column(label="Realized R"),
+                "Grade": st.column_config.Column(label="Grade"),
+                "Alasan_Final": st.column_config.Column(label="Alasan Final"),
             },
             use_container_width=True, 
             selection_mode="single-row", 
@@ -987,23 +996,41 @@ with tab_journal:
             st.subheader(f"Detail Transaksi: {selected_trade_id}")
             
             detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
-            
+            if 'Avg_Entry' in detail.columns:
+                detail['Avg_Entry'] = pd.to_numeric(detail['Avg_Entry'], errors='coerce').fillna(0)
+            if 'Sell_Price' in detail.columns:
+                detail['Sell_Price'] = pd.to_numeric(detail['Sell_Price'], errors='coerce').fillna(0)
+                
             cols_detail = ['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R', 'Alasan_Final']
-            
+            detail['Tanggal'] = pd.to_datetime(detail['Tanggal'])
+            for col in ['Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R']:
+                if col in detail.columns:
+                    detail[col] = pd.to_numeric(detail[col], errors='coerce').fillna(0)
+                    
             st.dataframe(
-                detail[cols_detail],
+                detail[cols_detail].style.format({
+                    'Tanggal': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '',
+                    'Avg_Entry': lambda x: f"Rp {x:,.0f}",
+                    'Sell_Price': lambda x: f"Rp {x:,.0f}",
+                    'Lot': '{:.0f}',
+                    # Format accounting () untuk yang bernilai negatif
+                    'Gain_Loss_Pct': lambda x: f"({abs(x):.2f}%)" if x < 0 else f"{x:.2f}%",
+                    'Profit_Loss_Rp': lambda x: f"(Rp {abs(x):,.0f})" if x < 0 else f"Rp {x:,.0f}",
+                    'Realized_R': lambda x: f"({abs(x):.2f}R)" if x < 0 else f"{x:.2f}R",
+                    'Alasan_Final': '{}'
+                }),
                 column_config={
-                    "Tanggal": st.column_config.DatetimeColumn("Tanggal", format="YYYY-MM-DD"),
-                    "Avg_Entry": st.column_config.NumberColumn("Avg Entry", format="Rp %,.0f"),
-                    "Sell_Price": st.column_config.NumberColumn("Sell Price", format="Rp %,.0f"),
-                    "Lot": st.column_config.NumberColumn("Lot", format="%d"),
-                    "Gain_Loss_Pct": st.column_config.NumberColumn("Gain/Loss %", format="%.2f%%"),
-                    "Profit_Loss_Rp": st.column_config.NumberColumn("Profit/Loss (Rp)", format="Rp %,.0f"),
-                    "Realized_R": st.column_config.NumberColumn("Realized R", format="%.2fR"),
-                    "Alasan_Final": st.column_config.TextColumn("Alasan Final")
+                    "Tanggal": st.column_config.Column("Tanggal"),
+                    "Avg_Entry": st.column_config.Column("Avg Entry"),
+                    "Sell_Price": st.column_config.Column("Sell Price"),
+                    "Lot": st.column_config.Column("Lot"),
+                    "Gain_Loss_Pct": st.column_config.Column("Gain/Loss %"),
+                    "Profit_Loss_Rp": st.column_config.Column("Profit/Loss (Rp)"),
+                    "Realized_R": st.column_config.Column("Realized R"),
+                    "Alasan_Final": st.column_config.Column("Alasan Final")
                 },
                 use_container_width=True, 
-                hide_index=True # Sekarang hide_index=True aman 100% tanpa error!
+                hide_index=True
             )
         else:
             st.info("Klik pada salah satu baris di tabel ringkasan untuk melihat detail transaksi.")
