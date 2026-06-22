@@ -131,12 +131,16 @@ def load_journal_data():
 
     # 2. Pastikan kolom numerik benar-benar angka (mengatasi TypeError)
     # Gunakan errors='coerce' agar data non-angka berubah jadi NaN, lalu isi dengan 0
-    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)']
+    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)', 'Lot_Pct', 'Risk Multiple'] 
+    
     for col in numeric_cols:
         if col in df.columns:
-            # Bersihkan koma jika ada, lalu konversi
+            # 1. Ubah jadi string
+            # 2. Ganti '-' atau 'N/A' menjadi '' (kosong)
+            # 3. Konversi ke angka
+            df[col] = df[col].astype(str).str.replace('-', '').str.replace('N/A', '')
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-    
+            
     # 3. Handle 'Realized R' dengan aman (mengatasi KeyError)
     if 'Realized R' in df.columns:
         df['Realized_R_Val'] = pd.to_numeric(df['Realized R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
