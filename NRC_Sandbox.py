@@ -142,11 +142,11 @@ def load_journal_data():
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
             
     # 3. Handle 'Realized R' dengan aman (mengatasi KeyError)
-    if 'Realized R' in df.columns:
-        df['Realized_R_Val'] = pd.to_numeric(df['Realized R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
+    if 'Realized_R' in df.columns:
+        df['Realized_R'] = pd.to_numeric(df['Realized R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
     else:
         # Jika kolom tidak ada, buat kolom 0 agar aplikasi tidak crash
-        df['Realized_R_Val'] = 0.0
+        df['Realized_R'] = 0.0
         
     # 4. Handle 'Alasan_Final'
     if 'Alasan_Final' in df.columns:
@@ -898,7 +898,7 @@ with tab_journal:
         df_raw['Tanggal'] = pd.to_datetime(df_raw['Tanggal'])
         df_raw['Bulan_Key'] = df_raw['Tanggal'].dt.to_period('M')
         # Bersihkan Realized R (Hapus 'R')
-        df_raw['Realized_R_Val'] = df_raw['Realized_R'].astype(str).str.replace('R', '', regex=False).astype(float)
+        df_raw['Realized_R'] = df_raw['Realized_R'].astype(str).str.replace('R', '', regex=False).astype(float)
         
         # Konversi ke Numerik agar tidak terjadi string concatenation
         df_raw['Lot'] = pd.to_numeric(df_raw['Lot'], errors='coerce').fillna(0)
@@ -974,7 +974,7 @@ with tab_journal:
             df_display.style.format({
                 'Lot': '{:.0f}', 
                 'Profit/Loss (Rp)': '{:,.0f}', 
-                'Realized R': '{:.2f}R',
+                'Realized_R': '{:.2f}R',
                 'Initial R': '{:.2f}R',
                 'Gain/Loss (%)': '{:.2f}%'
             }), 
