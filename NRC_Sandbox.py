@@ -944,7 +944,7 @@ with tab_journal:
             profit_factor_display = f"{sum_win_r / sum_loss_r:.2f}"
         # Baris 1
         col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Win Rate", f"{win_rate_decimal:.1f}%")
+        col_m1.metric("Win Rate", f"{win_rate_display:.1f}%")
         col_m2.metric("Profit Factor", profit_factor_display)
         col_m3.metric("Sum R", f"{sum_r:.2f}")
 
