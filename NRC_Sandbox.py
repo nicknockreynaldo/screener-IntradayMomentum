@@ -98,7 +98,7 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
             profit_loss_rp,                 # I: Profit/Loss (Rp)
             str(row['Grade']),              # J
             str(result),                    # K
-            str(row['Risk Multiple']),      # L
+            str(row['Initial_R']),      # L
             f"{r_val:.2f}",                # M
             str(tanggal_jual),              # N
             str(alasan_final)               # O
@@ -131,7 +131,7 @@ def load_journal_data():
 
     # 2. Pastikan kolom numerik benar-benar angka (mengatasi TypeError)
     # Gunakan errors='coerce' agar data non-angka berubah jadi NaN, lalu isi dengan 0
-    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)', 'Lot_Pct', 'Risk Multiple'] 
+    numeric_cols = ['Lot', 'Initial_Lot', 'Profit/Loss (Rp)', 'Lot_Pct', 'Initial_R'] 
     
     for col in numeric_cols:
         if col in df.columns:
@@ -143,7 +143,7 @@ def load_journal_data():
             
     # 3. Handle 'Realized R' dengan aman (mengatasi KeyError)
     if 'Realized_R' in df.columns:
-        df['Realized_R'] = pd.to_numeric(df['Realized R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
+        df['Realized_R'] = pd.to_numeric(df['Realized_R'].astype(str).str.replace('R', '', regex=False), errors='coerce').fillna(0)
     else:
         # Jika kolom tidak ada, buat kolom 0 agar aplikasi tidak crash
         df['Realized_R'] = 0.0
@@ -763,7 +763,7 @@ with tab_active_trade:
         else:
             st.session_state.df_active = pd.DataFrame(columns=[
                 'Trade_ID', 'Tanggal', 'Ticker', 'Lot', 'Avg_Entry', 
-                'SL', 'Jarak SL', 'Target', 'Risk Multiple', 'Grade'
+                'SL', 'Jarak SL', 'Target', 'Initial_R', 'Grade'
             ])
 
     # 2. Sembunyikan kolom kalkulasi dari UI tampilan
@@ -776,7 +776,7 @@ with tab_active_trade:
     # Lakukan kalkulasi hanya setelah data dipastikan angka
     df_temp['Remaining %'] = ((df_temp['Lot'] / df_temp['Initial_Lot']) * 100).round(0).astype(int)
     
-    cols_to_hide = ['Jarak SL', 'Risk Multiple', 'Initial_Lot']
+    cols_to_hide = ['Jarak SL', 'Initial_R', 'Initial_Lot']
     cols_to_show = [c for c in df_temp.columns if c not in cols_to_hide]
     df_clean = df_temp[cols_to_show]
 
@@ -975,7 +975,7 @@ with tab_journal:
                 'Lot': '{:.0f}', 
                 'Profit/Loss (Rp)': '{:,.0f}', 
                 'Realized_R': '{:.2f}R',
-                'Initial R': '{:.2f}R',
+                'Initial_R': '{:.2f}R',
                 'Gain/Loss (%)': '{:.2f}%'
             }), 
             use_container_width=True, 
