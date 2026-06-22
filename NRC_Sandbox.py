@@ -913,32 +913,45 @@ with tab_journal:
             'Ticker': 'first',
             'Lot': 'sum',
             'Profit/Loss (Rp)': 'sum',
-            'Realized_R_Val': 'sum',
+            'Realized R': 'sum',
             'Grade': 'first'
+            'Gain/Loss (%)': 'first',   
+            'Alasan_Final': 'first'    
         })
 
+        # === Kalkulasi ===
         sum_r = df_agg['Realized_R_Val'].sum()
         total_lot = df_agg['Lot'].sum()
         weighted_r = (df_agg['Realized_R_Val'] * df_agg['Lot']).sum() / total_lot if total_lot != 0 else 0
         avg_r = df_agg['Realized_R_Val'].mean()
+
         
         win_trades = df_agg[df_agg['Realized_R_Val'] > 0]
         loss_trades = df_agg[df_agg['Realized_R_Val'] < 0]
-        
+
+        total_trades = len(df_agg)
         win_rate = len(win_trades) / len(df_agg) if len(df_agg) > 0 else 0
         avg_win = win_trades['Realized_R_Val'].mean() if not win_trades.empty else 0
         avg_loss = abs(loss_trades['Realized_R_Val'].mean()) if not loss_trades.empty else 0
         expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+        sum_win_r = win_trades['Realized_R_Val'].sum()
+        sum_loss_r = abs(loss_trades['Realized_R_Val'].sum())
+        profit_factor = sum_win_r / sum_loss_r if sum_loss_r != 0 else (float('inf') if sum_win_r > 0 else 0)
+        
+        # Baris 1
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Win Rate", f"{win_rate:.1f}%")
+        col_m2.metric("Profit Factor", f"{profit_factor:.2f}")
+        col_m3.metric("Sum R", f"{sum_r:.2f}")
 
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("Sum R", f"{sum_r:.2f}")
-        col_m2.metric("Weighted Sum R", f"{weighted_r:.2f}")
-        col_m3.metric("Average R", f"{avg_r:.2f}")
-        col_m4.metric("Expectancy", f"{expectancy:.2f}")
+        # Baris 2
+        col_m4, col_m5, col_m6 = st.columns(3)
+        col_m4.metric("Avg R", f"{avg_r:.2f}")
+        col_m5.metric("Expectancy", f"{expectancy:.2f}")
+        col_m6.metric("Weighted R", f"{weighted_r:.2f}")
+        
         st.markdown("---")
 
-
-        
         st.subheader("Summary per Trade")
         
         # Tampilkan tabel utama
