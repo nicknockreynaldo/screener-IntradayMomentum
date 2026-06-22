@@ -907,7 +907,6 @@ with tab_journal:
         selected_key = df_raw[df_raw['Bulan_Display'] == selected_month_display]['Bulan_Key'].iloc[0]
         df_filtered = df_raw[df_raw['Bulan_Key'] == selected_key].copy()
 
-        st.write("Daftar kolom yang ada di data:", df_filtered.columns.tolist())
         # 3. AGREGASI (Gunakan kolom yang sudah numerik)
         df_agg = df_filtered.groupby('Trade_ID').agg({
             'Ticker': 'first',
@@ -937,13 +936,14 @@ with tab_journal:
         expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
         sum_win_r = win_trades['Realized_R'].sum()
         sum_loss_r = abs(loss_trades['Realized_R'].sum())
-        profit_factor = sum_win_r / sum_loss_r if sum_loss_r != 0 else (float('inf') if sum_win_r > 0 else 0)
-        profit_factor_display = "∞" if sum_loss_r == 0 and sum_win_r > 0 else f"{sum_win_r / sum_loss_r:.2f}" if sum_loss_r != 0 else "0.00"
-        
+        if sum_loss_r == 0:
+            profit_factor_display = "∞"
+        else:
+            profit_factor_display = f"{sum_win_r / sum_loss_r:.2f}"
         # Baris 1
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Win Rate", f"{win_rate:.1f}%")
-        col_m2.metric("Profit Factor", f"{profit_factor_display:.2f}")
+        col_m2.metric("Profit Factor", profit_factor_display)
         col_m3.metric("Sum R", f"{sum_r:.2f}")
 
         # Baris 2
