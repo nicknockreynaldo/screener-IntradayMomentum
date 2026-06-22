@@ -671,7 +671,7 @@ with tab_calc:
                 "1.5R": [f"{entry_in + (risk_per_share * 1.5):,.0f}"],
                 "2R": [f"{entry_in + (risk_per_share * 2):,.0f}"],
                 "3R": [f"{entry_in + (risk_per_share * 3):,.0f}"],
-                "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f}R)"]
+                "Manual TP": [f"{manual_tp:,.0f} ({r_manual:.2f})"]
             })
         else:
             df_target_ringkas = pd.DataFrame({"1.5R": ["-"], "2R": ["-"], "3R": ["-"], "Manual TP": ["-"]})
@@ -692,7 +692,7 @@ with tab_calc:
                     "SL": sl_in,
                     "Jarak SL": f"{risk_dist_pct:.2f}%",
                     "Target": manual_tp,
-                    "R-Ratio": f"{r_manual:.2f}R",
+                    "R-Ratio": f"{r_manual:.2f}",
                     "Grade": grade_in,
                     "Action": False
                 }])
