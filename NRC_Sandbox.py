@@ -242,6 +242,7 @@ if pilihan_menu == "📊 Market Breadth History":
                 min_value=min_d, 
                 max_value=max_d,
                 key=key_tracker
+            )
             if isinstance(date_range, list) or isinstance(date_range, tuple):
                 if len(date_range) == 2:
                     start_d, end_d = date_range
