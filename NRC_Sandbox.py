@@ -260,10 +260,10 @@ if pilihan_menu == "📊 Market Breadth History":
                     kolom_final = kolom_base + [c for c in kolom_pcts if c in df_filtered.columns]
                 else:
                     kolom_final = kolom_base.copy()
-                    if 'IHSG_change' in df_filtered.columns:
-                        kolom_final.append('IHSG_change')
+                    if 'IHSG_Change' in df_filtered.columns:
+                        kolom_final.append('IHSG_Change')
                     kolom_final += [c for c in kolom_counts if c in df_filtered.columns]
-                    kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
+                    kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_Change']
                 # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
                 formatter_dict = {}
                 for c in kolom_counts: 
