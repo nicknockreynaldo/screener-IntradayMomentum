@@ -266,10 +266,10 @@ if pilihan_menu == "📊 Market Breadth History":
                     hari_ini = df_filtered.iloc[0]
                     kemarin = df_filtered.iloc[1]
                     
-                    # Buat grid kolom dinamis untuk Summary Widget atas tabel
-                    cols_summary = st.columns(min(4, len(kolom_final) - 1))
+                    # Membuat 5 kolom horizontal untuk mengakomodasi IHSG + 4 DMA Count
+                    cols_summary = st.columns(5)
                     
-                    # 1. Ringkasan IHSG Change
+                    # 1. Ringkasan IHSG Change (Tetap dalam %)
                     if 'IHSG_change' in df_filtered.columns:
                         val_ihsg = hari_ini['IHSG_change']
                         chg_ihsg = val_ihsg - kemarin['IHSG_change']
@@ -277,30 +277,39 @@ if pilihan_menu == "📊 Market Breadth History":
                         arr_ihsg = "🔼" if chg_ihsg >= 0 else "🔽"
                         cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{arr_ihsg} {chg_ihsg:+.2f}%")
                     
-                    # 2. Ringkasan Swing Momentum (DMA 20)
-                    if 'Pct_Above_DMA20' in df_filtered.columns:
-                        val_dma20 = hari_ini['Pct_Above_DMA20']
-                        chg_dma20 = val_dma20 - kemarin['Pct_Above_DMA20']
-                        arr_dma20 = "🔼" if chg_dma20 >= 0 else "🔽"
-                        cols_summary[1].metric(label="% > DMA20 (Momentum)", value=f"{val_dma20:.0f}%", delta=f"{arr_dma20} {chg_dma20:+.0f}%")
+                    # 2. Ringkasan DMA 5 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_5' in df_filtered.columns:
+                        val_dma5 = hari_ini['DMA_5']
+                        chg_dma5 = val_dma5 - kemarin['DMA_5']
+                        arr_dma5 = "🔼" if chg_dma5 >= 0 else "🔽"
+                        cols_summary[1].metric(label="Emiten > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{arr_dma5} {chg_dma5:+,.0f}")
                         
-                    # 3. Ringkasan Medium Trend (DMA 50)
-                    if 'Pct_Above_DMA50' in df_filtered.columns:
-                        val_dma50 = hari_ini['Pct_Above_DMA50']
-                        chg_dma50 = val_dma50 - kemarin['Pct_Above_DMA50']
-                        arr_dma50 = "🔼" if chg_dma50 >= 0 else "🔽"
-                        cols_summary[2].metric(label="% > DMA50 (Medium)", value=f"{val_dma50:.0f}%", delta=f"{arr_dma50} {chg_dma50:+.0f}%")
+                    # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_10' in df_filtered.columns:
+                        val_dma10 = hari_ini['DMA_10']
+                        chg_dma10 = val_dma10 - kemarin['DMA_10']
+                        arr_dma10 = "🔼" if chg_dma10 >= 0 else "🔽"
+                        cols_summary[2].metric(label="Emiten > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{arr_dma10} {chg_dma10:+,.0f}")
 
-                    # 4. Ringkasan Long Trend (DMA 200)
-                    if 'Pct_Above_DMA200' in df_filtered.columns:
-                        val_dma200 = hari_ini['Pct_Above_DMA200']
-                        chg_dma200 = val_dma200 - kemarin['Pct_Above_DMA200']
-                        arr_dma200 = "🔼" if chg_dma200 >= 0 else "🔽"
-                        cols_summary[3].metric(label="% > DMA200 (Long)", value=f"{val_dma200:.0f}%", delta=f"{arr_dma200} {chg_dma200:+.0f}%")
-                    
+                    # 4. Ringkasan DMA 20 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_20' in df_filtered.columns:
+                        val_dma20 = hari_ini['DMA_20']
+                        chg_dma20 = val_dma20 - kemarin['DMA_20']
+                        arr_dma20 = "🔼" if chg_dma20 >= 0 else "🔽"
+                        cols_summary[3].metric(label="Emiten > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{arr_dma20} {chg_dma20:+,.0f}")
+
+                    # 5. Ringkasan DMA 50 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_50' in df_filtered.columns:
+                        val_dma50 = hari_ini['DMA_50']
+                        chg_dma50 = val_dma50 - kemarin['DMA_50']
+                        arr_dma50 = "🔼" if chg_dma50 >= 0 else "🔽"
+                        cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{arr_dma50} {chg_dma50:+,.0f}")
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
                 # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
+                for col in kolom_final:
+                    if col != 'Tanggal' and col in df_filtered.columns:
+                        df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').fillna(0)
                 df_styled = df_filtered[kolom_final].style
                 def warnai_teks_ihsg(val):
                     try:
@@ -324,15 +333,27 @@ if pilihan_menu == "📊 Market Breadth History":
                     df_styled = df_styled.background_gradient(cmap='YlGn', subset=kolom_heatmap, vmin=0, vmax=100)
 
                 # Setup format tampilan data tabel (Format Akuntansi Tanda Kurung)
+                def fmt_ihsg(x):
+                    try:
+                        val = float(x)
+                        return f"({abs(val):.2f}%)" if val < 0 else f"+{val:.2f}%" if val > 0 else f"{val:.2f}%"
+                    except:
+                        return str(x)
+
+                def fmt_pct(x):
+                    try:
+                        val = float(x)
+                        return f"({abs(val):.0f}%)" if val < 0 else f"{val:.0f}%"
+                    except:
+                        return str(x)
+
+                # Setup dictionary formatter final
                 formatter_dict = {}
                 for c in kolom_counts: 
                     formatter_dict[c] = '{:,.0f}'
                 for c in kolom_pcts:
                     if c in df_filtered.columns:
-                        if c == 'IHSG_change':
-                            formatter_dict[c] = lambda x: f"({abs(x):.2f}%)" if x < 0 else f"+{x:.2f}%" if x > 0 else f"{x:.2f}%"
-                        else:
-                            formatter_dict[c] = lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%"          
+                        formatter_dict[c] = fmt_ihsg if c == 'IHSG_change' else fmt_pct
                 
                 formatter_final = {k: v for k, v in formatter_dict.items() if k in kolom_final}
                 df_styled = df_styled.format(formatter_final)
