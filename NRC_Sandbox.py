@@ -252,11 +252,11 @@ if pilihan_menu == "📊 Market Breadth History":
                     df_filtered = df_breadth.copy()
             else:
                 df_filtered = df_breadth.copy()
-                
+
             df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
             
             # Sub-Tab Horizontal di dalam Menu Market Breadth
-            tab_tabel, tab_delta = st.tabs(["📋 Historical Data", "📈 Metrik Deviasi Harian (Delta)"])
+            tab_tabel, tab_psikologi = st.tabs(["📋 Historical Data", "📈 Metrik Deviasi Harian (Delta)"])
             
             
             with tab_tabel:
@@ -382,28 +382,58 @@ if pilihan_menu == "📊 Market Breadth History":
                     use_container_width=True
                 )
                 
-            with tab_delta:
-                if len(df_filtered) >= 2:
-                    st.write("### Perubahan Terakhir (Hari Ini vs Hari Bursa Sebelumnya)")
-                    hari_ini = df_filtered.iloc[0]
-                    kemarin = df_filtered.iloc[1]
+            with tab_psikologi:
+                st.write("### 📊 Caruso-style Breadth Progressor (FOMO Oscillator)")
+                st.info("Mengukur posisi partisipasi market saat ini terhadap batas psikologis ekstrem historis (Max/Min) bursa saham.")
+                
+                if len(df_filtered) > 0:
+                    import plotly.graph_objects as go
                     
-                    c1, c2, c3 = st.columns(3)
+                    # Salin data & sorting maju untuk visualisasi deret waktu grafik garis
+                    df_osc = df_filtered.copy().sort_values('Date')
                     
-                    with c1:
-                        if '% Above DMA20' in df_filtered.columns:
-                            d_20 = hari_ini['% Above DMA20'] - kemarin['% Above DMA20']
-                            st.metric(label="Swing Momentum (% > DMA20)", value=f"{hari_ini['% Above DMA20']:.1f}%", delta=f"{d_20:+.1f}%")
-                    with c2:
-                        if '% Above DMA50' in df_filtered.columns:
-                            d_50 = hari_ini['% Above DMA50'] - kemarin['% Above DMA50']
-                            st.metric(label="Medium Trend (% > DMA50)", value=f"{hari_ini['% Above DMA50']:.1f}%", delta=f"{d_50:+.1f}%")
-                    with c3:
-                        if '% Above DMA200' in df_filtered.columns:
-                            d_200 = hari_ini['% Above DMA200'] - kemarin['% Above DMA200']
-                            st.metric(label="Structural Trend (% > MA200)", value=f"{hari_ini['% Above DMA200']:.1f}%", delta=f"{d_200:+.1f}%")
-                else:
-                    st.info("Pilih rentang minimal 2 hari bursa untuk menampilkan kalkulasi deviasi/delta.")
+                    # Batas psikologi ekstrem historis berdasarkan catatan GSheet Anda
+                    max_dma5, min_dma5 = 130, 7
+                    max_dma20, min_dma20 = 105, 5
+                    max_dma200, min_dma200 = 113, 28
+                    
+                    # Kalkulasi formula Stochastic % Posisi Psikologis (Skala 0 - 100)
+                    df_osc['Osc_DMA5'] = ((df_osc['DMA_5'] - min_dma5) / (max_dma5 - min_dma5)) * 100
+                    df_osc['Osc_DMA20'] = ((df_osc['DMA_20'] - min_dma20) / (max_dma20 - min_dma20)) * 100
+                    df_osc['Osc_DMA200'] = ((df_osc['DMA_200'] - min_dma200) / (max_dma200 - min_dma200)) * 100
+                    
+                    # Render Box Status Notifikasi Psikologi Terkini (Hari Terakhir)
+                    skor_sekarang_dma5 = df_osc['Osc_DMA5'].iloc[-1]
+                    if skor_sekarang_dma5 >= 80:
+                        st.error(f"🚨 **STATUS DMA 5: EUPHORIA / FOMO HIGH ({skor_sekarang_dma5:.1f}%)** — Pasar jenuh beli (Overbought), risiko *buying climax* meningkat.")
+                    elif skor_sekarang_dma5 <= 20:
+                        st.success(f"🟢 **STATUS DMA 5: EXTREME FEAR / CAPITULATION ({skor_sekarang_dma5:.1f}%)** — Pasar jenuh jual (Oversold), ruang akumulasi saham mulai terbuka.")
+                    else:
+                        st.info(f"⚖️ **STATUS DMA 5: NEUTRAL ({skor_sekarang_dma5:.1f}%)** — Partisipasi trader jangka pendek bergerak normal.")
+                        
+                    # Pembuatan Grafik Interaktif Plotly
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA5'], name='Jangka Pendek (DMA 5)', line=dict(color='#ff4b4b', width=2)))
+                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA20'], name='Jangka Menengah (DMA 20)', line=dict(color='#29b5e8', width=1.5)))
+                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA200'], name='Jangka Struktural (DMA 200)', line=dict(color='#ffa500', width=1.5)))
+                    
+                    # Menambahkan Garis Batas Ambang Ekstrem Jenuh (80% & 20%)
+                    fig.add_hline(y=80, line_dash="dash", line_color="#ff4b4b", annotation_text="Euphoria / Overbought (80%)", annotation_position="top left")
+                    fig.add_hline(y=20, line_dash="dash", line_color="#29b5e8", annotation_text="Extreme Fear / Oversold (20%)", annotation_position="bottom left")
+                    fig.add_hline(y=50, line_dash="dot", line_color="gray")
+                    
+                    fig.update_layout(
+                        yaxis=dict(title="Skor Sentimen & Partisipasi (%)", range=[-5, 105]),
+                        xaxis=dict(title="Tanggal"),
+                        template="plotly_white",
+                        height=450,
+                        hovermode="x unified",
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
         else:
             st.error("Kolom 'Date' tidak terdeteksi pada data spreadsheet Anda.")
     else:
