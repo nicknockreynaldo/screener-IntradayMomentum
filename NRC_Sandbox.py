@@ -211,7 +211,7 @@ if pilihan_menu == "📊 Market Breadth History":
         
         if 'Date' in df_breadth.columns:
             # Konversi tanggal dan urutkan dari yang paling baru
-            df_breadth['Date'] = pd.to_datetime(df_breadth['Date'], errors='coerce')
+            df_breadth['Date'] = pd.to_datetime(df_breadth['Date'], errors='coerce').dt.normalize()
             df_breadth = df_breadth.dropna(subset=['Date'])
             df_breadth = df_breadth.sort_values('Date', ascending=False).reset_index(drop=True)
             
@@ -234,14 +234,14 @@ if pilihan_menu == "📊 Market Breadth History":
             max_d = df_breadth['Date'].max().to_pydatetime()
             
             st.write("### 🎚️ Filter Rentang Waktu")
-            key_dinamis = f"date_input_breadth_{len(df_breadth)}"
+            key_tracker = f"date_input_range_{len(df_breadth)}"
+            
             date_range = st.date_input(
                 "Pilih Rentang Tanggal Analisis:", 
                 value=[min_d, max_d], 
                 min_value=min_d, 
                 max_value=max_d,
-                key=key_dinamis
-            )
+                key=key_tracker
             if isinstance(date_range, list) or isinstance(date_range, tuple):
                 if len(date_range) == 2:
                     start_d, end_d = date_range
