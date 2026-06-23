@@ -316,10 +316,14 @@ if pilihan_menu == "📊 Market Breadth History":
                 # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
                 def warnai_teks_ihsg(val):
                     try:
-                        val_num = float(val)
-                        if val_num > 0: return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
-                        elif val_num < 0: return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
-                    except: pass
+                        # Konversi ke float, jika ada string atau tanda % tetap aman
+                        val_num = float(str(val).replace('%', '').replace('(', '-').replace(')', '').replace('+', ''))
+                        if val_num > 0: 
+                            return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
+                        elif val_num < 0: 
+                            return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
+                    except: 
+                        pass
                     return ''
 
                 # Generate base styler object
@@ -327,7 +331,7 @@ if pilihan_menu == "📊 Market Breadth History":
                 
                 # Eksekusi pewarnaan teks khusus IHSG_change
                 if 'IHSG_change' in kolom_final:
-                    df_styled = df_styled.applymap(warnai_teks_ihsg, subset=['IHSG_change'])
+                    df_styled = df_styled.map(warnai_teks_ihsg, subset=['IHSG_change'])
                 
                 # Eksekusi pewarnaan background heatmap pada sisa kolom rasio persentase breadth
                 kolom_heatmap = [c for c in kolom_pcts if c in kolom_final and c != 'IHSG_change']
