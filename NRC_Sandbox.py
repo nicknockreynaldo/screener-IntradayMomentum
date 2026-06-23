@@ -292,7 +292,7 @@ if pilihan_menu == "📊 Market Breadth History":
                         val_dma5 = hari_ini['DMA_5']
                         chg_dma5 = val_dma5 - kemarin['DMA_5']
                     
-                        cols_summary[1].metric(label="Stocks > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{chg_dma10:+,.0f}")
+                        cols_summary[1].metric(label="Stocks > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{chg_dma5:+,.0f}")
                         
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
