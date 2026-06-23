@@ -283,13 +283,16 @@ if pilihan_menu == "📊 Market Breadth History":
                     if 'DMA_5' in df_filtered.columns and 'DMA_5%' in df_filtered.columns:
                         val_dma5 = hari_ini['DMA_5']
                         pct_dma5 = hari_ini['DMA_5%']
-                        chg_dma5 = val_dma5 - kemarin['DMA_5'] # Selisih jumlah emiten murni
+                        chg_dma5 = val_dma5 - kemarin['DMA_5']
+                        
+                        # 🎯 AKALAN DISINI: Jika 0, tulis string manual agar tidak dihilangkan Streamlit
+                        lbl_delta5 = f"{chg_dma5:+,.0f}" if chg_dma5 != 0 else "No Change"
                         
                         cols_summary[1].metric(
                             label="Emiten > DMA 5", 
                             value=f"{val_dma5:,.0f} ({pct_dma5:.0f}%)", 
-                            delta=f"{chg_dma5:+,.0f}", # Otomatis merah jika minus, hijau jika surplus
-                            delta_color="normal"
+                            delta=lbl_delta5, 
+                            delta_color="normal" if chg_dma5 != 0 else "off" # "off" warna abu-abu netral
                         )
                         
                     # 3. DMA 10 (Format: Count (%))
@@ -298,11 +301,13 @@ if pilihan_menu == "📊 Market Breadth History":
                         pct_dma10 = hari_ini['DMA_10%']
                         chg_dma10 = val_dma10 - kemarin['DMA_10']
                         
+                        lbl_delta10 = f"{chg_dma10:+,.0f}" if chg_dma10 != 0 else "No Change"
+                        
                         cols_summary[2].metric(
                             label="Emiten > DMA 10", 
                             value=f"{val_dma10:,.0f} ({pct_dma10:.0f}%)", 
-                            delta=f"{chg_dma10:+,.0f}", 
-                            delta_color="normal"
+                            delta=lbl_delta10, 
+                            delta_color="normal" if chg_dma10 != 0 else "off"
                         )
 
                     # 4. DMA 20 (Format: Count (%))
@@ -311,11 +316,13 @@ if pilihan_menu == "📊 Market Breadth History":
                         pct_dma20 = hari_ini['DMA_20%']
                         chg_dma20 = val_dma20 - kemarin['DMA_20']
                         
+                        lbl_delta20 = f"{chg_dma20:+,.0f}" if chg_dma20 != 0 else "No Change"
+                        
                         cols_summary[3].metric(
                             label="Emiten > DMA 20", 
                             value=f"{val_dma20:,.0f} ({pct_dma20:.0f}%)", 
-                            delta=f"{chg_dma20:+,.0f}", 
-                            delta_color="normal"
+                            delta=lbl_delta20, 
+                            delta_color="normal" if chg_dma20 != 0 else "off"
                         )
 
                     # 5. DMA 50 (Format: Count (%))
@@ -324,11 +331,13 @@ if pilihan_menu == "📊 Market Breadth History":
                         pct_dma50 = hari_ini['DMA_50%']
                         chg_dma50 = val_dma50 - kemarin['DMA_50']
                         
+                        lbl_delta50 = f"{chg_dma50:+,.0f}" if chg_dma50 != 0 else "No Change"
+                        
                         cols_summary[4].metric(
                             label="Emiten > DMA 50", 
                             value=f"{val_dma50:,.0f} ({pct_dma50:.0f}%)", 
-                            delta=f"{chg_dma50:+,.0f}", 
-                            delta_color="normal"
+                            delta=lbl_delta50, 
+                            delta_color="normal" if chg_dma50 != 0 else "off"
                         )
                     
                     st.markdown("---")
