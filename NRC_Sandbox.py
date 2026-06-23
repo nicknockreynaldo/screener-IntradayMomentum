@@ -282,35 +282,42 @@ if pilihan_menu == "📊 Market Breadth History":
                         chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
 
-                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{val_ihsg:+.2f}%")
+                        cols_summary[0].metric(label="IHSG Change", value=lbl_ihsg, delta=f"{val_ihsg:+.2f}%")
+                        
+                    def format_value_with_pct(count_val, pct_val):
+                        return f"{count_val:,.0f} <span style='font-size: 14px; font-weight: normal; color: gray;'>({pct_val:.0f}%)</span>"
                     
                     # 2. Ringkasan DMA 5 (Jumlah Ticker, Tanpa %)
                     if 'DMA_5' in df_filtered.columns:
                         val_dma5 = hari_ini['DMA_5']
                         chg_dma5 = val_dma5 - kemarin['DMA_5']
-                    
-                        cols_summary[1].metric(label="Emiten > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{chg_dma5:+,.0f}")
-                        
+                        pct_dma5 = hari_ini['Pct_Above_DMA5']
+                        cols_summary[1].markdown(
+                            f"<p style='font-size: 14px; color: #808495; margin-bottom: 0px;'>Emiten > DMA 5</p>"
+                            f"<h3 style='margin-top: 0px; margin-bottom: 0px;'>{format_value_with_pct(val_dma5, pct_dma5)}</h3>"
+                            f"<p style='font-size: 14px; color: {'#29b5e8' if chg_dma5 >= 0 else '#ff4b4b'}; margin-top: 0px;'>{chg_dma5:+,.0f}</p>",
+                            unsafe_allow_html=True
+                        )
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
                         val_dma10 = hari_ini['DMA_10']
                         chg_dma10 = val_dma10 - kemarin['DMA_10']
                 
-                        cols_summary[2].metric(label="Emiten > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{chg_dma10:+,.0f}")
+                        cols_summary[2].metric(label="Stocks > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{chg_dma10:+,.0f}")
 
                     # 4. Ringkasan DMA 20 (Jumlah Ticker, Tanpa %)
                     if 'DMA_20' in df_filtered.columns:
                         val_dma20 = hari_ini['DMA_20']
                         chg_dma20 = val_dma20 - kemarin['DMA_20']
                         
-                        cols_summary[3].metric(label="Emiten > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{chg_dma20:+,.0f}")
+                        cols_summary[3].metric(label="Stocks > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{chg_dma20:+,.0f}")
 
                     # 5. Ringkasan DMA 50 (Jumlah Ticker, Tanpa %)
                     if 'DMA_50' in df_filtered.columns:
                         val_dma50 = hari_ini['DMA_50']
                         chg_dma50 = val_dma50 - kemarin['DMA_50']
                         
-                        cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
+                        cols_summary[4].metric(label="Stocks > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
                 df_display = df_filtered[kolom_final].copy()
