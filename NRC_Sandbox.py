@@ -232,12 +232,13 @@ if pilihan_menu == "📊 Market Breadth History":
             # Filter rentang waktu dinamis
             min_d = df_breadth['Date'].min().to_pydatetime()
             max_d = df_breadth['Date'].max().to_pydatetime()
+            default_start_d = max(min_d, max_d - datetime.timedelta(days=30))
             
             key_tracker = f"date_input_range_{len(df_breadth)}"
             
             date_range = st.date_input(
                 "Pilih Rentang Tanggal :", 
-                value=[min_d, max_d], 
+                value=[default_start_d, max_d], 
                 min_value=min_d, 
                 max_value=max_d,
                 key=key_tracker
