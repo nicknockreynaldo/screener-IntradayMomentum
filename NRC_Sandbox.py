@@ -187,8 +187,8 @@ if pilihan_menu == "📊 Market Breadth History":
     
     # Menembak langsung ke file spreadsheet "IHSG Market Breadth"
     try:
-        # CATATAN: Ganti 'gc' di bawah dengan nama variabel gspread client Anda jika berbeda 
-        # (biasanya di bagian atas kode Anda dinamai 'gc', 'client', atau 'sh_client')
+        creds_dict = dict(st.secrets["gcp"])
+        gc = gspread.service_account_from_dict(creds_dict)
         sh_breadth = gc.open("IHSG Market Breadth")
         worksheet_breadth = sh_breadth.worksheet("History")
         df_breadth = pd.DataFrame(worksheet_breadth.get_all_records())
