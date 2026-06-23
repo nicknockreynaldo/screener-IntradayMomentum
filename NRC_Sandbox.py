@@ -329,31 +329,31 @@ if pilihan_menu == "📊 Market Breadth History":
                     if 'Pct_Above_DMA5' in df_filtered.columns:
                         pct_dma5 = hari_ini['Pct_Above_DMA5']
                         chg_pct5 = pct_dma5 - kemarin['Pct_Above_DMA5']
-                        cols_pct[1].metric(label="% Emiten > DMA 5", value=f"{pct_dma5:.0f}%", delta=f"{chg_pct5:+.0f}%")
+                        cols_pct[1].metric(label="% Above DMA 5", value=f"{pct_dma5:.0f}%", delta=f"{chg_pct5:+.0f}%")
                         
                     # 3. Pct Above DMA 10
                     if 'Pct_Above_DMA10' in df_filtered.columns:
                         pct_dma10 = hari_ini['Pct_Above_DMA10']
                         chg_pct10 = pct_dma10 - kemarin['Pct_Above_DMA10']
-                        cols_pct[2].metric(label="% Emiten > DMA 10", value=f"{pct_dma10:.0f}%", delta=f"{chg_pct10:+.0f}%")
+                        cols_pct[2].metric(label="% Above DMA 10", value=f"{pct_dma10:.0f}%", delta=f"{chg_pct10:+.0f}%")
 
                     # 4. Pct Above DMA 20
                     if 'Pct_Above_DMA20' in df_filtered.columns:
                         pct_dma20 = hari_ini['Pct_Above_DMA20']
                         chg_pct20 = pct_dma20 - kemarin['Pct_Above_DMA20']
-                        cols_pct[3].metric(label="% Emiten > DMA 20", value=f"{pct_dma20:.0f}%", delta=f"{chg_pct20:+.0f}%")
+                        cols_pct[3].metric(label="% Above DMA 20", value=f"{pct_dma20:.0f}%", delta=f"{chg_pct20:+.0f}%")
 
                     # 5. Pct Above DMA 50
                     if 'Pct_Above_DMA50' in df_filtered.columns:
                         pct_dma50 = hari_ini['Pct_Above_DMA50']
                         chg_pct50 = pct_dma50 - kemarin['Pct_Above_DMA50']
-                        cols_pct[4].metric(label="% Emiten > DMA 50", value=f"{pct_dma50:.0f}%", delta=f"{chg_pct50:+.0f}%")
+                        cols_pct[4].metric(label="% Above DMA 50", value=f"{pct_dma50:.0f}%", delta=f"{chg_pct50:+.0f}%")
 
                     # 6. Pct Above DMA 200
                     if 'Pct_Above_DMA200' in df_filtered.columns:
                         pct_dma200 = hari_ini['Pct_Above_DMA200']
                         chg_pct200 = pct_dma200 - kemarin['Pct_Above_DMA200']
-                        cols_pct[5].metric(label="% Emiten > DMA 200", value=f"{pct_dma200:.0f}%", delta=f"{chg_pct200:+.0f}%")
+                        cols_pct[5].metric(label="% Above DMA 200", value=f"{pct_dma200:.0f}%", delta=f"{chg_pct200:+.0f}%")
                     
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
