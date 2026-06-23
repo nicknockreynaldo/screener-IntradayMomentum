@@ -6,7 +6,7 @@ import math
 import gspread
 import time
 import datetime
-import plotly.graph_objects as go
+
 
 # --- FUNGSI GOOGLE SHEETS ---
 def simpan_trade_ke_gsheet(worksheet_name, data_list):
