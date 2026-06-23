@@ -217,7 +217,7 @@ if pilihan_menu == "📊 Market Breadth History":
             
             # Kelompokkan jenis kolom data
             kolom_counts = ['DMA_5', 'DMA_10', 'DMA_20', 'DMA_50', 'DMA_200']
-            kolom_pcts = ['Pct_Above_DMA5', 'Pct_Above_DMA10', 'Pct_Above_DMA20', 'Pct_Above_DMA50', 'Pct_Above_DMA200', 'IHSG_Change']
+            kolom_pcts = ['IHSG_Change', 'Pct_Above_DMA5', 'Pct_Above_DMA10', 'Pct_Above_DMA20', 'Pct_Above_DMA50', 'Pct_Above_DMA200']
             
             # Pembersihan tipe data numerik
             for col in kolom_counts:
@@ -259,8 +259,11 @@ if pilihan_menu == "📊 Market Breadth History":
                 elif view_mode == "Hanya Nilai Rasio (%)":
                     kolom_final = kolom_base + [c for c in kolom_pcts if c in df_filtered.columns]
                 else:
-                    kolom_final = kolom_base + [c for c in kolom_counts if c in df_filtered.columns] + [c for c in kolom_pcts if c in df_filtered.columns]
-                
+                    kolom_final = kolom_base.copy()
+                    if 'IHSG_change' in df_filtered.columns:
+                        kolom_final.append('IHSG_change')
+                    kolom_final += [c for c in kolom_counts if c in df_filtered.columns]
+                    kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
                 # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
                 formatter_dict = {}
                 for c in kolom_counts: formatter_dict[c] = '{:,.0f}'
