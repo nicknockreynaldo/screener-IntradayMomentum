@@ -312,13 +312,14 @@ if pilihan_menu == "📊 Market Breadth History":
                     if 'DMA_50' in df_filtered.columns:
                         val_dma50 = hari_ini['DMA_50']
                         chg_dma50 = val_dma50 - kemarin['DMA_50']
+                        cols_summary[4].metric(label="Stocks > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
                         
                     # 6. DMA 200 Count
                     if 'DMA_200' in df_filtered.columns:
                         val_dma200 = hari_ini['DMA_200']
                         chg_dma200 = val_dma200 - kemarin['DMA_200']
                         cols_count[5].metric(label="Emiten > DMA 200", value=f"{val_dma200:,.0f}", delta=f"{chg_dma200:+,.0f}")   
-                        cols_summary[4].metric(label="Stocks > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
+                        
 
                     st.write("")
                     cols_pct = st.columns(6)
