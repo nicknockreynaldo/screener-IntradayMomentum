@@ -275,7 +275,7 @@ if pilihan_menu == "📊 Market Breadth History":
                         # chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
 
-                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{chg_ihsg:+.2f}%")
+                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{val_ihsg:+.2f}%")
                     
                     # 2. Ringkasan DMA 5 (Jumlah Ticker, Tanpa %)
                     if 'DMA_5' in df_filtered.columns:
