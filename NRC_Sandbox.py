@@ -292,11 +292,10 @@ if pilihan_menu == "📊 Market Breadth History":
                         val_dma5 = hari_ini['DMA_5']
                         chg_dma5 = val_dma5 - kemarin['DMA_5']
                         pct_dma5 = hari_ini['Pct_Above_DMA5']
-                        cols_summary[1].markdown(
-                            f"<p style='font-size: 14px; color: #808495; margin-bottom: 0px;'>Emiten > DMA 5</p>"
-                            f"<h3 style='margin-top: 0px; margin-bottom: 0px;'>{format_value_with_pct(val_dma5, pct_dma5)}</h3>"
-                            f"<p style='font-size: 14px; color: {'#29b5e8' if chg_dma5 >= 0 else '#ff4b4b'}; margin-top: 0px;'>{chg_dma5:+,.0f}</p>",
-                            unsafe_allow_html=True
+                        cols_summary[1].metric(
+                            label="Emiten > DMA 5", 
+                            value=f"{val_dma5:,.0f} ({pct_dma5:.0f}%)", 
+                            delta=f"{chg_dma5:+,.0f}"
                         )
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
