@@ -264,18 +264,23 @@ if pilihan_menu == "📊 Market Breadth History":
                         kolom_final.append('IHSG_change')
                     kolom_final += [c for c in kolom_counts if c in df_filtered.columns]
                     kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
+               
                 # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
                 formatter_dict = {}
                 for c in kolom_counts: 
                     formatter_dict[c] = '{:,.0f}'
                 for c in kolom_pcts:
-                    if c == 'IHSG_change':
-                        formatter_dict[c] = '{:.2f}%'  # Khusus IHSG dibuat 2 desimal agar presisi (misal: +0.43%)
-                    else:
-                        formatter_dict[c] = '{:.0f}%'            
-                
+                    if c in df_filtered.columns:
+                        if c == 'IHSG_change':
+                            # 🎯 FIX DI SINI: Jika minus, buang tanda negatifnya lalu bungkus dengan kurung ()
+                            formatter_dict[c] = lambda x: f"({abs(x):.2f}%)" if x < 0 else f"+{x:.2f}%" if x > 0 else f"{x:.2f}%"
+                        else:
+                            # Jika persentase breadth biasa mau dibuat pakai kurung juga saat minus:
+                            formatter_dict[c] = lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%" 
+                        
+                formatter_final = {k: v for k, v in formatter_dict.items() if k in kolom_final}
                 st.dataframe(
-                    df_filtered[kolom_final].style.format(formatter_dict),
+                    df_filtered[kolom_final].style.format(formatter_final),
                     hide_index=True,
                     use_container_width=True
                 )
