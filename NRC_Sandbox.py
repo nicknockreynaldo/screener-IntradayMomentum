@@ -274,36 +274,36 @@ if pilihan_menu == "📊 Market Breadth History":
                         val_ihsg = hari_ini['IHSG_change']
                         chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
-                        arr_ihsg = "🔼" if chg_ihsg >= 0 else "🔽"
-                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{arr_ihsg} {chg_ihsg:+.2f}%")
+
+                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{chg_ihsg:+.2f}%")
                     
                     # 2. Ringkasan DMA 5 (Jumlah Ticker, Tanpa %)
                     if 'DMA_5' in df_filtered.columns:
                         val_dma5 = hari_ini['DMA_5']
                         chg_dma5 = val_dma5 - kemarin['DMA_5']
-                        arr_dma5 = "🔼" if chg_dma5 >= 0 else "🔽"
-                        cols_summary[1].metric(label="Emiten > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{arr_dma5} {chg_dma5:+,.0f}")
+                    
+                        cols_summary[1].metric(label="Emiten > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{chg_dma5:+,.0f}")
                         
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
                         val_dma10 = hari_ini['DMA_10']
                         chg_dma10 = val_dma10 - kemarin['DMA_10']
-                        arr_dma10 = "🔼" if chg_dma10 >= 0 else "🔽"
-                        cols_summary[2].metric(label="Emiten > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{arr_dma10} {chg_dma10:+,.0f}")
+                
+                        cols_summary[2].metric(label="Emiten > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{chg_dma10:+,.0f}")
 
                     # 4. Ringkasan DMA 20 (Jumlah Ticker, Tanpa %)
                     if 'DMA_20' in df_filtered.columns:
                         val_dma20 = hari_ini['DMA_20']
                         chg_dma20 = val_dma20 - kemarin['DMA_20']
-                        arr_dma20 = "🔼" if chg_dma20 >= 0 else "🔽"
-                        cols_summary[3].metric(label="Emiten > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{arr_dma20} {chg_dma20:+,.0f}")
+                        
+                        cols_summary[3].metric(label="Emiten > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{{chg_dma20:+,.0f}")
 
                     # 5. Ringkasan DMA 50 (Jumlah Ticker, Tanpa %)
                     if 'DMA_50' in df_filtered.columns:
                         val_dma50 = hari_ini['DMA_50']
                         chg_dma50 = val_dma50 - kemarin['DMA_50']
-                        arr_dma50 = "🔼" if chg_dma50 >= 0 else "🔽"
-                        cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{arr_dma50} {chg_dma50:+,.0f}")
+                        
+                        cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
                 df_display = df_filtered[kolom_final].copy()
