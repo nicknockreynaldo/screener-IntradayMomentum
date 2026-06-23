@@ -183,11 +183,18 @@ pilihan_menu = st.sidebar.radio(
 
 if pilihan_menu == "📊 Market Breadth History":
     st.title("📊 IHSG Market Breadth Historical Data")
-    st.markdown("Pantau rotasi internal, likuiditas, dan kelebaran tren sektoral IHSG secara historis.")
+    # st.markdown("Pantau rotasi internal, likuiditas, dan kelebaran tren sektoral IHSG secara historis.")
     
-    # Memakai fungsi gspread eksisting Anda untuk menarik data
-    # PENTING: Ganti "History" dengan nama asli tab worksheet Market Breadth Anda
-    df_breadth = tarik_data_dari_gsheet("History")
+    # Menembak langsung ke file spreadsheet "IHSG Market Breadth"
+    try:
+        # CATATAN: Ganti 'gc' di bawah dengan nama variabel gspread client Anda jika berbeda 
+        # (biasanya di bagian atas kode Anda dinamai 'gc', 'client', atau 'sh_client')
+        sh_breadth = gc.open("IHSG Market Breadth")
+        worksheet_breadth = sh_breadth.worksheet("History")
+        df_breadth = pd.DataFrame(worksheet_breadth.get_all_records())
+    except Exception as e_gsheet:
+        st.error(f"⚠️ Gagal memuat Spreadsheet 'IHSG Market Breadth'. Detail Error: {e_gsheet}")
+        df_breadth = pd.DataFrame()
     
     if not df_breadth.empty:
         # Bersihkan whitespace di nama kolom untuk mencegah error pencarian kolom
