@@ -306,58 +306,22 @@ if pilihan_menu == "📊 Market Breadth History":
                         cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{arr_dma50} {chg_dma50:+,.0f}")
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
-                # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
-                for col in kolom_final:
-                    if col != 'Tanggal' and col in df_filtered.columns:
-                        df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').fillna(0)
-                df_styled = df_filtered[kolom_final].style
-                def warnai_teks_ihsg(val):
-                    try:
-                        val_num = float(val)
-                        if val_num > 0: 
-                            return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
-                        elif val_num < 0: 
-                            return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
-                    except: 
-                        pass
-                    return ''
-                    
-                # Eksekusi pewarnaan teks khusus IHSG_change
-                if 'IHSG_change' in kolom_final:
-                    df_styled = df_styled.map(warnai_teks_ihsg, subset=['IHSG_change'])
-                    
-                # Eksekusi pewarnaan background heatmap pada sisa kolom rasio persentase breadth
-                kolom_heatmap = [c for c in kolom_pcts if c in kolom_final and c != 'IHSG_change']
-                if kolom_heatmap:
-                    # Mengunci rentang nilai 0-100% menggunakan skema warna Yellow-Green (YlGn) yang teduh di browser
-                    df_styled = df_styled.background_gradient(cmap='YlGn', subset=kolom_heatmap, vmin=0, vmax=100)
-
-                # Setup format tampilan data tabel (Format Akuntansi Tanda Kurung)
-                def fmt_ihsg(x):
-                    try:
-                        val = float(x)
-                        return f"({abs(val):.2f}%)" if val < 0 else f"+{val:.2f}%" if val > 0 else f"{val:.2f}%"
-                    except:
-                        return str(x)
-
-                def fmt_pct(x):
-                    try:
-                        val = float(x)
-                        return f"({abs(val):.0f}%)" if val < 0 else f"{val:.0f}%"
-                    except:
-                        return str(x)
-
-                # Setup dictionary formatter final
-                formatter_dict = {}
-                for c in kolom_counts: 
-                    formatter_dict[c] = '{:,.0f}'
-                for c in kolom_pcts:
-                    if c in df_filtered.columns:
-                        formatter_dict[c] = fmt_ihsg if c == 'IHSG_change' else fmt_pct
+                df_display = df_filtered[kolom_final].copy()
                 
-                formatter_final = {k: v for k, v in formatter_dict.items() if k in kolom_final}
-                df_styled = df_styled.format(formatter_final)
-                
+                # Format isi kolom secara langsung di dataframe sebelum dirender
+                for c in df_display.columns:
+                    if c in kolom_counts:
+                        # Format jumlah emiten (bulat dengan koma ribuan)
+                        df_display[c] = pd.to_numeric(df_display[c], errors='coerce').fillna(0)
+                        df_display[c] = df_display[c].apply(lambda x: f"{x:,.0f}")
+                    elif c in kolom_pcts:
+                        df_display[c] = pd.to_numeric(df_display[c], errors='coerce').fillna(0)
+                        if c == 'IHSG_change':
+                            # Format IHSG Change (2 desimal, pakai tanda kurung jika minus)
+                            df_display[c] = df_display[c].apply(lambda x: f"({abs(x):.2f}%)" if x < 0 else f"+{x:.2f}%" if x > 0 else f"{x:.2f}%")
+                        else:
+                            # Format rasi breadth biasa (bulat, pakai tanda kurung jika minus)
+                            df_display[c] = df_display[c].apply(lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%")
                 # Tampilkan dataframe bertenaga tinggi yang sudah dipercantik
                 st.dataframe(
                     df_styled,
