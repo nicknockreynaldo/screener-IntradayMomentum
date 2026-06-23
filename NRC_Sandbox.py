@@ -216,8 +216,8 @@ if pilihan_menu == "📊 Market Breadth History":
             df_breadth = df_breadth.sort_values('Date', ascending=False).reset_index(drop=True)
             
             # Kelompokkan jenis kolom data
-            kolom_counts = ['IHSG_change', 'DMA_5', 'DMA_10', 'DMA_20', 'DMA_50', 'DMA_200']
-            kolom_pcts = ['Pct_Above_DMA5', 'Pct_Above_DMA10', 'Pct_Above_DMA20', 'Pct_Above_DMA50', 'Pct_Above_DMA200']
+            kolom_counts = ['DMA_5', 'DMA_10', 'DMA_20', 'DMA_50', 'DMA_200']
+            kolom_pcts = ['IHSG_change', 'Pct_Above_DMA5', 'Pct_Above_DMA10', 'Pct_Above_DMA20', 'Pct_Above_DMA50', 'Pct_Above_DMA200']
             
             # Pembersihan tipe data numerik
             for col in kolom_counts:
