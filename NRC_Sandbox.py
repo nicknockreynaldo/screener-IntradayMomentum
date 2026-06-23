@@ -266,7 +266,7 @@ if pilihan_menu == "📊 Market Breadth History":
                     kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_Change']
                 # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
                 formatter_dict = {}
-               for c in kolom_counts: 
+                for c in kolom_counts: 
                     if c in df_filtered.columns:
                         formatter_dict[c] = '{:,.0f}'
                         
