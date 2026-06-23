@@ -250,37 +250,94 @@ if pilihan_menu == "📊 Market Breadth History":
             # Sub-Tab Horizontal di dalam Menu Market Breadth
             tab_tabel, tab_delta = st.tabs(["📋 Tabel Data Historis Lengkap", "📈 Metrik Deviasi Harian (Delta)"])
             
+            
             with tab_tabel:
-                view_mode = st.radio("Saring Tampilan Kolom:", ["Tampilkan Semua", "Hanya Jumlah Ticker (Count)", "Hanya Nilai Rasio (%)"], horizontal=True)
-                
+                # 🎯 IDE NO 2: st.radio DIHAPUS. Kita kunci kolom langsung tampil semua.
                 kolom_base = ['Tanggal']
-                if view_mode == "Hanya Jumlah Ticker (Count)":
-                    kolom_final = kolom_base + [c for c in kolom_counts if c in df_filtered.columns]
-                elif view_mode == "Hanya Nilai Rasio (%)":
-                    kolom_final = kolom_base + [c for c in kolom_pcts if c in df_filtered.columns]
-                else:
-                    kolom_final = kolom_base.copy()
+                kolom_final = kolom_base.copy()
+                if 'IHSG_change' in df_filtered.columns:
+                    kolom_final.append('IHSG_change')
+                kolom_final += [c for c in kolom_counts if c in df_filtered.columns]
+                kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
+
+                # 🎯 IDE NO 3: MENAMPILKAN RINGKASAN DATA TERBARU & DELTA DI ATAS TABEL
+                if len(df_filtered) >= 2:
+                    st.write("### 🚨 Rangkuman Sesi Terakhir vs Hari Sebelumnya")
+                    hari_ini = df_filtered.iloc[0]
+                    kemarin = df_filtered.iloc[1]
+                    
+                    # Buat grid kolom dinamis untuk Summary Widget atas tabel
+                    cols_summary = st.columns(min(4, len(kolom_final) - 1))
+                    
+                    # 1. Ringkasan IHSG Change
                     if 'IHSG_change' in df_filtered.columns:
-                        kolom_final.append('IHSG_change')
-                    kolom_final += [c for c in kolom_counts if c in df_filtered.columns]
-                    kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
-               
-                # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
+                        val_ihsg = hari_ini['IHSG_change']
+                        chg_ihsg = val_ihsg - kemarin['IHSG_change']
+                        lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
+                        arr_ihsg = "🔼" if chg_ihsg >= 0 else "🔽"
+                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{arr_ihsg} {chg_ihsg:+.2f}%")
+                    
+                    # 2. Ringkasan Swing Momentum (DMA 20)
+                    if 'Pct_Above_DMA20' in df_filtered.columns:
+                        val_dma20 = hari_ini['Pct_Above_DMA20']
+                        chg_dma20 = val_dma20 - kemarin['Pct_Above_DMA20']
+                        arr_dma20 = "🔼" if chg_dma20 >= 0 else "🔽"
+                        cols_summary[1].metric(label="% > DMA20 (Momentum)", value=f"{val_dma20:.0f}%", delta=f"{arr_dma20} {chg_dma20:+.0f}%")
+                        
+                    # 3. Ringkasan Medium Trend (DMA 50)
+                    if 'Pct_Above_DMA50' in df_filtered.columns:
+                        val_dma50 = hari_ini['Pct_Above_DMA50']
+                        chg_dma50 = val_dma50 - kemarin['Pct_Above_DMA50']
+                        arr_dma50 = "🔼" if chg_dma50 >= 0 else "🔽"
+                        cols_summary[2].metric(label="% > DMA50 (Medium)", value=f"{val_dma50:.0f}%", delta=f"{arr_dma50} {chg_dma50:+.0f}%")
+
+                    # 4. Ringkasan Long Trend (DMA 200)
+                    if 'Pct_Above_DMA200' in df_filtered.columns:
+                        val_dma200 = hari_ini['Pct_Above_DMA200']
+                        chg_dma200 = val_dma200 - kemarin['Pct_Above_DMA200']
+                        arr_dma200 = "🔼" if chg_dma200 >= 0 else "🔽"
+                        cols_summary[3].metric(label="% > DMA200 (Long)", value=f"{val_dma200:.0f}%", delta=f"{arr_dma200} {chg_dma200:+.0f}%")
+                    
+                    st.markdown("---") # Garis pembatas visual ke area tabel
+                
+                # Setup format tampilan data tabel (Format Akuntansi Tanda Kurung)
                 formatter_dict = {}
                 for c in kolom_counts: 
                     formatter_dict[c] = '{:,.0f}'
                 for c in kolom_pcts:
                     if c in df_filtered.columns:
                         if c == 'IHSG_change':
-                            # 🎯 FIX DI SINI: Jika minus, buang tanda negatifnya lalu bungkus dengan kurung ()
                             formatter_dict[c] = lambda x: f"({abs(x):.2f}%)" if x < 0 else f"+{x:.2f}%" if x > 0 else f"{x:.2f}%"
                         else:
-                            # Jika persentase breadth biasa mau dibuat pakai kurung juga saat minus:
-                            formatter_dict[c] = lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%" 
-                        
+                            formatter_dict[c] = lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%"          
+                
                 formatter_final = {k: v for k, v in formatter_dict.items() if k in kolom_final}
+                
+                # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
+                def warnai_teks_ihsg(val):
+                    try:
+                        val_num = float(val)
+                        if val_num > 0: return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
+                        elif val_num < 0: return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
+                    except: pass
+                    return ''
+
+                # Generate base styler object
+                df_styled = df_filtered[kolom_final].style.format(formatter_final)
+                
+                # Eksekusi pewarnaan teks khusus IHSG_change
+                if 'IHSG_change' in kolom_final:
+                    df_styled = df_styled.applymap(warnai_teks_ihsg, subset=['IHSG_change'])
+                
+                # Eksekusi pewarnaan background heatmap pada sisa kolom rasio persentase breadth
+                kolom_heatmap = [c for c in kolom_pcts if c in kolom_final and c != 'IHSG_change']
+                if kolom_heatmap:
+                    # Mengunci rentang nilai 0-100% menggunakan skema warna Yellow-Green (YlGn) yang teduh di browser
+                    df_styled = df_styled.background_gradient(cmap='YlGn', subset=kolom_heatmap, vmin=0, vmax=100)
+                
+                # Tampilkan dataframe bertenaga tinggi yang sudah dipercantik
                 st.dataframe(
-                    df_filtered[kolom_final].style.format(formatter_final),
+                    df_styled,
                     hide_index=True,
                     use_container_width=True
                 )
