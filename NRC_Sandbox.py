@@ -274,7 +274,7 @@ if pilihan_menu == "📊 Market Breadth History":
                     kemarin = df_filtered.iloc[1]
                     
                     # Membuat 5 kolom horizontal untuk mengakomodasi IHSG + 4 DMA Count
-                    cols_summary = st.columns(5)
+                    cols_summary = st.columns(6)
                     
                     # 1. Ringkasan IHSG Change (Tetap dalam %)
                     if 'IHSG_change' in df_filtered.columns:
@@ -291,12 +291,9 @@ if pilihan_menu == "📊 Market Breadth History":
                     if 'DMA_5' in df_filtered.columns:
                         val_dma5 = hari_ini['DMA_5']
                         chg_dma5 = val_dma5 - kemarin['DMA_5']
-                        pct_dma5 = hari_ini['Pct_Above_DMA5']
-                        cols_summary[1].metric(
-                            label="Emiten > DMA 5", 
-                            value=f"{val_dma5:,.0f}", # Angka Utama Tetap Besar Bersih
-                            delta=f"{chg_dma5:+,.0f} ({pct_dma5:.0f}%)" # Delta & Persen Otomatis Kecil Berwarna di Bawahnya
-                        )
+                    
+                        cols_summary[1].metric(label="Stocks > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{chg_dma10:+,.0f}")
+                        
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
                         val_dma10 = hari_ini['DMA_10']
@@ -316,7 +313,47 @@ if pilihan_menu == "📊 Market Breadth History":
                         val_dma50 = hari_ini['DMA_50']
                         chg_dma50 = val_dma50 - kemarin['DMA_50']
                         
+                    # 6. DMA 200 Count
+                    if 'DMA_200' in df_filtered.columns:
+                        val_dma200 = hari_ini['DMA_200']
+                        chg_dma200 = val_dma200 - kemarin['DMA_200']
+                        cols_count[5].metric(label="Emiten > DMA 200", value=f"{val_dma200:,.0f}", delta=f"{chg_dma200:+,.0f}")   
                         cols_summary[4].metric(label="Stocks > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{chg_dma50:+,.0f}")
+
+                    st.write("")
+                    cols_pct = st.columns(6)
+                    cols_pct[0].empty()
+        
+                    # 2. Pct Above DMA 5
+                    if 'Pct_Above_DMA5' in df_filtered.columns:
+                        pct_dma5 = hari_ini['Pct_Above_DMA5']
+                        chg_pct5 = pct_dma5 - kemarin['Pct_Above_DMA5']
+                        cols_pct[1].metric(label="% Emiten > DMA 5", value=f"{pct_dma5:.0f}%", delta=f"{chg_pct5:+.0f}%")
+                        
+                    # 3. Pct Above DMA 10
+                    if 'Pct_Above_DMA10' in df_filtered.columns:
+                        pct_dma10 = hari_ini['Pct_Above_DMA10']
+                        chg_pct10 = pct_dma10 - kemarin['Pct_Above_DMA10']
+                        cols_pct[2].metric(label="% Emiten > DMA 10", value=f"{pct_dma10:.0f}%", delta=f"{chg_pct10:+.0f}%")
+
+                    # 4. Pct Above DMA 20
+                    if 'Pct_Above_DMA20' in df_filtered.columns:
+                        pct_dma20 = hari_ini['Pct_Above_DMA20']
+                        chg_pct20 = pct_dma20 - kemarin['Pct_Above_DMA20']
+                        cols_pct[3].metric(label="% Emiten > DMA 20", value=f"{pct_dma20:.0f}%", delta=f"{chg_pct20:+.0f}%")
+
+                    # 5. Pct Above DMA 50
+                    if 'Pct_Above_DMA50' in df_filtered.columns:
+                        pct_dma50 = hari_ini['Pct_Above_DMA50']
+                        chg_pct50 = pct_dma50 - kemarin['Pct_Above_DMA50']
+                        cols_pct[4].metric(label="% Emiten > DMA 50", value=f"{pct_dma50:.0f}%", delta=f"{chg_pct50:+.0f}%")
+
+                    # 6. Pct Above DMA 200
+                    if 'Pct_Above_DMA200' in df_filtered.columns:
+                        pct_dma200 = hari_ini['Pct_Above_DMA200']
+                        chg_pct200 = pct_dma200 - kemarin['Pct_Above_DMA200']
+                        cols_pct[5].metric(label="% Emiten > DMA 200", value=f"{pct_dma200:.0f}%", delta=f"{chg_pct200:+.0f}%")
+                    
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
                 df_display = df_filtered[kolom_final].copy()
