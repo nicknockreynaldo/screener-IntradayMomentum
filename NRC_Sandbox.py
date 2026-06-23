@@ -261,88 +261,51 @@ if pilihan_menu == "📊 Market Breadth History":
                 kolom_final += [c for c in kolom_pcts if c in df_filtered.columns if c != 'IHSG_change']
 
                 # 🎯 IDE NO 3: MENAMPILKAN RINGKASAN DATA TERBARU & DELTA DI ATAS TABEL
-                if not df_filtered.empty:
+                if len(df_filtered) >= 2:
                     st.write("### 🚨 Rangkuman Sesi Terakhir vs Hari Sebelumnya")
                     hari_ini = df_filtered.iloc[0]
+                    kemarin = df_filtered.iloc[1]
                     
-                    # 🔍 Berburu data 'kemarin' secara cerdas agar delta tidak pincang/hilang
-                    kemarin = None
-                    if len(df_filtered) >= 2:
-                        kemarin = df_filtered.iloc[1]
-                    else:
-                        # Fallback: Cari di master data (df_breadth) untuk tanggal sebelum hari_ini
-                        master_df = locals().get('df_breadth', globals().get('df_breadth', df_filtered))
-                        df_sebelumnya = master_df[master_df['Tanggal'] < hari_ini['Tanggal']]
-                        if not df_sebelumnya.empty:
-                            kemarin = df_sebelumnya.sort_values('Tanggal', ascending=False).iloc[0]
-
-                    # Siapkan 5 kolom horizontal
+                    # Membuat 5 kolom horizontal untuk mengakomodasi IHSG + 4 DMA Count
                     cols_summary = st.columns(5)
                     
-                    # 1. IHSG Perubahan (Hanya menampilkan nilai hari ini, tanpa delta panah naik/turun)
+                    # 1. Ringkasan IHSG Change (Tetap dalam %)
                     if 'IHSG_change' in df_filtered.columns:
                         val_ihsg = hari_ini['IHSG_change']
+                        chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
-                        cols_summary[0].metric(
-                            label="IHSG Perubahan", 
-                            value=lbl_ihsg, 
-                            delta=None
-                        )
+                        arr_ihsg = "🔼" if chg_ihsg >= 0 else "🔽"
+                        cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{arr_ihsg} {chg_ihsg:+.2f}%")
                     
-                    # Fungsi pembantu untuk membuat delta yang aman bagi engine Streamlit
-                    def hitung_lbl_delta(v_ini, v_kemarin):
-                        if v_kemarin is None:
-                            return None
-                        selisih = v_ini - v_kemarin
-                        if selisih > 0:
-                            return f"+{selisih:,.0f}"
-                        elif selisih < 0:
-                            return f"-{abs(selisih):,.0f}" # Minus otomatis memicu panah merah ke bawah
-                        return "0" # Nol murni otomatis memicu warna abu-abu netral tanpa panah
-
-                    # 2. DMA 5 (Format Nilai: 35 (24%))
-                    if 'DMA_5' in df_filtered.columns and 'DMA_5%' in df_filtered.columns:
-                        v_ini, p_ini = hari_ini['DMA_5'], hari_ini['DMA_5%']
-                        v_kemarin = kemarin['DMA_5'] if kemarin is not None else None
-                        cols_summary[1].metric(
-                            label="Emiten > DMA 5", 
-                            value=f"{v_ini:,.0f} ({p_ini:.0f}%)", 
-                            delta=hitung_lbl_delta(v_ini, v_kemarin)
-                        )
+                    # 2. Ringkasan DMA 5 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_5' in df_filtered.columns:
+                        val_dma5 = hari_ini['DMA_5']
+                        chg_dma5 = val_dma5 - kemarin['DMA_5']
+                        arr_dma5 = "🔼" if chg_dma5 >= 0 else "🔽"
+                        cols_summary[1].metric(label="Emiten > DMA 5", value=f"{val_dma5:,.0f}", delta=f"{arr_dma5} {chg_dma5:+,.0f}")
                         
-                    # 3. DMA 10
-                    if 'DMA_10' in df_filtered.columns and 'DMA_10%' in df_filtered.columns:
-                        v_ini, p_ini = hari_ini['DMA_10'], hari_ini['DMA_10%']
-                        v_kemarin = kemarin['DMA_10'] if kemarin is not None else None
-                        cols_summary[2].metric(
-                            label="Emiten > DMA 10", 
-                            value=f"{v_ini:,.0f} ({p_ini:.0f}%)", 
-                            delta=hitung_lbl_delta(v_ini, v_kemarin)
-                        )
+                    # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_10' in df_filtered.columns:
+                        val_dma10 = hari_ini['DMA_10']
+                        chg_dma10 = val_dma10 - kemarin['DMA_10']
+                        arr_dma10 = "🔼" if chg_dma10 >= 0 else "🔽"
+                        cols_summary[2].metric(label="Emiten > DMA 10", value=f"{val_dma10:,.0f}", delta=f"{arr_dma10} {chg_dma10:+,.0f}")
 
-                    # 4. DMA 20
-                    if 'DMA_20' in df_filtered.columns and 'DMA_20%' in df_filtered.columns:
-                        v_ini, p_ini = hari_ini['DMA_20'], hari_ini['DMA_20%']
-                        v_kemarin = kemarin['DMA_20'] if kemarin is not None else None
-                        cols_summary[3].metric(
-                            label="Emiten > DMA 20", 
-                            value=f"{v_ini:,.0f} ({p_ini:.0f}%)", 
-                            delta=hitung_lbl_delta(v_ini, v_kemarin)
-                        )
+                    # 4. Ringkasan DMA 20 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_20' in df_filtered.columns:
+                        val_dma20 = hari_ini['DMA_20']
+                        chg_dma20 = val_dma20 - kemarin['DMA_20']
+                        arr_dma20 = "🔼" if chg_dma20 >= 0 else "🔽"
+                        cols_summary[3].metric(label="Emiten > DMA 20", value=f"{val_dma20:,.0f}", delta=f"{arr_dma20} {chg_dma20:+,.0f}")
 
-                    # 5. DMA 50
-                    if 'DMA_50' in df_filtered.columns and 'DMA_50%' in df_filtered.columns:
-                        v_ini, p_ini = hari_ini['DMA_50'], hari_ini['DMA_50%']
-                        v_kemarin = kemarin['DMA_50'] if kemarin is not None else None
-                        cols_summary[4].metric(
-                            label="Emiten > DMA 50", 
-                            value=f"{v_ini:,.0f} ({p_ini:.0f}%)", 
-                            delta=hitung_lbl_delta(v_ini, v_kemarin)
-                        )
-                    
-                    st.markdown("---")
-                else:
-                    st.warning("⚠️ Tidak ada data bursa yang tersedia pada rentang tanggal ini.")
+                    # 5. Ringkasan DMA 50 (Jumlah Ticker, Tanpa %)
+                    if 'DMA_50' in df_filtered.columns:
+                        val_dma50 = hari_ini['DMA_50']
+                        chg_dma50 = val_dma50 - kemarin['DMA_50']
+                        arr_dma50 = "🔼" if chg_dma50 >= 0 else "🔽"
+                        cols_summary[4].metric(label="Emiten > DMA 50", value=f"{val_dma50:,.0f}", delta=f"{arr_dma50} {chg_dma50:+,.0f}")
+                    st.markdown("---") # Garis pembatas visual ke area tabel
+                
                 df_display = df_filtered[kolom_final].copy()
                 
                 # Format isi kolom secara langsung di dataframe sebelum dirender
