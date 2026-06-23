@@ -6,6 +6,7 @@ import math
 import gspread
 import time
 import datetime
+import plotly.graph_objects as go
 
 # --- FUNGSI GOOGLE SHEETS ---
 def simpan_trade_ke_gsheet(worksheet_name, data_list):
@@ -387,7 +388,6 @@ if pilihan_menu == "📊 Market Breadth History":
                 st.info("Mengukur posisi partisipasi market saat ini terhadap batas psikologis ekstrem historis (Max/Min) bursa saham.")
                 
                 if len(df_filtered) > 0:
-                    import plotly.graph_objects as go
                     
                     # Salin data & sorting maju untuk visualisasi deret waktu grafik garis
                     df_osc = df_filtered.copy().sort_values('Date')
