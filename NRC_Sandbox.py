@@ -294,8 +294,8 @@ if pilihan_menu == "📊 Market Breadth History":
                         pct_dma5 = hari_ini['Pct_Above_DMA5']
                         cols_summary[1].metric(
                             label="Emiten > DMA 5", 
-                            value=f"{val_dma5:,.0f} ({pct_dma5:.0f}%)", 
-                            delta=f"{chg_dma5:+,.0f}"
+                            value=f"{val_dma5:,.0f}", # Angka Utama Tetap Besar Bersih
+                            delta=f"{chg_dma5:+,.0f} ({pct_dma5:.0f}%)" # Delta & Persen Otomatis Kecil Berwarna di Bawahnya
                         )
                     # 3. Ringkasan DMA 10 (Jumlah Ticker, Tanpa %)
                     if 'DMA_10' in df_filtered.columns:
