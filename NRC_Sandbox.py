@@ -323,8 +323,9 @@ if pilihan_menu == "📊 Market Breadth History":
                             # Format rasi breadth biasa (bulat, pakai tanda kurung jika minus)
                             df_display[c] = df_display[c].apply(lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%")
                 # Tampilkan dataframe bertenaga tinggi yang sudah dipercantik
+               
                 st.dataframe(
-                    df_styled,
+                    df_display,
                     hide_index=True,
                     use_container_width=True
                 )
