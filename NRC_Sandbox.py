@@ -172,6 +172,122 @@ if 'memori_saham' not in st.session_state:
         "Grade D (Market Merah Cari Alpha)": [], "Hot Start": []
     }
 
+# ==============================================================================
+# INJEKSI SIDEBAR & MARKET BREADTH HISTORY (FITUR BARU)
+# ==============================================================================
+st.sidebar.title("🎛️ NRC Control Panel")
+pilihan_menu = st.sidebar.radio(
+    "Pilih Menu Analytics:",
+    ["🎯 Trading Workspace", "📊 Market Breadth History"]
+)
+
+if pilihan_menu == "📊 Market Breadth History":
+    st.title("📊 IHSG Market Breadth Historical Data")
+    st.markdown("Pantau rotasi internal, likuiditas, dan kelebaran tren sektoral IHSG secara historis.")
+    
+    # Memakai fungsi gspread eksisting Anda untuk menarik data
+    # PENTING: Ganti "History" dengan nama asli tab worksheet Market Breadth Anda
+    df_breadth = tarik_data_dari_gsheet("History")
+    
+    if not df_breadth.empty:
+        # Bersihkan whitespace di nama kolom untuk mencegah error pencarian kolom
+        df_breadth.columns = df_breadth.columns.str.strip()
+        
+        if 'Date' in df_breadth.columns:
+            # Konversi tanggal dan urutkan dari yang paling baru
+            df_breadth['Date'] = pd.to_datetime(df_breadth['Date'], errors='coerce')
+            df_breadth = df_breadth.dropna(subset=['Date'])
+            df_breadth = df_breadth.sort_values('Date', ascending=False).reset_index(drop=True)
+            
+            # Kelompokkan jenis kolom data
+            kolom_counts = ['DMA 5', 'DMA 10', 'DMA 20', 'DMA 50', 'DMA 200']
+            kolom_pcts = ['% Above DMA5', '% Above DMA10', '% Above DMA20', '% Above DMA50', '% Above DMA200']
+            
+            # Pembersihan tipe data numerik
+            for col in kolom_counts:
+                if col in df_breadth.columns:
+                    df_breadth[col] = pd.to_numeric(df_breadth[col], errors='coerce').fillna(0)
+            
+            for col in kolom_pcts:
+                if col in df_breadth.columns:
+                    df_breadth[col] = df_breadth[col].astype(str).str.replace('%', '').str.strip()
+                    df_breadth[col] = pd.to_numeric(df_breadth[col], errors='coerce').fillna(0)
+            
+            # Filter rentang waktu dinamis
+            min_d = df_breadth['Date'].min().to_pydatetime()
+            max_d = df_breadth['Date'].max().to_pydatetime()
+            
+            st.write("### 🎚️ Filter Rentang Waktu")
+            date_range = st.date_input("Pilih Rentang Tanggal Analisis:", value=[min_d, max_d], min_value=min_d, max_value=max_d)
+            
+            if isinstance(date_range, list) or isinstance(date_range, tuple):
+                if len(date_range) == 2:
+                    start_d, end_d = date_range
+                    df_filtered = df_breadth[(df_breadth['Date'] >= pd.to_datetime(start_d)) & (df_breadth['Date'] <= pd.to_datetime(end_d))].copy()
+                else:
+                    df_filtered = df_breadth.copy()
+            else:
+                df_filtered = df_breadth.copy()
+                
+            df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
+            
+            # Sub-Tab Horizontal di dalam Menu Market Breadth
+            tab_tabel, tab_delta = st.tabs(["📋 Tabel Data Historis Lengkap", "📈 Metrik Deviasi Harian (Delta)"])
+            
+            with tab_tabel:
+                view_mode = st.radio("Saring Tampilan Kolom:", ["Tampilkan Semua", "Hanya Jumlah Ticker (Count)", "Hanya Nilai Rasio (%)"], horizontal=True)
+                
+                kolom_base = ['Tanggal']
+                if view_mode == "Hanya Jumlah Ticker (Count)":
+                    kolom_final = kolom_base + [c for c in kolom_counts if c in df_filtered.columns]
+                elif view_mode == "Hanya Nilai Rasio (%)":
+                    kolom_final = kolom_base + [c for c in kolom_pcts if c in df_filtered.columns]
+                else:
+                    kolom_final = kolom_base + [c for c in kolom_counts if c in df_filtered.columns] + [c for c in kolom_pcts if c in df_filtered.columns]
+                
+                # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
+                formatter_dict = {}
+                for c in kolom_counts: formatter_dict[c] = '{:,.0f}'
+                for c in kolom_pcts: formatter_dict[c] = '{:.1f}%'
+                
+                st.dataframe(
+                    df_filtered[kolom_final].style.format(formatter_dict),
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+            with tab_delta:
+                if len(df_filtered) >= 2:
+                    st.write("### Perubahan Terakhir (Hari Ini vs Hari Bursa Sebelumnya)")
+                    hari_ini = df_filtered.iloc[0]
+                    kemarin = df_filtered.iloc[1]
+                    
+                    c1, c2, c3 = st.columns(3)
+                    
+                    with c1:
+                        if '% Above DMA20' in df_filtered.columns:
+                            d_20 = hari_ini['% Above DMA20'] - kemarin['% Above DMA20']
+                            st.metric(label="Swing Momentum (% > DMA20)", value=f"{hari_ini['% Above DMA20']:.1f}%", delta=f"{d_20:+.1f}%")
+                    with c2:
+                        if '% Above DMA50' in df_filtered.columns:
+                            d_50 = hari_ini['% Above DMA50'] - kemarin['% Above DMA50']
+                            st.metric(label="Medium Trend (% > DMA50)", value=f"{hari_ini['% Above DMA50']:.1f}%", delta=f"{d_50:+.1f}%")
+                    with c3:
+                        if '% Above DMA200' in df_filtered.columns:
+                            d_200 = hari_ini['% Above DMA200'] - kemarin['% Above DMA200']
+                            st.metric(label="Structural Trend (% > MA200)", value=f"{hari_ini['% Above DMA200']:.1f}%", delta=f"{d_200:+.1f}%")
+                else:
+                    st.info("Pilih rentang minimal 2 hari bursa untuk menampilkan kalkulasi deviasi/delta.")
+        else:
+            st.error("Kolom 'Date' tidak terdeteksi pada data spreadsheet Anda.")
+    else:
+        st.warning("Data dari Google Sheets kosong atau gagal ditarik.")
+        
+    st.stop() # <--- KUNCI PENYELAMAT: Menghentikan eksekusi di sini agar sisa kode di bawah tidak bentrok
+# ==============================================================================
+
+
+
 # --- KONTROL MENU UTAMA (TABS) ---
 # DITAMBAHKAN tab_calc
 tab_screener, tab_watchlist, tab_calc, tab_active_trade, tab_journal = st.tabs([
