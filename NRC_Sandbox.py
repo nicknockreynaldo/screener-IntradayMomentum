@@ -234,8 +234,14 @@ if pilihan_menu == "📊 Market Breadth History":
             max_d = df_breadth['Date'].max().to_pydatetime()
             
             st.write("### 🎚️ Filter Rentang Waktu")
-            date_range = st.date_input("Pilih Rentang Tanggal Analisis:", value=[min_d, max_d], min_value=min_d, max_value=max_d)
-            
+            key_dinamis = f"date_input_breadth_{len(df_breadth)}"
+            date_range = st.date_input(
+                "Pilih Rentang Tanggal Analisis:", 
+                value=[min_d, max_d], 
+                min_value=min_d, 
+                max_value=max_d,
+                key=key_dinamis
+            )
             if isinstance(date_range, list) or isinstance(date_range, tuple):
                 if len(date_range) == 2:
                     start_d, end_d = date_range
@@ -272,7 +278,7 @@ if pilihan_menu == "📊 Market Breadth History":
                     # 1. Ringkasan IHSG Change (Tetap dalam %)
                     if 'IHSG_change' in df_filtered.columns:
                         val_ihsg = hari_ini['IHSG_change']
-                        # chg_ihsg = val_ihsg - kemarin['IHSG_change']
+                        chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
 
                         cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{val_ihsg:+.2f}%")
