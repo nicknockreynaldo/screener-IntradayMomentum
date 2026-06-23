@@ -267,12 +267,13 @@ if pilihan_menu == "📊 Market Breadth History":
                 # Setup format tampilan dinamis (Count buang desimal, rasio tambah %)
                 formatter_dict = {}
                 for c in kolom_counts: 
-                    formatter_dict[c] = '{:,.0f}'
-                for c in kolom_pcts: 
                     if c == 'IHSG_Change':
-                        formatter_dict[c] = '{:.2f}%'  # Khusus IHSG dibuat 2 desimal agar presisi (misal: +0.43%)
+                        formatter_dict[c] = '{:.2f}%'
                     else:
                         formatter_dict[c] = '{:.0f}%'
+                for c in kolom_pcts: 
+                      formatter_dict[c] = '{:,.0f}'
+                    
                 
                 st.dataframe(
                     df_filtered[kolom_final].style.format(formatter_dict),
