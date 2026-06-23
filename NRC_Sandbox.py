@@ -300,6 +300,29 @@ if pilihan_menu == "📊 Market Breadth History":
                     
                     st.markdown("---") # Garis pembatas visual ke area tabel
                 
+                # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
+                df_styled = df_filtered[kolom_final].style
+                def warnai_teks_ihsg(val):
+                    try:
+                        val_num = float(val)
+                        if val_num > 0: 
+                            return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
+                        elif val_num < 0: 
+                            return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
+                    except: 
+                        pass
+                    return ''
+                    
+                # Eksekusi pewarnaan teks khusus IHSG_change
+                if 'IHSG_change' in kolom_final:
+                    df_styled = df_styled.map(warnai_teks_ihsg, subset=['IHSG_change'])
+                    
+                # Eksekusi pewarnaan background heatmap pada sisa kolom rasio persentase breadth
+                kolom_heatmap = [c for c in kolom_pcts if c in kolom_final and c != 'IHSG_change']
+                if kolom_heatmap:
+                    # Mengunci rentang nilai 0-100% menggunakan skema warna Yellow-Green (YlGn) yang teduh di browser
+                    df_styled = df_styled.background_gradient(cmap='YlGn', subset=kolom_heatmap, vmin=0, vmax=100)
+
                 # Setup format tampilan data tabel (Format Akuntansi Tanda Kurung)
                 formatter_dict = {}
                 for c in kolom_counts: 
@@ -312,32 +335,7 @@ if pilihan_menu == "📊 Market Breadth History":
                             formatter_dict[c] = lambda x: f"({abs(x):.0f}%)" if x < 0 else f"{x:.0f}%"          
                 
                 formatter_final = {k: v for k, v in formatter_dict.items() if k in kolom_final}
-                
-                # 🎯 IDE NO 1: CONDITIONAL COLORING YANG RINGAN
-                def warnai_teks_ihsg(val):
-                    try:
-                        # Konversi ke float, jika ada string atau tanda % tetap aman
-                        val_num = float(str(val).replace('%', '').replace('(', '-').replace(')', '').replace('+', ''))
-                        if val_num > 0: 
-                            return 'color: #2ece7d; font-weight: bold;' # Hijau tebal
-                        elif val_num < 0: 
-                            return 'color: #eb4d4b; font-weight: bold;' # Merah tebal
-                    except: 
-                        pass
-                    return ''
-
-                # Generate base styler object
-                df_styled = df_filtered[kolom_final].style.format(formatter_final)
-                
-                # Eksekusi pewarnaan teks khusus IHSG_change
-                if 'IHSG_change' in kolom_final:
-                    df_styled = df_styled.map(warnai_teks_ihsg, subset=['IHSG_change'])
-                
-                # Eksekusi pewarnaan background heatmap pada sisa kolom rasio persentase breadth
-                kolom_heatmap = [c for c in kolom_pcts if c in kolom_final and c != 'IHSG_change']
-                if kolom_heatmap:
-                    # Mengunci rentang nilai 0-100% menggunakan skema warna Yellow-Green (YlGn) yang teduh di browser
-                    df_styled = df_styled.background_gradient(cmap='YlGn', subset=kolom_heatmap, vmin=0, vmax=100)
+                df_styled = df_styled.format(formatter_final)
                 
                 # Tampilkan dataframe bertenaga tinggi yang sudah dipercantik
                 st.dataframe(
