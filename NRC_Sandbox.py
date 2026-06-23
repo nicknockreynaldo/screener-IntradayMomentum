@@ -191,7 +191,16 @@ if pilihan_menu == "📊 Market Breadth History":
         gc = gspread.service_account_from_dict(creds_dict)
         sh_breadth = gc.open("IHSG Market Breadth")
         worksheet_breadth = sh_breadth.worksheet("History")
-        df_breadth = pd.DataFrame(worksheet_breadth.get_all_records())
+        data_mentah = worksheet_breadth.get_all_values()
+        
+        if data_mentah:
+            # 2. Baris pertama (index 0) dijadikan nama kolom, sisanya jadi data
+            df_breadth = pd.DataFrame(data_mentah[1:], columns=data_mentah[0])
+            
+            # 3. Buang kolom kosong tanpa nama yang ada di sebelah kanan
+            df_breadth = df_breadth.loc[:, df_breadth.columns != '']
+        else:
+            df_breadth = pd.DataFrame()
     except Exception as e_gsheet:
         st.error(f"⚠️ Gagal memuat Spreadsheet 'IHSG Market Breadth'. Detail Error: {e_gsheet}")
         df_breadth = pd.DataFrame()
