@@ -276,8 +276,8 @@ if pilihan_menu == "📊 Market Breadth History":
                         formatter_dict[c] = '{:.0f}%'
 
                 # 🔥 LANGSUNG TIMPA KHUSUS UNTUK IHSG (Bypass Mutlak 2 Desimal!)
-                if 'IHSG_change' in df_filtered.columns:
-                    formatter_dict['IHSG_change'] = '{:.2f}%'              
+                if 'IHSG_Change' in df_filtered.columns:
+                    formatter_dict['IHSG_Change'] = '{:.2f}%'              
                 
                 st.dataframe(
                     df_filtered[kolom_final].style.format(formatter_dict),
