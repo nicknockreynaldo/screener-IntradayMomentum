@@ -272,7 +272,7 @@ if pilihan_menu == "📊 Market Breadth History":
                     # 1. Ringkasan IHSG Change (Tetap dalam %)
                     if 'IHSG_change' in df_filtered.columns:
                         val_ihsg = hari_ini['IHSG_change']
-                        chg_ihsg = val_ihsg - kemarin['IHSG_change']
+                        # chg_ihsg = val_ihsg - kemarin['IHSG_change']
                         lbl_ihsg = f"({abs(val_ihsg):.2f}%)" if val_ihsg < 0 else f"+{val_ihsg:.2f}%"
 
                         cols_summary[0].metric(label="IHSG Perubahan", value=lbl_ihsg, delta=f"{chg_ihsg:+.2f}%")
