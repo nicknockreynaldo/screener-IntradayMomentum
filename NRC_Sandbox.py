@@ -182,7 +182,7 @@ pilihan_menu = st.sidebar.radio(
 )
 
 if pilihan_menu == "📊 Market Breadth History":
-    st.title("📊 IHSG Market Breadth Historical Data")
+    st.title("📊 IHSG Market Breadth")
     # st.markdown("Pantau rotasi internal, likuiditas, dan kelebaran tren sektoral IHSG secara historis.")
     
     # Menembak langsung ke file spreadsheet "IHSG Market Breadth"
@@ -233,11 +233,10 @@ if pilihan_menu == "📊 Market Breadth History":
             min_d = df_breadth['Date'].min().to_pydatetime()
             max_d = df_breadth['Date'].max().to_pydatetime()
             
-            st.write("### 🎚️ Filter Rentang Waktu")
             key_tracker = f"date_input_range_{len(df_breadth)}"
             
             date_range = st.date_input(
-                "Pilih Rentang Tanggal Analisis:", 
+                "Pilih Rentang Tanggal :", 
                 value=[min_d, max_d], 
                 min_value=min_d, 
                 max_value=max_d,
@@ -255,7 +254,7 @@ if pilihan_menu == "📊 Market Breadth History":
             df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
             
             # Sub-Tab Horizontal di dalam Menu Market Breadth
-            tab_tabel, tab_delta = st.tabs(["📋 Tabel Data Historis Lengkap", "📈 Metrik Deviasi Harian (Delta)"])
+            tab_tabel, tab_delta = st.tabs(["📋 Historical Data", "📈 Metrik Deviasi Harian (Delta)"])
             
             
             with tab_tabel:
