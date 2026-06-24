@@ -257,7 +257,7 @@ if pilihan_menu == "📊 Market Breadth History":
             df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
             
             # Sub-Tab Horizontal di dalam Menu Market Breadth
-            tab_tabel, tab_psikologi = st.tabs(["📋 Historical Data", "📈 FOMO Indicator"])
+            tab_tabel, tab_psikologi, tab_mcclellan = st.tabs(["📋 Historical Data", "📈 FOMO Indicator", "📉 McClellan Oscillator"])
             
             
             with tab_tabel:
@@ -446,6 +446,105 @@ if pilihan_menu == "📊 Market Breadth History":
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
+            # -------------------------------------------------------------------
+            # WIDGET & GRAFIK UNTUK TAB McCLELLAN
+            # -------------------------------------------------------------------
+            with tab_mcclellan:
+                st.write("## 📉 Analisis Momentum Bursa: McClellan Style Oscillator")
+                st.markdown(
+                    "> Indikator ini mengukur akselerasi likuiditas internal bursa. "
+                    "Gunakan untuk mendeteksi titik balik pasar (*rebound* atau *crash*) sebelum terjadi di IHSG."
+                )
+                
+                # Ambil master data historis jangka panjang (df_breadth)
+                if 'df_breadth' in locals() or 'df_breadth' in globals():
+                    df_osc = df_breadth[(df_breadth['Date'] >= pd.to_datetime(batas_3_bulan)) & 
+                                     (df_breadth['Date'] <= pd.to_datetime(max_d))].copy()
+                    df_osc['Tanggal'] = df_osc['Date'].dt.strftime('%Y-%m-%d')
+                    df_osc = df_osc.sort_values('Date', ascending=True).reset_index(drop=True)
+                    df_mcc = df_osc.sort_values('Date', ascending=True).reset_index(drop=True)
+                    
+                    # Ambil kolom persentase acuan (kita gunakan DMA 20% sebagai core market trend)
+                    kolom_target = [c for c in df_mcc.columns if '20' in c and 'dma' in c.lower()]
+                    
+                    if kolom_target:
+                        col_pct = kolom_target[0]
+                        
+                        # Hitung EMA Fast (19) & Slow (39) dari internal breadth bursa
+                        df_mcc['EMA_Fast'] = df_mcc[col_pct].ewm(span=19, adjust=False).mean()
+                        df_mcc['EMA_Slow'] = df_mcc[col_pct].ewm(span=39, adjust=False).mean()
+                        
+                        # Rumus Utama McClellan Oscillator
+                        df_mcc['McClellan'] = df_mcc['EMA_Fast'] - df_mcc['EMA_Slow']
+                        
+                        # Kembalikan urutan tampilan ke Descending (terbaru di atas) untuk kebutuhan data teks
+                        df_mcc_display = df_mcc.sort_values('Tanggal', ascending=False).reset_index(drop=True)
+                        status_hari_ini = df_mcc_display.iloc[0]
+                        
+                        # 🛠️ 2. PANEL INFORMASI UTAMA (METRIC CARD)
+                        v_mcc = status_hari_ini['McClellan']
+                        
+                        # Menentukan status & warna visual secara objektif
+                        if v_mcc > 15:
+                            st.warning(f"⚠️ **Suhu Bursa: Overbought ({v_mcc:.2f})** — Penguatan pasar sudah terlalu kencang dan mulai jenuh beli. Rawan *profit taking* jangka pendek.")
+                        elif v_mcc < -15:
+                            st.success(f"🔥 **Suhu Bursa: Oversold ({v_mcc:.2f})** — Pasar sudah jenuh jual/panik massal. Ini adalah area berburu saham diskon karena potensi *rebound* semakin dekat.")
+                        else:
+                            st.info(f"🕊️ **Suhu Bursa: Netral ({v_mcc:.2f})** — Momentum pergerakan bursa cenderung stabil dan bergerak sehat.")
+                            
+                        # 🛠️ 3. VISUALISASI INTERAKTIF MENGGUNAKAN PLOTLY
+                        # Ambil data filter tanggal default dari dashboard Anda atau potong 200 baris terakhir untuk chart agar rapi
+                        df_chart = df_mcc.tail(200) 
+                        
+                        fig = go.Figure()
+                        
+                        # Garis Area Nol (Keseimbangan)
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=0, x1=df_chart['Tanggal'].max(), y1=0,
+                                    line=dict(color="gray", width=1.5, dash="dash"))
+                        
+                        # Batas Batas Ekstrem Overbought (+15) & Oversold (-15)
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=15, x1=df_chart['Tanggal'].max(), y1=15,
+                                    line=dict(color="rgba(255, 99, 132, 0.5)", width=1, dash="dot"))
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=-15, x1=df_chart['Tanggal'].max(), y1=-15,
+                                    line=dict(color="rgba(75, 192, 192, 0.5)", width=1, dash="dot"))
+                        
+                        # Plot Nilai McClellan Oscillator (Grafik Garis dengan isi warna area bawah)
+                        fig.add_trace(go.Scatter(
+                            x=df_chart['Tanggal'], 
+                            y=df_chart['McClellan'],
+                            mode='lines',
+                            name='McClellan Oscillator',
+                            line=dict(color='#31333F', width=2),
+                            fill='tozeroy', # Memberikan warna shading di bawah garis ke arah titik nol
+                            fillcolor='rgba(135, 206, 250, 0.3)'
+                        ))
+                        
+                        # Pengaturan Layout Chart agar serasi dengan kantor/dark mode Streamlit
+                        fig.update_layout(
+                            title='Pergerakan Gelombang McClellan Oscillator (200 Sesi Terakhir)',
+                            xaxis_title='Tanggal',
+                            yaxis_title='Nilai Oscillator',
+                            height=450,
+                            hovermode='x unified',
+                            margin=dict(l=20, r=20, t=40, b=20)
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 🛠️ 4. TABEL DATA HISTORIS McCLELLAN
+                        with st.expander("👁️ Lihat Tabel Historis Nilai Gelombang"):
+                            st.dataframe(
+                                df_mcc_display[['Tanggal', col_pct, 'EMA_Fast', 'EMA_Slow', 'McClellan']].head(30),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                    else:
+                        st.error("Kolom persentase 'DMA_20%' tidak ditemukan di dalam file data Anda.")
+                else:
+                    st.error("Gagal memuat master data `df_breadth` untuk visualisasi chart.")
+
+
+
         else:
             st.error("Kolom 'Date' tidak terdeteksi pada data spreadsheet Anda.")
     else:
