@@ -257,7 +257,7 @@ if pilihan_menu == "📊 Market Breadth History":
             df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
             
             # Sub-Tab Horizontal di dalam Menu Market Breadth
-            tab_tabel, tab_psikologi = st.tabs(["📋 Historical Data", "📈 Metrik Deviasi Harian (Delta)"])
+            tab_tabel, tab_psikologi = st.tabs(["📋 Historical Data", "📈 FOMO Indicator"])
             
             
             with tab_tabel:
@@ -384,50 +384,62 @@ if pilihan_menu == "📊 Market Breadth History":
                 )
                 
             with tab_psikologi:
-                st.write("### 📊 Caruso-style Breadth Progressor (FOMO Oscillator)")
-                st.info("Mengukur posisi partisipasi market saat ini terhadap batas psikologis ekstrem historis (Max/Min) bursa saham.")
+                st.write("### 📊 Matt Caruso FOMO - FEAR Indicator ")
+                st.info("")
                 
                 if len(df_filtered) > 0:
                     
                     # Salin data & sorting maju untuk visualisasi deret waktu grafik garis
-                    df_osc = df_filtered.copy().sort_values('Date')
-                    
+                    batas_3_bulan = max_d - datetime.timedelta(days=180)
+                    df_osc = df_breadth[(df_breadth['Date'] >= pd.to_datetime(batas_3_bulan)) & 
+                                         (df_breadth['Date'] <= pd.to_datetime(max_d))].copy()
                     # Batas psikologi ekstrem historis berdasarkan catatan GSheet Anda
-                    max_dma5, min_dma5 = 130, 7
-                    max_dma20, min_dma20 = 105, 5
-                    max_dma200, min_dma200 = 113, 28
-                    
-                    # Kalkulasi formula Stochastic % Posisi Psikologis (Skala 0 - 100)
-                    df_osc['Osc_DMA5'] = ((df_osc['DMA_5'] - min_dma5) / (max_dma5 - min_dma5)) * 100
-                    df_osc['Osc_DMA20'] = ((df_osc['DMA_20'] - min_dma20) / (max_dma20 - min_dma20)) * 100
-                    df_osc['Osc_DMA200'] = ((df_osc['DMA_200'] - min_dma200) / (max_dma200 - min_dma200)) * 100
-                    
+                    df_osc = df_osc.sort_values('Date')
+
+                    pct_mappings = {
+                        'Pct_Above_DMA5':   {'label': 'Jangka Pendek (DMA 5)',   'color': '#ff4b4b'},
+                        'Pct_Above_DMA10':  {'label': 'Jangka Pendek+ (DMA 10)', 'color': '#ff7c43'},
+                        'Pct_Above_DMA20':  {'label': 'Jangka Menengah (DMA 20)','color': '#29b5e8'},
+                        'Pct_Above_DMA50':  {'label': 'Jangka Menengah+ (DMA 50)','color': '#a05195'},
+                        'Pct_Above_DMA200': {'label': 'Jangka Struktural (DMA 200)','color': '#ffa500'}
+                    }
+                    # Ambil angka persentase terakhir hari ini dari kolom murni DMA 5 sebagai acuan status
+                    if len(df_osc) > 0:
+                        pct_sekarang_dma5 = df_osc['Pct_Above_DMA5'].iloc[-1]
+
                     # Render Box Status Notifikasi Psikologi Terkini (Hari Terakhir)
-                    skor_sekarang_dma5 = df_osc['Osc_DMA5'].iloc[-1]
-                    if skor_sekarang_dma5 >= 80:
-                        st.error(f"🚨 **STATUS DMA 5: EUPHORIA / FOMO HIGH ({skor_sekarang_dma5:.1f}%)** — Pasar jenuh beli (Overbought), risiko *buying climax* meningkat.")
-                    elif skor_sekarang_dma5 <= 20:
-                        st.success(f"🟢 **STATUS DMA 5: EXTREME FEAR / CAPITULATION ({skor_sekarang_dma5:.1f}%)** — Pasar jenuh jual (Oversold), ruang akumulasi saham mulai terbuka.")
+                    if pct_sekarang_dma5 >= 80:
+                        st.error(f"🚨 **STATUS DMA 5: EUPHORIA / FOMO HIGH ({pct_sekarang_dma5:.1f}%)** — Pasar jenuh beli (Overbought), risiko *buying climax* meningkat.")
+                    elif pct_sekarang_dma5 <= 20:
+                        st.success(f"🟢 **STATUS DMA 5: EXTREME FEAR / CAPITULATION ({pct_sekarang_dma5:.1f}%)** — Pasar jenuh jual (Oversold), ruang akumulasi saham mulai terbuka.")
                     else:
-                        st.info(f"⚖️ **STATUS DMA 5: NEUTRAL ({skor_sekarang_dma5:.1f}%)** — Partisipasi trader jangka pendek bergerak normal.")
+                        st.info(f"⚖️ **STATUS DMA 5: NEUTRAL ({pct_sekarang_dma5:.1f}%)** — Partisipasi trader jangka pendek bergerak normal.")
                         
                     # Pembuatan Grafik Interaktif Plotly
                     fig = go.Figure()
-                    
-                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA5'], name='Jangka Pendek (DMA 5)', line=dict(color='#ff4b4b', width=2)))
-                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA20'], name='Jangka Menengah (DMA 20)', line=dict(color='#29b5e8', width=1.5)))
-                    fig.add_trace(go.Scatter(x=df_osc['Date'], y=df_osc['Osc_DMA200'], name='Jangka Struktural (DMA 200)', line=dict(color='#ffa500', width=1.5)))
-                    
+                    for col_name, info in pct_mappings.items():
+                        if col_name in df_osc.columns:
+                            # Set default visibility: Hanya Pct_Above_DMA5 yang langsung aktif, sisanya 'legendonly'
+                            is_visible = True if col_name == 'Pct_Above_DMA5' else 'legendonly'
+                            
+                            fig.add_trace(go.Scatter(
+                                x=df_osc['Date'], 
+                                y=df_osc[col_name], 
+                                name=info['label'], 
+                                visible=is_visible,
+                                line=dict(color=info['color'], width=2 if col_name == 'Pct_Above_DMA5' else 1.5)
+                            ))
+
                     # Menambahkan Garis Batas Ambang Ekstrem Jenuh (80% & 20%)
                     fig.add_hline(y=80, line_dash="dash", line_color="#ff4b4b", annotation_text="Euphoria / Overbought (80%)", annotation_position="top left")
                     fig.add_hline(y=20, line_dash="dash", line_color="#29b5e8", annotation_text="Extreme Fear / Oversold (20%)", annotation_position="bottom left")
                     fig.add_hline(y=50, line_dash="dot", line_color="gray")
                     
                     fig.update_layout(
-                        yaxis=dict(title="Skor Sentimen & Partisipasi (%)", range=[-5, 105]),
+                        yaxis=dict(title="Persentase Saham di Atas Rata-Rata (%)", range=[-5, 105]),
                         xaxis=dict(title="Tanggal"),
                         template="plotly_white",
-                        height=450,
+                        height=480,
                         hovermode="x unified",
                         margin=dict(l=20, r=20, t=20, b=20),
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
