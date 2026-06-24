@@ -409,11 +409,11 @@ if pilihan_menu == "📊 Market Breadth History":
 
                     # Render Box Status Notifikasi Psikologi Terkini (Hari Terakhir)
                     if pct_sekarang_dma5 >= 80:
-                        st.error(f"🚨 **STATUS DMA 5: EUPHORIA / FOMO HIGH ({pct_sekarang_dma5:.1f}%)** — Pasar jenuh beli (Overbought), risiko *buying climax* meningkat.")
+                        st.error(f"🚨 **Status DMA 5: EUPHORIA / FOMO  ({pct_sekarang_dma5:.0f}%)")
                     elif pct_sekarang_dma5 <= 20:
-                        st.success(f"🟢 **STATUS DMA 5: EXTREME FEAR / CAPITULATION ({pct_sekarang_dma5:.1f}%)** — Pasar jenuh jual (Oversold), ruang akumulasi saham mulai terbuka.")
+                        st.success(f"🟢 **Status DMA 5: EXTREME FEAR / CAPITULATION ({pct_sekarang_dma5:.0f}%)")
                     else:
-                        st.info(f"⚖️ **STATUS DMA 5: NEUTRAL ({pct_sekarang_dma5:.1f}%)** — Partisipasi trader jangka pendek bergerak normal.")
+                        st.info(f"⚖️ **Status DMA 5: NEUTRAL ({pct_sekarang_dma5:.0f}%)** ")
                         
                     # Pembuatan Grafik Interaktif Plotly
                     fig = go.Figure()
@@ -436,7 +436,7 @@ if pilihan_menu == "📊 Market Breadth History":
                     fig.add_hline(y=50, line_dash="dot", line_color="gray")
                     
                     fig.update_layout(
-                        yaxis=dict(title="Persentase Saham di Atas Rata-Rata (%)", range=[-5, 105]),
+                        yaxis=dict(title="(%) of Stocks Above DMA", range=[-5, 105]),
                         xaxis=dict(title="Tanggal"),
                         template="plotly_white",
                         height=480,
