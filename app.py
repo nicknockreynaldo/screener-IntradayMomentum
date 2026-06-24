@@ -154,7 +154,6 @@ def load_journal_data():
     return df
 
 # --- KETERANGAN MODE ---
-st.warning("⚠️ MODE SANDBOX")
 
 # Pengaturan Halaman
 st.set_page_config(page_title="IHSG Screener Suite", page_icon="📈", layout="wide")
