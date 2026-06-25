@@ -7,6 +7,7 @@ import gspread
 import time
 import datetime
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # --- FUNGSI GOOGLE SHEETS ---
 def simpan_trade_ke_gsheet(worksheet_name, data_list):
@@ -153,7 +154,40 @@ def load_journal_data():
         df['Catatan_Detail'] = ""
     
     return df
-
+   
+@st.cache_data(ttl=300)  # Data disimpan di memori selama 5 menit (300 detik)
+def ambil_data_yfinance_cached(*args, **kwargs):
+    import yfinance as yf
+    import pandas as pd
+    
+    # 1. Ekstraksi parameter utama dari args atau kwargs secara fleksibel
+    tickers_list = args[0] if len(args) > 0 else kwargs.get('tickers_list')
+    if tickers_list is None:
+        # Antisipasi jika di kode bawah menggunakan argumen nama lain untuk list saham
+        for key in ['tickers', 'watchlist', 'tickers_list']:
+            if key in kwargs:
+                tickers_list = kwargs[key]
+                break
+                
+    # Pastikan tickers berupa list untuk yfinance, tetapi jadikan tuple agar bisa di-cache
+    tickers_tuple = tuple(tickers_list) if tickers_list else ()
+    
+    # 2. Jalankan proses download menggunakan seluruh argument asli dari kode Anda
+    # Ini menjamin jika di bawah ada kata kunci 'start', 'end', atau 'period', yfinance tidak akan error
+    df = yf.download(list(tickers_tuple), *args[1:], **kwargs)
+        
+    # ==============================================================================
+    # AUTO-FLATTENING UNTUK MENCECH PREVENT KEYERROR DI DASHBOARD MARKET BREADTH
+    # ==============================================================================
+    if isinstance(df.columns, pd.MultiIndex):
+        if len(tickers_list) == 1:
+            ticker_tunggal = tickers_list[0]
+            if ticker_tunggal in df.columns.levels[0]:
+                df = df[ticker_tunggal].copy()
+            elif ticker_tunggal in df.columns.levels[1]:
+                df = df.xs(ticker_tunggal, axis=1, level=1, drop_level=True).copy()
+    
+    return df
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX")
 
@@ -179,10 +213,10 @@ if 'memori_saham' not in st.session_state:
 st.sidebar.title("🎛️ NRC Control Panel")
 pilihan_menu = st.sidebar.radio(
     "Pilih Menu Analytics:",
-    ["🎯 Trading Workspace", "📊 Market Breadth History"]
+    ["🎯 Trading Workspace", "📊 Market Breadth"]
 )
 
-if pilihan_menu == "📊 Market Breadth History":
+if pilihan_menu == "📊 Market Breadth":
     st.title("📊 IHSG Market Breadth")
     # st.markdown("Pantau rotasi internal, likuiditas, dan kelebaran tren sektoral IHSG secara historis.")
     
@@ -257,7 +291,7 @@ if pilihan_menu == "📊 Market Breadth History":
             df_filtered['Tanggal'] = df_filtered['Date'].dt.strftime('%Y-%m-%d')
             
             # Sub-Tab Horizontal di dalam Menu Market Breadth
-            tab_tabel, tab_psikologi, tab_mcclellan = st.tabs(["📋 Historical Data", "📈 FOMO Indicator", "📉 McClellan Oscillator"])
+            tab_tabel, tab_MarketBreadth = st.tabs(["📊 Stocks Above DMA", "📈📉 Market Breadth"])
             
             
             with tab_tabel:
@@ -382,11 +416,118 @@ if pilihan_menu == "📊 Market Breadth History":
                     hide_index=True,
                     use_container_width=True
                 )
-                
-            with tab_psikologi:
-                st.write("### 📊 Matt Caruso FOMO - FEAR Indicator ")
-                st.info("")
-                
+                st.markdown("---") # Garis pembatas visual ke area tabel
+                df_dma_all = df_breadth.sort_values('Date', ascending=True).copy()
+                fig_dma_osc = go.Figure()
+                # 1. Definisikan konfigurasi tiap DMA (kolom, label, warna, dan status default)
+                # DMA 5 disetel True (Show), sedangkan sisanya disetel 'legendonly' (Hide tapi bisa diklik)
+                dma_configs = [
+                    {'col': 'Pct_Above_DMA5',   'label': 'Stocks > DMA 5 (%)',   'color': '#ff4b4b', 'status': True},
+                    {'col': 'Pct_Above_DMA10',  'label': 'Stocks > DMA 10 (%)',  'color': '#ff7c43', 'status': 'legendonly'},
+                    {'col': 'Pct_Above_DMA20',  'label': 'Stocks > DMA 20 (%)',  'color': '#29b5e8', 'status': 'legendonly'},
+                    {'col': 'Pct_Above_DMA50',  'label': 'Stocks > DMA 50 (%)',  'color': '#a05195', 'status': 'legendonly'},
+                    {'col': 'Pct_Above_DMA200', 'label': 'Stocks > DMA 200 (%)', 'color': '#ffa500', 'status': 'legendonly'}
+                ]
+
+                # 2. Lakukan perulangan untuk memasukkan seluruh lini DMA ke dalam satu grafik Oscillator
+                for dma in dma_configs:
+                    if dma['col'] in df_dma_all.columns:
+                        fig_dma_osc.add_trace(go.Scatter(
+                            x=df_dma_all['Date'], 
+                            y=df_dma_all[dma['col']], 
+                            mode='lines',
+                            name=dma['label'],
+                            visible=dma['status'],  # <--- Ini kunci kontrol show/hide otomatisnya
+                            line=dict(color=dma['color'], width=2.5 if dma['status'] == True else 1.5)
+                        ))
+
+                # 3. Tambahkan batas statis ekstrem jenuh atas (Max) dan jenuh bawah (Min)
+                fig_dma_osc.add_hline(y=80, line_dash="dash", line_color="#ff4b4b", 
+                                    annotation_text="🚨 ZONE MAX / OVERBOUGHT (80%)", annotation_position="top left")
+
+                fig_dma_osc.add_hline(y=20, line_dash="dash", line_color="#00d26a", 
+                                    annotation_text="🟢 ZONE MIN / OVERSOLD (20%)", annotation_position="bottom left")
+
+                fig_dma_osc.add_hline(y=50, line_dash="dot", line_color="gray")
+
+                # 4. Atur tampilan layout agar rapi bergaya Oscillator profesional
+                fig_dma_osc.update_layout(
+                    title='<b> Daily Moving Average Market Breadth Oscillator</b>',
+                    xaxis_title='Tanggal',
+                    yaxis=dict(
+                        title='Persentase Saham di Atas Rata-rata (%)',
+                        range=[-5, 105],
+                        tickvals=[0, 20, 50, 80, 100]
+                    ),
+                    template='plotly_white',
+                    hovermode='x unified',
+                    height=480,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1) # Legenda horizontal di atas
+                )
+
+                # Render grafik ke dashboard dengan key unik agar aman dari tabrakan ID
+                st.plotly_chart(fig_dma_osc, use_container_width=True, key="multi_dma_oscillator_chart")
+
+            # ==============================================================================
+            # INTEGRASI 4 INDIKATOR MARKET BREADTH (1 TAB - 4 GRAFIK TERPISAH)
+            # ==============================================================================
+            
+            with tab_MarketBreadth: # Sesuai dengan nama variabel tab di file kamu
+                                # -------------------------------------------------------------------
+                # STEP 1: ONE-TIME DATA FETCHING & PROSES DATA UTAMA
+                # -------------------------------------------------------------------
+                with st.spinner("Sinkronisasi data jangkar IHSG dan kalkulasi internal breadth..."):
+                    if 'df_filtered' in locals() and not df_filtered.empty:
+                        # Balik urutan menjadi urutan waktu maju (Ascending) untuk kalkulasi matematika EMA & Kumulatif
+                        df_calc_suite = df_filtered.sort_values('Date', ascending=True).reset_index(drop=True).copy()
+                        
+                        # Ambil rentang tanggal historis
+                        start_yf = df_calc_suite['Tanggal'].min()
+                        end_yf = (df_calc_suite['Date'].max() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+                        
+                        try:
+                            # Download data IHSG tunggal
+                            df_ihsg = ambil_data_yfinance_cached(["^JKSE"], start_yf, end_yf)
+                            df_ihsg = df_ihsg.reset_index()
+                            
+                            # 🔥 PERBAIKAN ROBUST MULTIINDEX: Deteksi otomatis level kolom 'Close'
+                            if isinstance(df_ihsg.columns, pd.MultiIndex):
+                                if 'Close' in df_ihsg.columns.get_level_values(0):
+                                    df_ihsg.columns = df_ihsg.columns.get_level_values(0)
+                                else:
+                                    df_ihsg.columns = df_ihsg.columns.get_level_values(1)
+                            
+                            # Pastikan nama kolom 'Date' tetap aman setelah perataan kolom
+                            if 'Date' not in df_ihsg.columns and 'index' in df_ihsg.columns:
+                                df_ihsg = df_ihsg.rename(columns={'index': 'Date'})
+                            
+                            df_ihsg['Tanggal'] = pd.to_datetime(df_ihsg['Date']).dt.strftime('%Y-%m-%d')
+                            df_ihsg = df_ihsg[['Tanggal', 'Close']].rename(columns={'Close': 'IHSG_Close'})
+                            df_ihsg['IHSG_Close'] = pd.to_numeric(df_ihsg['IHSG_Close'], errors='coerce')
+                            
+                            # 3. Gabungkan Data GSheet Terfilter dengan Live IHSG Close Price
+                            df_master_breadth = pd.merge(df_calc_suite, df_ihsg, on='Tanggal', how='left')
+                            df_master_breadth['IHSG_Close'] = df_master_breadth['IHSG_Close'].ffill().bfill()
+                            
+                            # 4. Kalkulasi internal McClellan Oscillator (EMA 19 - EMA 39 dari % Saham > DMA 20)
+                            df_master_breadth['EMA_Fast'] = df_master_breadth['Pct_Above_DMA20'].ewm(span=19, adjust=False).mean()
+                            df_master_breadth['EMA_Slow'] = df_master_breadth['Pct_Above_DMA20'].ewm(span=39, adjust=False).mean()
+                            df_master_breadth['McClellan'] = df_master_breadth['EMA_Fast'] - df_master_breadth['EMA_Slow']
+                            
+                            # 5. Kalkulasi AD Line Akumulasi Internal dari Data Proksi DMA 20 bursa kamu
+                            df_master_breadth['Net_Advances'] = df_master_breadth['Pct_Above_DMA20'] - 50
+                            df_master_breadth['AD_Line'] = df_master_breadth['Net_Advances'].cumsum()
+
+                        except Exception as e:
+                            st.error(f"Gagal memproses sinkronisasi data live bursa: {e}")
+                            df_master_breadth = pd.DataFrame()
+                    else:
+                        df_master_breadth = pd.DataFrame()
+              
+                # -------------------------------------------------------------------
+                # GRAFIK 1 : FOMO INDICATOR MATT CARUSO
+                # -------------------------------------------------------------------
+                st.write("### 📈Matt Caruso FOMO - FEAR Indicator ")
                 if len(df_filtered) > 0:
                     
                     # Salin data & sorting maju untuk visualisasi deret waktu grafik garis
@@ -445,25 +586,58 @@ if pilihan_menu == "📊 Market Breadth History":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
-            # -------------------------------------------------------------------
-            # WIDGET & GRAFIK UNTUK TAB McCLELLAN
-            # -------------------------------------------------------------------
-            with tab_mcclellan:
-                st.write("## 📉 Analisis Momentum Bursa: McClellan Style Oscillator")
+                    st.plotly_chart(fig, use_container_width=True,key="comb_fomo")
+                st.markdown("---")
+                # -------------------------------------------------------------------
+                # GRAFIK 2 : McCLELLAN OSCILLATOR
+                # -------------------------------------------------------------------
+
+                st.write("## 📉 McClellan Oscillator")
                 st.markdown(
-                    "> Indikator ini mengukur akselerasi likuiditas internal bursa. "
-                    "Gunakan untuk mendeteksi titik balik pasar (*rebound* atau *crash*) sebelum terjadi di IHSG."
-                )
+                                "> Mengukur momentum jangka pendek kelebaran pasar berdasarkan selisih antara EMA 19-hari dan EMA 39-hari dari data bersih saham yang naik vs turun harian."
+                            )
                 
                 # Ambil master data historis jangka panjang (df_breadth)
                 if 'df_breadth' in locals() or 'df_breadth' in globals():
                     df_osc = df_breadth[(df_breadth['Date'] >= pd.to_datetime(batas_3_bulan)) & 
-                                     (df_breadth['Date'] <= pd.to_datetime(max_d))].copy()
+                             (df_breadth['Date'] <= pd.to_datetime(max_d))].copy()
+        
+                    # Buat kolom Tanggal format string untuk pencocokan key
                     df_osc['Tanggal'] = df_osc['Date'].dt.strftime('%Y-%m-%d')
-                    df_osc = df_osc.sort_values('Date', ascending=True).reset_index(drop=True)
-                    df_mcc = df_osc.sort_values('Date', ascending=True).reset_index(drop=True)
                     
+                    # 2. Ambil Data IHSG secara Live via yfinance
+                    try:
+                        start_yf = df_osc['Tanggal'].min()
+                        end_yf = (df_osc['Date'].max() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+                        
+                        # Tambahkan group_by='ticker' agar struktur kolomnya konsisten tunggal
+                        df_ihsg = ambil_data_yfinance_cached(["^JKSE"], start_yf, end_yf)
+                        df_ihsg = df_ihsg.reset_index()
+                        
+                        # 🔥 SUNTIKKAN DI SINI: Jika kolom bertingkat (MultiIndex), kita ratakan kolomnya
+                        if isinstance(df_ihsg.columns, pd.MultiIndex):
+                            df_ihsg.columns = [col[1] if col[1] != '' else col[0] for col in df_ihsg.columns]
+                        
+                        df_ihsg['Tanggal'] = pd.to_datetime(df_ihsg['Date']).dt.strftime('%Y-%m-%d')
+                        
+                        # Ambil hanya kolom Tanggal dan Close
+                        df_ihsg = df_ihsg[['Tanggal', 'Close']].rename(columns={'Close': 'IHSG_Close'})
+                        
+                        # Pastikan tipe data berupa float numerik bersih
+                        df_ihsg['IHSG_Close'] = pd.to_numeric(df_ihsg['IHSG_Close'], errors='coerce')
+                        
+                        # Satukan data Breadth dengan Data Live IHSG Close
+                        df_mcc = pd.merge(df_osc, df_ihsg, on='Tanggal', how='left')
+                        df_mcc['IHSG_Close'] = df_mcc['IHSG_Close'].ffill().bfill()
+                        
+                    except Exception as e_yf:
+                        # Jika bermasalah, tampilkan log error rahasia di console terminal untuk debugging
+                        print(f"DEBUG YFINANCE ERROR: {e_yf}")
+                        df_mcc = df_osc.copy()
+                        df_mcc['IHSG_Close'] = 7000
+                        
+                    # 3. Urutkan secara Ascending wajib untuk perhitungan matematika EMA
+                    df_mcc = df_mcc.sort_values('Tanggal', ascending=True).reset_index(drop=True)
                     # Ambil kolom persentase acuan (kita gunakan DMA 20% sebagai core market trend)
                     kolom_target = [c for c in df_mcc.columns if '20' in c and 'dma' in c.lower()]
                     
@@ -486,55 +660,113 @@ if pilihan_menu == "📊 Market Breadth History":
                         
                         # Menentukan status & warna visual secara objektif
                         if v_mcc > 15:
-                            st.warning(f"⚠️ **Suhu Bursa: Overbought ({v_mcc:.2f})** — Penguatan pasar sudah terlalu kencang dan mulai jenuh beli. Rawan *profit taking* jangka pendek.")
+                            st.warning(f"⚠️ **Status: Overbought ({v_mcc:.2f})** — Penguatan pasar sudah terlalu kencang dan mulai jenuh beli. Rawan *profit taking* jangka pendek.")
                         elif v_mcc < -15:
-                            st.success(f"🔥 **Suhu Bursa: Oversold ({v_mcc:.2f})** — Pasar sudah jenuh jual/panik massal. Ini adalah area berburu saham diskon karena potensi *rebound* semakin dekat.")
+                            st.success(f"🔥 **Status Oversold ({v_mcc:.2f})** — Pasar sudah jenuh jual/panik massal. Ini adalah area berburu saham diskon karena potensi *rebound* semakin dekat.")
                         else:
-                            st.info(f"🕊️ **Suhu Bursa: Netral ({v_mcc:.2f})** — Momentum pergerakan bursa cenderung stabil dan bergerak sehat.")
+                            st.info(f"🕊️ **Status: Netral ({v_mcc:.2f})** ")
                             
                         # 🛠️ 3. VISUALISASI INTERAKTIF MENGGUNAKAN PLOTLY
                         # Ambil data filter tanggal default dari dashboard Anda atau potong 200 baris terakhir untuk chart agar rapi
                         df_chart = df_mcc.tail(200) 
                         
-                        fig = go.Figure()
+                        fig = make_subplots(specs=[[{"secondary_y": True}]])
                         
-                        # Garis Area Nol (Keseimbangan)
-                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=0, x1=df_chart['Tanggal'].max(), y1=0,
-                                    line=dict(color="gray", width=1.5, dash="dash"))
-                        
-                        # Batas Batas Ekstrem Overbought (+15) & Oversold (-15)
-                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=15, x1=df_chart['Tanggal'].max(), y1=15,
-                                    line=dict(color="rgba(255, 99, 132, 0.5)", width=1, dash="dot"))
-                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=-15, x1=df_chart['Tanggal'].max(), y1=-15,
-                                    line=dict(color="rgba(75, 192, 192, 0.5)", width=1, dash="dot"))
-                        
-                        # Plot Nilai McClellan Oscillator (Grafik Garis dengan isi warna area bawah)
-                        fig.add_trace(go.Scatter(
-                            x=df_chart['Tanggal'], 
-                            y=df_chart['McClellan'],
-                            mode='lines',
-                            name='McClellan Oscillator',
-                            line=dict(color='#31333F', width=2),
-                            fill='tozeroy', # Memberikan warna shading di bawah garis ke arah titik nol
-                            fillcolor='rgba(135, 206, 250, 0.3)'
-                        ))
-                        
-                        # Pengaturan Layout Chart agar serasi dengan kantor/dark mode Streamlit
-                        fig.update_layout(
-                            title='Pergerakan Gelombang McClellan Oscillator (200 Sesi Terakhir)',
-                            xaxis_title='Tanggal',
-                            yaxis_title='Nilai Oscillator',
-                            height=450,
-                            hovermode='x unified',
-                            margin=dict(l=20, r=20, t=40, b=20)
+                        # --- SUMBU PRIMER (KIRI): Garis Pergerakan IHSG ---
+                        fig.add_trace(
+                            go.Scatter(
+                                x=df_chart['Tanggal'],
+                                y=df_chart['IHSG_Close'],
+                                mode='lines',
+                                name='IHSG Close Price',
+                                line=dict(color='#FF4B4B', width=2), # Merah khas Streamlit/IHSG
+                            ),
+                            secondary_y=False
                         )
                         
-                        st.plotly_chart(fig, use_container_width=True)
+                        # --- SUMBU SEKUNDER (KANAN): Area Gelombang McClellan ---
+                        fig.add_trace(
+                            go.Scatter(
+                                x=df_chart['Tanggal'], 
+                                y=df_chart['McClellan'],
+                                mode='lines',
+                                name='McClellan Oscillator',
+                                line=dict(color='#31333F', width=1.5),
+                                fill='tozeroy', 
+                                fillcolor='rgba(135, 206, 250, 0.25)' # Shading biru transparan
+                            ),
+                            secondary_y=True
+                        )
+                        
+                        # Menambahkan Garis Nol (Keseimbangan) di sumbu sekunder
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=0, x1=df_chart['Tanggal'].max(), y1=0,
+                                    yref="y2", line=dict(color="gray", width=1.5, dash="dash"))
+                        
+                        # Menambahkan Batas Ekstrem Overbought (+15) & Oversold (-15) di sumbu sekunder
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=15, x1=df_chart['Tanggal'].max(), y1=15,
+                                    yref="y2", line=dict(color="rgba(255, 99, 132, 0.4)", width=1, dash="dot"))
+                        fig.add_shape(type="line", x0=df_chart['Tanggal'].min(), y0=-15, x1=df_chart['Tanggal'].max(), y1=-15,
+                                    yref="y2", line=dict(color="rgba(75, 192, 192, 0.4)", width=1, dash="dot"))
+                        
+                        min_ihsg = df_chart['IHSG_Close'].min()
+                        max_ihsg = df_chart['IHSG_Close'].max()
+                        padding_ihsg = (max_ihsg - min_ihsg) * 0.15  # Beri margin 15% atas-bawah
+
+                        # Atur Layout Sumbu Ganda
+                        fig.update_layout(
+                            title=dict(
+                                text='<b>Korelasi Pergerakan IHSG vs Gelombang McClellan Oscillator</b>',
+                                font=dict(size=16, color='#31333F'),
+                               # Menggeser judul agak ke kiri agar clean
+                            ),
+                            title_x=0.01,
+
+                            xaxis=dict(
+                                title='Tanggal',
+                                showgrid=True,
+                                gridcolor='rgba(240, 240, 240, 0.8)', # Garis grid tipis transparan
+                                tickformat='%b %Y' # Format tanggal jadi nama bulan singkat (cth: Jun 2026)
+                            ),
+                            # Mengatur Sumbu Y Kiri (IHSG)
+                            yaxis=dict(
+                                title=dict(text='Harga Penutupan IHSG', font=dict(color='#FF4B4B')),
+                                tickfont=dict(color='#FF4B4B'),
+                                tickformat=',.0f', # Format ribuan Indonesia (cth: 7,000)
+                                range=[min_ihsg - padding_ihsg, max_ihsg + padding_ihsg], # Terapkan padding
+                                showgrid=False # Matikan grid kiri agar tidak tabrakan dengan grid kanan
+                            ),
+                            # Mengatur Sumbu Y Kanan (McClellan)
+                            yaxis2=dict(
+                                title=dict(text='Nilai McClellan Oscillator', font=dict(color='#31333F')),
+                                tickfont=dict(color='#31333F'),
+                                range=[-45, 45], # Mengunci rentang osilator agar garis 0 tepat berada di TENGAH chart
+                                showgrid=True,
+                                gridcolor='rgba(240, 240, 240, 0.5)'
+                            ),
+                            height=520,
+                            hovermode='x unified',
+                            # Pindahkan posisi legenda ke atas luar chart agar tidak menutupi garis data
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="right",
+                                x=1
+                            ),
+                            margin=dict(l=50, r=50, t=80, b=40),
+                            plot_bgcolor='white' # Mengubah background chart menjadi putih bersih khas Streamlit
+                        )
+                        
+                        # Set judul spesifik untuk masing-masing sumbu Y
+                        fig.update_yaxes(title_text="<b>Harga Penutupan IHSG</b>", secondary_y=False)
+                        fig.update_yaxes(title_text="<b>Nilai McClellan Oscillator</b>", secondary_y=True)
+                        
+                        st.plotly_chart(fig, use_container_width=True, key="comb_mcco")
                         
                         # 🛠️ 4. TABEL DATA HISTORIS McCLELLAN
                         with st.expander("👁️ Lihat Tabel Historis Nilai Gelombang"):
                             st.dataframe(
-                                df_mcc_display[['Tanggal', col_pct, 'EMA_Fast', 'EMA_Slow', 'McClellan']].head(30),
+                                df_mcc_display[['Tanggal', 'IHSG_Close', col_pct, 'EMA_Fast', 'EMA_Slow', 'McClellan']].head(30),
                                 use_container_width=True,
                                 hide_index=True
                             )
@@ -542,9 +774,158 @@ if pilihan_menu == "📊 Market Breadth History":
                         st.error("Kolom persentase 'DMA_20%' tidak ditemukan di dalam file data Anda.")
                 else:
                     st.error("Gagal memuat master data `df_breadth` untuk visualisasi chart.")
+                st.markdown("---")
+                # -------------------------------------------------------------------
+                # GRAFIK 3 : Advance-Decline Line
+                # -------------------------------------------------------------------
+                with st.spinner("Mengkalkulasi matriks Advance-Decline langsung dari Yahoo Finance..."):
+                    # 1. Tentukan rentang tanggal historis (1 tahun ke belakang agar tren makronya kelihatan jelas)
+                    hari_ini = datetime.date.today()
+                    start_date_ad = (hari_ini - datetime.timedelta(days=365)).strftime('%Y-%m-%d')
+                    end_date_ad = (hari_ini + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
 
 
+                    if 'df_ihsg' in locals() or 'df_ihsg' in globals():
+                        df_ihsg_fix = df_ihsg.copy()
+    
+                        # 2. Jika 'Tanggal' masih berstatus sebagai Index, keluarkan menjadi kolom biasa
+                        if 'Tanggal' not in df_ihsg_fix.columns:
+                            df_ihsg_fix = df_ihsg_fix.reset_index()
+                            # Jika setelah reset_index namanya berubah jadi 'Date' atau 'index', ubah ke 'Tanggal'
+                            df_ihsg_fix = df_ihsg_fix.rename(columns={'Date': 'Tanggal', 'index': 'Tanggal'})
+                        
+                        # 3. Jika kolom 'IHSG_Close' belum ada tetapi ada kolom 'Close', ubah namanya
+                        if 'IHSG_Close' not in df_ihsg_fix.columns and 'Close' in df_ihsg_fix.columns:
+                            df_ihsg_fix = df_ihsg_fix.rename(columns={'Close': 'IHSG_Close'})
+                            
+                        # 4. Sekarang proses ekstraksi aman 100% tanpa risiko KeyError
+                        try:
+                            df_ihsg_ad = df_ihsg_fix[['Tanggal', 'IHSG_Close']].copy()
+                        except KeyError:
+                            # Antisipasi terakhir jika penamaan kolom yfinance berbeda
+                            df_ihsg_ad = pd.DataFrame()
+                    else:
+                        df_ihsg_ad = pd.DataFrame()
 
+                    # 3. 🎯 DAFTAR SAHAM WATCHLIST ANDA
+                    tickers_jangkar = [
+                        "BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK", "ASII.JK", "TLKM.JK", "BRIS.JK", "AMMN.JK", "TPIA.JK", "BREN.JK",
+                        "BRPT.JK", "PTRO.JK", "CUAN.JK", "CDIA.JK", "SSIA.JK", "RAJA.JK", "RATU.JK", "BUMI.JK", "BRMS.JK", "DEWA.JK", "ENRG.JK",
+                        "PANI.JK", "CBDK.JK", "AADI.JK", "ADRO.JK", "ADMR.JK", "ACES.JK", "AKRA.JK", "AMRT.JK", "ANTM.JK", "TINS.JK", "INCO.JK", 
+                        "HRUM.JK", "INDY.JK", "MDKA.JK", "MBMA.JK", "ITMG.JK", "MEDC.JK", "PGEO.JK", "PTBA.JK", "TOBA.JK", "UNTR.JK", "ARTO.JK", 
+                        "BBYB.JK", "BTPS.JK", "BBTN.JK", "BSDE.JK", "SMRA.JK", "CTRA.JK", "PWON.JK", "CPIN.JK", "MAIN.JK", "JPFA.JK", "SCMA.JK", 
+                        "EMTK.JK", "BUKA.JK", "ELSA.JK", "ESSA.JK", "EXCL.JK", "ISAT.JK", "ICBP.JK", "INDF.JK", "INTP.JK", "SMGR.JK", "LSIP.JK", 
+                        "DSNG.JK", "MYOR.JK", "NCKL.JK", "PGAS.JK", "TAPG.JK", "UNVR.JK", "WIFI.JK", "HMSP.JK", "COIN.JK", "INET.JK", "ARCI.JK", 
+                        "BUVA.JK", "VKTR.JK", "TOWR.JK", "AVIA.JK", "SUPA.JK", "NISP.JK", "BNGA.JK", "TCPI.JK", "IMPC.JK", "MTEL.JK", "TBIG.JK", 
+                        "GOTO.JK", "DSSA.JK", "BNLI.JK", "BYAN.JK", "GGRM.JK", "RMKE.JK", "JSMR.JK", "BDMN.JK", "BKSL.JK", "BELI.JK", "KLBF.JK",
+                        "SIDO.JK", "CMRY.JK", "INKP.JK", "TKIM.JK", "SRTG.JK", "ARKO.JK", "MAPA.JK", "MAPI.JK", "ULTJ.JK", "MIDI.JK", "BFIN.JK",
+                        "HRTA.JK", "ADHI.JK", "PTPP.JK", "SMDR.JK", "HUMI.JK", "ERAA.JK", "ERAL.JK", "KRAS.JK", "AGRO.JK", "GTSI.JK", "FORE.JK",
+                        "DAAZ.JK", "TRIM.JK", "TOTL.JK", "MINA.JK", "BIRD.JK", "FUTR.JK", "GJTL.JK", "WIIM.JK", "SOCI.JK", "CBRE.JK", "WIRG.JK",
+                        "BULL.JK", "WINS.JK", "PYFA.JK", "MTDL.JK", "RALS.JK", "ISSP.JK", "EMAS.JK", "ASSA.JK", "MBSS.JK", "DKFT.JK", "DRMA.JK", 
+                        "KEEN.JK", "PSAB.JK", "BWPT.JK", "OASA.JK"
+                    ]
+
+                    # Tarik data historis close semua komponen saham secara serentak
+                    try:
+                        df_all = ambil_data_yfinance_cached(tickers_jangkar, start=start_date_ad, end=end_date_ad)
+                        
+                        # Ambil level 'Close' dari MultiIndex kolom data
+                        if 'Close' in df_all.columns.levels[0]:
+                            df_close_saham = df_all['Close'].copy()
+                            
+                            # Hitung return harian (perubahan persen) untuk melihat mana yang naik/turun
+                            df_pct = df_close_saham.pct_change()
+                            
+                            # Hitung berapa jumlah saham yang harganya naik (> 0) dan turun (< 0) setiap harinya
+                            df_ad_calc = pd.DataFrame(index=df_pct.index)
+                            df_ad_calc['Saham_Naik'] = (df_pct > 0.0001).sum(axis=1)
+                            df_ad_calc['Saham_Turun'] = (df_pct < -0.0001).sum(axis=1)
+                            df_ad_calc['AD_Net'] = df_ad_calc['Saham_Naik'] - df_ad_calc['Saham_Turun']
+                            
+                            # 💡 1. AKUMULASIKAN MENJADI AD LINE MULTI-SESSION
+                            df_ad_calc['AD_Line'] = df_ad_calc['AD_Net'].cumsum()
+                            
+                            # 💡 2. HITUNG MCCLELLAN SUMMATION INDEX (SI)
+                            ema19 = df_ad_calc['AD_Net'].ewm(span=19, adjust=False).mean()
+                            ema39 = df_ad_calc['AD_Net'].ewm(span=39, adjust=False).mean()
+                            df_ad_calc['McClellan_Osc'] = ema19 - ema39
+                            df_ad_calc['Summation_Index'] = df_ad_calc['McClellan_Osc'].cumsum()
+                            
+                            df_ad_calc = df_ad_calc.reset_index()
+                            df_ad_calc['Tanggal'] = pd.to_datetime(df_ad_calc['Date']).dt.strftime('%Y-%m-%d')
+                            
+                            # SINKRONISASI DENGAN DATA CLOSE IHSG
+                            if not df_ihsg_ad.empty:
+                                df_final_ad = pd.merge(df_ad_calc, df_ihsg_ad, on='Tanggal', how='inner')
+                            else:
+                                df_final_ad = df_ad_calc
+                                df_final_ad['IHSG_Close'] = 7000
+
+                            # 4. Filter Visualisasi (Ambil 150 sesi terakhir agar grafik tajam)
+                            df_chart_ad = df_final_ad.tail(150)
+                            
+                            min_ihsg_ad = float(df_chart_ad['IHSG_Close'].min())
+                            max_ihsg_ad = float(df_chart_ad['IHSG_Close'].max())
+                            padding_ihsg_ad = (max_ihsg_ad - min_ihsg_ad) * 0.15
+                            
+                            # 📊 --- GRAPH 1: ADVANCE-DECLINE LINE ---
+                            st.write("### 📈 Advance-Decline Line")
+                            st.markdown(
+                                "> Mengukur akumulasi bersih jumlah saham yang naik vs turun secara intraday."
+                            )
+                            from plotly.subplots import make_subplots
+                            fig_ad = make_subplots(specs=[[{"secondary_y": True}]])
+                            
+                            fig_ad.add_trace(go.Scatter(x=df_chart_ad['Tanggal'], y=df_chart_ad['IHSG_Close'], mode='lines', name='IHSG Close Price', line=dict(color='#FF4B4B', width=2)), secondary_y=False)
+                            fig_ad.add_trace(go.Scatter(x=df_chart_ad['Tanggal'], y=df_chart_ad['AD_Line'], mode='lines', name='Advance-Decline Line', line=dict(color='#008080', width=2.5)), secondary_y=True)
+                            
+                            fig_ad.update_layout(
+                                xaxis=dict(title='Tanggal', showgrid=True, gridcolor='rgba(240, 240, 240, 0.8)', tickformat='%b %Y'),
+                                yaxis=dict(title=dict(text='Harga Penutupan IHSG', font=dict(color='#FF4B4B')), tickfont=dict(color='#FF4B4B'), tickformat=',.0f', range=[min_ihsg_ad - padding_ihsg_ad, max_ihsg_ad + padding_ihsg_ad], showgrid=False),
+                                yaxis2=dict(title=dict(text='Indeks Kumulatif AD Line', font=dict(color='#008080')), tickfont=dict(color='#008080'), tickformat=',.0f', showgrid=True, gridcolor='rgba(240, 240, 240, 0.5)'),
+                                height=420, hovermode='x unified', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=50, r=50, t=30, b=30), plot_bgcolor='white'
+                            )
+                            st.plotly_chart(fig_ad, use_container_width=True,key="comb_adline")
+                            
+                            st.markdown("---")
+                            
+                        # -------------------------------------------------------------------
+                        # GRAFIK 4 : Summation McClellan Index (SMI) 
+                        # -------------------------------------------------------------------
+                            st.write("### 🌊 McClellan Summation Index")
+                            st.markdown(
+                                "> Mengukur akumulasi jangka panjang dari total kumulatif nilai McClellan Oscillator harian."
+                            )
+                            fig_si = make_subplots(specs=[[{"secondary_y": True}]])
+                            
+                            fig_si.add_trace(go.Scatter(x=df_chart_ad['Tanggal'], y=df_chart_ad['IHSG_Close'], mode='lines', name='IHSG Close Price', line=dict(color='#FF4B4B', width=1.5)), secondary_y=False)
+                            fig_si.add_trace(go.Scatter(x=df_chart_ad['Tanggal'], y=df_chart_ad['Summation_Index'], mode='lines', name='Summation Index', line=dict(color='#1F77B4', width=2.5)), secondary_y=True)
+                            
+                            # Tambah horizontal line 0
+                            fig_si.add_shape(type="line", x0=df_chart_ad['Tanggal'].iloc[0], y0=0, x1=df_chart_ad['Tanggal'].iloc[-1], y1=0, line=dict(color="#A0A0A0", width=1.2, dash="dot"), secondary_y=True)
+                            
+                            fig_si.update_layout(
+                                xaxis=dict(title='Tanggal', showgrid=True, gridcolor='rgba(240, 240, 240, 0.8)', tickformat='%b %Y'),
+                                yaxis=dict(title=dict(text='Harga Penutupan IHSG', font=dict(color='#FF4B4B')), tickfont=dict(color='#FF4B4B'), tickformat=',.0f', range=[min_ihsg_ad - padding_ihsg_ad, max_ihsg_ad + padding_ihsg_ad], showgrid=False),
+                                yaxis2=dict(title=dict(text='Skor Summation Index', font=dict(color='#1F77B4')), tickfont=dict(color='#1F77B4'), tickformat=',.0f', showgrid=True, gridcolor='rgba(240, 240, 240, 0.5)'),
+                                height=420, hovermode='x unified', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=50, r=50, t=30, b=30), plot_bgcolor='white'
+                            )
+                            st.plotly_chart(fig_si, use_container_width=True, key="comb_smi")
+                            
+                            # 5. Expander Tabel Data Mentah
+                            with st.expander("👁️ Lihat Tabel Historis Gabungan (20 Sesi Terakhir)"):
+                                st.dataframe(
+                                    df_final_ad[['Tanggal', 'IHSG_Close', 'Saham_Naik', 'Saham_Turun', 'AD_Net', 'AD_Line', 'Summation_Index']].tail(20).sort_values('Tanggal', ascending=False),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
+                        else:
+                            st.error("Gagal memproses struktur data komponen dari API Yahoo Finance.")
+                    except Exception as e_main:
+                        st.error(f"Gagal melakukan komputasi AD Line: {e_main}")
+
+                st.markdown("---")
+                
         else:
             st.error("Kolom 'Date' tidak terdeteksi pada data spreadsheet Anda.")
     else:
@@ -644,12 +1025,11 @@ with tab_screener:
                 watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
                 
                 # 1. Download Data Utama (Sesuai Timeframe Eksekusi No. 2)
-                data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
-                
+                data_bulk = ambil_data_yfinance_cached(watchlist, period_param, interval_param)
                 # 2. Download Data Harian terpisah untuk menjamin ekstraksi nilai "Daily MA 50" yang valid
                 data_daily_bulk = None
                 if TF_PILIHAN != "Harian (Daily)":
-                    data_daily_bulk = yf.download(watchlist, period="6mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                    data_daily_bulk = ambil_data_yfinance_cached(watchlist, "6mo", "1d")
                 
                 # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display jangkauan (1H)
                 data_1h_bulk = None
@@ -657,8 +1037,7 @@ with tab_screener:
                     if TF_PILIHAN == "1 Jam (1H)":
                         data_1h_bulk = data_bulk
                     else:
-                        data_1h_bulk = yf.download(watchlist, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-
+                        data_1h_bulk = ambil_data_yfinance_cached(watchlist, "1mo", "1h")
                 hasil_screener = []
                 daftar_saham_lolos_sekarang = []
                 
@@ -774,7 +1153,6 @@ with tab_screener:
                             "Kode Saham": clean, 
                             "Price": f"Rp{close:,.0f}", 
                             "Change %": f"{change_pct:+.2f}%",
-                            "Daily MA 50": f"Rp{daily_ma50:,.0f}" if daily_ma50 is not None else "N/A" # KOLOM BARU AUDIT
                         }
                         
                         # LOGIKA JANGKAR 1H MURNI UNTUK MATRIKS DISPLAY TABEL
@@ -864,39 +1242,56 @@ with tab_watchlist:
                 
                 if watchlist_wl:
                     # Download 1H untuk MA dan 1D untuk Daily MA
-                    data_1h = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                    data_1d = yf.download(watchlist_wl, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                    data_1h = ambil_data_yfinance_cached(watchlist_wl, period="1mo", interval="1h")
+                    data_1d = ambil_data_yfinance_cached(watchlist_wl, period="3mo", interval="1d")
                     
                     hasil_watchlist_manual = []
                     
                     for ticker in watchlist_wl:
-                        df_1h = data_1h[ticker] if len(watchlist_wl) > 1 else data_1h
-                        df_1d = data_1d[ticker] if len(watchlist_wl) > 1 else data_1d
-                        
-                        df_1h = df_1h.dropna(subset=['Close'])
-                        df_1d = df_1d.dropna(subset=['Close'])
-                        
-                        if df_1h.empty or df_1d.empty: continue
-                        
-                        close = float(df_1h['Close'].iloc[-1])
-                        ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
-                        ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
-                        ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
-                        ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
-                        
-                        hasil_watchlist_manual.append({
-                            "Kode Saham": ticker.replace(".JK", ""),
-                            "Price": f"Rp{close:,.0f}",
-                            "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
-                            "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
-                        })
+                        try:
+                            # 2. EKSTRAKSI SUPER AMAN (Didukung fitur auto-flatten fungsi Anda)
+                            if len(watchlist_wl) == 1:
+                                df_1h = data_1h.copy()
+                                df_1d = data_1d.copy()
+                            else:
+                                if ticker in data_1h.columns.get_level_values(1):
+                                    df_1h = data_1h.xs(ticker, axis=1, level=1)
+                                else:
+                                    df_1h = data_1h.xs(ticker, axis=1, level=0)
+                                    
+                                if ticker in data_1d.columns.get_level_values(1):
+                                    df_1d = data_1d.xs(ticker, axis=1, level=1)
+                                else:
+                                    df_1d = data_1d.xs(ticker, axis=1, level=0)
+                            
+                            df_1h = df_1h.dropna(subset=['Close'])
+                            df_1d = df_1d.dropna(subset=['Close'])
+                            
+                            if df_1h.empty or df_1d.empty: continue
+                            
+                            # Perhitungan Indikator Saham
+                            close = float(df_1h['Close'].iloc[-1])
+                            ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                            ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                            ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                            ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
+                            
+                            hasil_watchlist_manual.append({
+                                "Kode Saham": ticker.replace(".JK", ""),
+                                "Price": f"Rp{close:,.0f}",
+                                "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
+                                "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                                "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                                "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
+                            })
+                        except Exception :
+                            # Jika ada satu saham gagal kalkulasi, tetap lanjut ke saham berikutnya
+                            continue
                     
                     if hasil_watchlist_manual:
                         st.dataframe(pd.DataFrame(hasil_watchlist_manual), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
-
+            
     st.markdown("---")
 
     # --- 2. INTRADAY MOMENTUM WATCHLIST (TF: 5m) ---
@@ -910,45 +1305,55 @@ with tab_watchlist:
                 tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
                 wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
-                data_1h = yf.download(wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                data_1d = yf.download(wl, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
-                data_5m = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
+                data_1h = ambil_data_yfinance_cached(wl, period="1mo", interval="1h")
+                data_1d = ambil_data_yfinance_cached(wl, period="3mo", interval="1d")
+                data_5m = ambil_data_yfinance_cached(wl, period="1d", interval="5m")
                 
                 hasil = []
                 for ticker in wl:
-                    # Menggunakan .xs (cross-section) agar struktur kolom selalu flat (Open, Close, Volume)
-                    # baik untuk 1 ticker maupun banyak ticker
-                    df_1h = data_1h.xs(ticker, axis=1, level=0, drop_level=True)
-                    df_1d = data_1d.xs(ticker, axis=1, level=0, drop_level=True)
-                    df_5m = data_5m.xs(ticker, axis=1, level=0, drop_level=True)
-                    
-                    df_1h = df_1h.dropna(subset=['Close'])
-                    df_1d = df_1d.dropna(subset=['Close'])
-                    df_5m = df_5m.dropna(subset=['Close', 'Volume'])
-                    
-                    if df_1h.empty or df_1d.empty or df_5m.empty: continue
-                    
-                    close = float(df_1h['Close'].iloc[-1])
-                    ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
-                    ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
-                    ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
-                    ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
-                    
-                   
-                  # Ganti logika perhitungan vwap menjadi OHLC/4 (sesuai preferensi profesional)
-                    ohlc_avg = (df_5m['Open'] + df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 4
-                    vwap = (ohlc_avg * df_5m['Volume']).sum() / df_5m['Volume'].sum()
-                                                            
-                    hasil.append({
-                        "Kode Saham": ticker.replace(".JK", ""),
-                        "Price": f"Rp{close:,.0f}",
-                        "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
-                        "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
-                        "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
-                        "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%",
-                        "VWAP Intraday": f"Rp{vwap:,.0f}",
-                        "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
-                    })
+                    try:
+                        # 2. EKSTRAKSI SUPER AMAN
+                        if len(wl) == 1:
+                            df_1h = data_1h.copy()
+                            df_1d = data_1d.copy()
+                            df_5m = data_5m.copy()
+                        else:
+                            if ticker in data_1h.columns.get_level_values(1):
+                                df_1h = data_1h.xs(ticker, axis=1, level=1)
+                                df_1d = data_1d.xs(ticker, axis=1, level=1)
+                                df_5m = data_5m.xs(ticker, axis=1, level=1)
+                            else:
+                                df_1h = data_1h.xs(ticker, axis=1, level=0)
+                                df_1d = data_1d.xs(ticker, axis=1, level=0)
+                                df_5m = data_5m.xs(ticker, axis=1, level=0)
+                        
+                        df_1h = df_1h.dropna(subset=['Close'])
+                        df_1d = df_1d.dropna(subset=['Close'])
+                        df_5m = df_5m.dropna(subset=['Close', 'Volume'])
+                        
+                        if df_1h.empty or df_1d.empty or df_5m.empty: continue
+                        
+                        close = float(df_1h['Close'].iloc[-1])
+                        ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                        ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                        ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                        ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
+                        
+                        ohlc_avg = (df_5m['Open'] + df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 4
+                        vwap = (ohlc_avg * df_5m['Volume']).sum() / df_5m['Volume'].sum()
+                                                                
+                        hasil.append({
+                            "Kode Saham": ticker.replace(".JK", ""),
+                            "Price": f"Rp{close:,.0f}",
+                            "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
+                            "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                            "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                            "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%",
+                            "VWAP Intraday": f"Rp{vwap:,.0f}",
+                            "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
+                        })
+                    except Exception:
+                        continue
                 if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
