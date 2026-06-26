@@ -93,10 +93,10 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
             str(row['Tanggal']),            # B
             str(row['Ticker']),             # C
             int(lot_jual),                  # D: Lot_Dijual (ANGKA MURNI)
-            f"{pct_dijual:.1f}%",           # E: Persen_Lot (KETERANGAN)
+            f"{pct_dijual:.1f}",           # E: Persen_Lot (KETERANGAN)
             float(row['Avg_Entry']),        # F
             float(harga_jual),              # G
-            f"{gain_loss_pct:.2f}%",        # H: Gain/Loss
+            f"{gain_loss_pct:.2f}",        # H: Gain/Loss
             profit_loss_rp,                 # I: Profit/Loss (Rp)
             str(row['Grade']),              # J
             str(result),                    # K
@@ -114,12 +114,13 @@ def proses_jual_posisi(trade_id, harga_jual, lot_jual, alasan_final):
         sisa_lot = int(row['Lot']) - int(lot_jual)
         
         if sisa_lot > 0:
-            st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == trade_id, 'Lot'] = sisa_lot
+            st.session_state.df_active.loc[st.session_state.df_active['Trade_ID'] == trade_id, 'Lot'] = str(sisa_lot)
         else:
             st.session_state.df_active = st.session_state.df_active[st.session_state.df_active['Trade_ID'] != trade_id]
-            
+        
+        df_untuk_gsheet = st.session_state.df_active.astype(str).replace(['nan', 'None'], '')
         # Simpan perubahan ke GSheet (Active_Trades)
-        update_seluruh_gsheet("Active_Trades", st.session_state.df_active)
+        update_seluruh_gsheet("Active_Trades", df_untuk_gsheet)
         return True, "Sukses"
     except Exception as e:
         return False, str(e)
@@ -154,7 +155,40 @@ def load_journal_data():
         df['Catatan_Detail'] = ""
     
     return df
-
+   
+@st.cache_data(ttl=300)  # Data disimpan di memori selama 5 menit (300 detik)
+def ambil_data_yfinance_cached(*args, **kwargs):
+    import yfinance as yf
+    import pandas as pd
+    
+    # 1. Ekstraksi parameter utama dari args atau kwargs secara fleksibel
+    tickers_list = args[0] if len(args) > 0 else kwargs.get('tickers_list')
+    if tickers_list is None:
+        # Antisipasi jika di kode bawah menggunakan argumen nama lain untuk list saham
+        for key in ['tickers', 'watchlist', 'tickers_list']:
+            if key in kwargs:
+                tickers_list = kwargs[key]
+                break
+                
+    # Pastikan tickers berupa list untuk yfinance, tetapi jadikan tuple agar bisa di-cache
+    tickers_tuple = tuple(tickers_list) if tickers_list else ()
+    
+    # 2. Jalankan proses download menggunakan seluruh argument asli dari kode Anda
+    # Ini menjamin jika di bawah ada kata kunci 'start', 'end', atau 'period', yfinance tidak akan error
+    df = yf.download(list(tickers_tuple), *args[1:], **kwargs)
+        
+    # ==============================================================================
+    # AUTO-FLATTENING UNTUK MENCECH PREVENT KEYERROR DI DASHBOARD MARKET BREADTH
+    # ==============================================================================
+    if isinstance(df.columns, pd.MultiIndex):
+        if len(tickers_list) == 1:
+            ticker_tunggal = tickers_list[0]
+            if ticker_tunggal in df.columns.levels[0]:
+                df = df[ticker_tunggal].copy()
+            elif ticker_tunggal in df.columns.levels[1]:
+                df = df.xs(ticker_tunggal, axis=1, level=1, drop_level=True).copy()
+    
+    return df
 # --- KETERANGAN MODE ---
 st.warning("⚠️ MODE SANDBOX")
 
@@ -454,7 +488,7 @@ if pilihan_menu == "📊 Market Breadth":
                         
                         try:
                             # Download data IHSG tunggal
-                            df_ihsg = yf.download("^JKSE", start=start_yf, end=end_yf, progress=False)
+                            df_ihsg = ambil_data_yfinance_cached(["^JKSE"], start_yf, end_yf)
                             df_ihsg = df_ihsg.reset_index()
                             
                             # 🔥 PERBAIKAN ROBUST MULTIINDEX: Deteksi otomatis level kolom 'Close'
@@ -578,7 +612,7 @@ if pilihan_menu == "📊 Market Breadth":
                         end_yf = (df_osc['Date'].max() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
                         
                         # Tambahkan group_by='ticker' agar struktur kolomnya konsisten tunggal
-                        df_ihsg = yf.download("^JKSE", start=start_yf, end=end_yf, progress=False, group_by='ticker')
+                        df_ihsg = ambil_data_yfinance_cached(["^JKSE"], start_yf, end_yf)
                         df_ihsg = df_ihsg.reset_index()
                         
                         # 🔥 SUNTIKKAN DI SINI: Jika kolom bertingkat (MultiIndex), kita ratakan kolomnya
@@ -753,7 +787,24 @@ if pilihan_menu == "📊 Market Breadth":
 
 
                     if 'df_ihsg' in locals() or 'df_ihsg' in globals():
-                        df_ihsg_ad = df_ihsg[['Tanggal', 'IHSG_Close']].copy()
+                        df_ihsg_fix = df_ihsg.copy()
+    
+                        # 2. Jika 'Tanggal' masih berstatus sebagai Index, keluarkan menjadi kolom biasa
+                        if 'Tanggal' not in df_ihsg_fix.columns:
+                            df_ihsg_fix = df_ihsg_fix.reset_index()
+                            # Jika setelah reset_index namanya berubah jadi 'Date' atau 'index', ubah ke 'Tanggal'
+                            df_ihsg_fix = df_ihsg_fix.rename(columns={'Date': 'Tanggal', 'index': 'Tanggal'})
+                        
+                        # 3. Jika kolom 'IHSG_Close' belum ada tetapi ada kolom 'Close', ubah namanya
+                        if 'IHSG_Close' not in df_ihsg_fix.columns and 'Close' in df_ihsg_fix.columns:
+                            df_ihsg_fix = df_ihsg_fix.rename(columns={'Close': 'IHSG_Close'})
+                            
+                        # 4. Sekarang proses ekstraksi aman 100% tanpa risiko KeyError
+                        try:
+                            df_ihsg_ad = df_ihsg_fix[['Tanggal', 'IHSG_Close']].copy()
+                        except KeyError:
+                            # Antisipasi terakhir jika penamaan kolom yfinance berbeda
+                            df_ihsg_ad = pd.DataFrame()
                     else:
                         df_ihsg_ad = pd.DataFrame()
 
@@ -777,7 +828,7 @@ if pilihan_menu == "📊 Market Breadth":
 
                     # Tarik data historis close semua komponen saham secara serentak
                     try:
-                        df_all = yf.download(tickers_jangkar, start=start_date_ad, end=end_date_ad, progress=False)
+                        df_all = ambil_data_yfinance_cached(tickers_jangkar, start=start_date_ad, end=end_date_ad)
                         
                         # Ambil level 'Close' dari MultiIndex kolom data
                         if 'Close' in df_all.columns.levels[0]:
@@ -975,12 +1026,11 @@ with tab_screener:
                 watchlist = [k.strip().upper() + ".JK" for k in df_sheet.iloc[:, 0].dropna().astype(str) if len(k.strip()) == 4]
                 
                 # 1. Download Data Utama (Sesuai Timeframe Eksekusi No. 2)
-                data_bulk = yf.download(watchlist, period=period_param, interval=interval_param, group_by='ticker', auto_adjust=True, progress=False)
-                
+                data_bulk = ambil_data_yfinance_cached(watchlist, period_param, interval_param)
                 # 2. Download Data Harian terpisah untuk menjamin ekstraksi nilai "Daily MA 50" yang valid
                 data_daily_bulk = None
                 if TF_PILIHAN != "Harian (Daily)":
-                    data_daily_bulk = yf.download(watchlist, period="6mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                    data_daily_bulk = ambil_data_yfinance_cached(watchlist, "6mo", "1d")
                 
                 # 3. Download Data 1 JAM terpisah khusus untuk isi kolom display jangkauan (1H)
                 data_1h_bulk = None
@@ -988,8 +1038,7 @@ with tab_screener:
                     if TF_PILIHAN == "1 Jam (1H)":
                         data_1h_bulk = data_bulk
                     else:
-                        data_1h_bulk = yf.download(watchlist, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-
+                        data_1h_bulk = ambil_data_yfinance_cached(watchlist, "1mo", "1h")
                 hasil_screener = []
                 daftar_saham_lolos_sekarang = []
                 
@@ -1105,7 +1154,6 @@ with tab_screener:
                             "Kode Saham": clean, 
                             "Price": f"Rp{close:,.0f}", 
                             "Change %": f"{change_pct:+.2f}%",
-                            "Daily MA 50": f"Rp{daily_ma50:,.0f}" if daily_ma50 is not None else "N/A" # KOLOM BARU AUDIT
                         }
                         
                         # LOGIKA JANGKAR 1H MURNI UNTUK MATRIKS DISPLAY TABEL
@@ -1195,39 +1243,56 @@ with tab_watchlist:
                 
                 if watchlist_wl:
                     # Download 1H untuk MA dan 1D untuk Daily MA
-                    data_1h = yf.download(watchlist_wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                    data_1d = yf.download(watchlist_wl, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+                    data_1h = ambil_data_yfinance_cached(watchlist_wl, period="1mo", interval="1h")
+                    data_1d = ambil_data_yfinance_cached(watchlist_wl, period="3mo", interval="1d")
                     
                     hasil_watchlist_manual = []
                     
                     for ticker in watchlist_wl:
-                        df_1h = data_1h[ticker] if len(watchlist_wl) > 1 else data_1h
-                        df_1d = data_1d[ticker] if len(watchlist_wl) > 1 else data_1d
-                        
-                        df_1h = df_1h.dropna(subset=['Close'])
-                        df_1d = df_1d.dropna(subset=['Close'])
-                        
-                        if df_1h.empty or df_1d.empty: continue
-                        
-                        close = float(df_1h['Close'].iloc[-1])
-                        ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
-                        ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
-                        ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
-                        ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
-                        
-                        hasil_watchlist_manual.append({
-                            "Kode Saham": ticker.replace(".JK", ""),
-                            "Price": f"Rp{close:,.0f}",
-                            "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
-                            "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
-                            "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
-                            "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
-                        })
+                        try:
+                            # 2. EKSTRAKSI SUPER AMAN (Didukung fitur auto-flatten fungsi Anda)
+                            if len(watchlist_wl) == 1:
+                                df_1h = data_1h.copy()
+                                df_1d = data_1d.copy()
+                            else:
+                                if ticker in data_1h.columns.get_level_values(1):
+                                    df_1h = data_1h.xs(ticker, axis=1, level=1)
+                                else:
+                                    df_1h = data_1h.xs(ticker, axis=1, level=0)
+                                    
+                                if ticker in data_1d.columns.get_level_values(1):
+                                    df_1d = data_1d.xs(ticker, axis=1, level=1)
+                                else:
+                                    df_1d = data_1d.xs(ticker, axis=1, level=0)
+                            
+                            df_1h = df_1h.dropna(subset=['Close'])
+                            df_1d = df_1d.dropna(subset=['Close'])
+                            
+                            if df_1h.empty or df_1d.empty: continue
+                            
+                            # Perhitungan Indikator Saham
+                            close = float(df_1h['Close'].iloc[-1])
+                            ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                            ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                            ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                            ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
+                            
+                            hasil_watchlist_manual.append({
+                                "Kode Saham": ticker.replace(".JK", ""),
+                                "Price": f"Rp{close:,.0f}",
+                                "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
+                                "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                                "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                                "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%"
+                            })
+                        except Exception :
+                            # Jika ada satu saham gagal kalkulasi, tetap lanjut ke saham berikutnya
+                            continue
                     
                     if hasil_watchlist_manual:
                         st.dataframe(pd.DataFrame(hasil_watchlist_manual), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
-
+            
     st.markdown("---")
 
     # --- 2. INTRADAY MOMENTUM WATCHLIST (TF: 5m) ---
@@ -1241,45 +1306,55 @@ with tab_watchlist:
                 tokens = [s.strip().upper() for s in input_intra.replace("\n", ",").split(",") if s.strip()]
                 wl = [s + ".JK" if not s.endswith(".JK") else s for s in tokens if len(s.split(".")[0]) == 4]
                 
-                data_1h = yf.download(wl, period="1mo", interval="1h", group_by='ticker', auto_adjust=True, progress=False)
-                data_1d = yf.download(wl, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
-                data_5m = yf.download(wl, period="1d", interval="5m", group_by='ticker', auto_adjust=True, progress=False)
+                data_1h = ambil_data_yfinance_cached(wl, period="1mo", interval="1h")
+                data_1d = ambil_data_yfinance_cached(wl, period="3mo", interval="1d")
+                data_5m = ambil_data_yfinance_cached(wl, period="1d", interval="5m")
                 
                 hasil = []
                 for ticker in wl:
-                    # Menggunakan .xs (cross-section) agar struktur kolom selalu flat (Open, Close, Volume)
-                    # baik untuk 1 ticker maupun banyak ticker
-                    df_1h = data_1h.xs(ticker, axis=1, level=0, drop_level=True)
-                    df_1d = data_1d.xs(ticker, axis=1, level=0, drop_level=True)
-                    df_5m = data_5m.xs(ticker, axis=1, level=0, drop_level=True)
-                    
-                    df_1h = df_1h.dropna(subset=['Close'])
-                    df_1d = df_1d.dropna(subset=['Close'])
-                    df_5m = df_5m.dropna(subset=['Close', 'Volume'])
-                    
-                    if df_1h.empty or df_1d.empty or df_5m.empty: continue
-                    
-                    close = float(df_1h['Close'].iloc[-1])
-                    ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
-                    ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
-                    ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
-                    ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
-                    
-                   
-                  # Ganti logika perhitungan vwap menjadi OHLC/4 (sesuai preferensi profesional)
-                    ohlc_avg = (df_5m['Open'] + df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 4
-                    vwap = (ohlc_avg * df_5m['Volume']).sum() / df_5m['Volume'].sum()
-                                                            
-                    hasil.append({
-                        "Kode Saham": ticker.replace(".JK", ""),
-                        "Price": f"Rp{close:,.0f}",
-                        "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
-                        "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
-                        "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
-                        "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%",
-                        "VWAP Intraday": f"Rp{vwap:,.0f}",
-                        "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
-                    })
+                    try:
+                        # 2. EKSTRAKSI SUPER AMAN
+                        if len(wl) == 1:
+                            df_1h = data_1h.copy()
+                            df_1d = data_1d.copy()
+                            df_5m = data_5m.copy()
+                        else:
+                            if ticker in data_1h.columns.get_level_values(1):
+                                df_1h = data_1h.xs(ticker, axis=1, level=1)
+                                df_1d = data_1d.xs(ticker, axis=1, level=1)
+                                df_5m = data_5m.xs(ticker, axis=1, level=1)
+                            else:
+                                df_1h = data_1h.xs(ticker, axis=1, level=0)
+                                df_1d = data_1d.xs(ticker, axis=1, level=0)
+                                df_5m = data_5m.xs(ticker, axis=1, level=0)
+                        
+                        df_1h = df_1h.dropna(subset=['Close'])
+                        df_1d = df_1d.dropna(subset=['Close'])
+                        df_5m = df_5m.dropna(subset=['Close', 'Volume'])
+                        
+                        if df_1h.empty or df_1d.empty or df_5m.empty: continue
+                        
+                        close = float(df_1h['Close'].iloc[-1])
+                        ma10_1h = float(df_1h['Close'].rolling(10).mean().iloc[-1])
+                        ma20_1h = float(df_1h['Close'].rolling(20).mean().iloc[-1])
+                        ma50_1h = float(df_1h['Close'].rolling(50).mean().iloc[-1])
+                        ma10_daily = float(df_1d['Close'].rolling(10).mean().iloc[-1])
+                        
+                        ohlc_avg = (df_5m['Open'] + df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 4
+                        vwap = (ohlc_avg * df_5m['Volume']).sum() / df_5m['Volume'].sum()
+                                                                
+                        hasil.append({
+                            "Kode Saham": ticker.replace(".JK", ""),
+                            "Price": f"Rp{close:,.0f}",
+                            "% Dist to Daily MA 10": f"{((close - ma10_daily) / ma10_daily) * 100:+.2f}%",
+                            "% Dist to MA10 (1H)": f"{((close - ma10_1h) / ma10_1h) * 100:+.2f}%",
+                            "% Jarak ke MA20 (1H)": f"{((close - ma20_1h) / ma20_1h) * 100:+.2f}%",
+                            "% Jarak ke MA50 (1H)": f"{((close - ma50_1h) / ma50_1h) * 100:+.2f}%",
+                            "VWAP Intraday": f"Rp{vwap:,.0f}",
+                            "Dist to VWAP %": f"{((close - vwap) / vwap) * 100:+.2f}%"
+                        })
+                    except Exception:
+                        continue
                 if hasil: st.dataframe(pd.DataFrame(hasil), use_container_width=True, hide_index=True)
             except Exception as e: st.error(f"Error: {e}")
 # ==============================================================================
@@ -1477,10 +1552,8 @@ with tab_active_trade:
     df_temp = st.session_state.df_active.copy()
 
     # Paksa konversi ke numerik dan tangani nilai kosong (NaN)
-    df_temp['Lot'] = pd.to_numeric(df_temp['Lot'], errors='coerce').fillna(0)
-    df_temp['Initial_Lot'] = pd.to_numeric(df_temp['Initial_Lot'], errors='coerce').fillna(1) 
-    
-    # Lakukan kalkulasi hanya setelah data dipastikan angka
+    df_temp['Lot'] = pd.to_numeric(df_temp['Lot'], errors='coerce').fillna(0).astype(int)
+    df_temp['Initial_Lot'] = pd.to_numeric(df_temp['Initial_Lot'], errors='coerce').fillna(1).astype(int) 
     df_temp['Remaining %'] = ((df_temp['Lot'] / df_temp['Initial_Lot']) * 100).round(0).astype(int)
     
     cols_to_hide = ['Jarak SL', 'Initial_R', 'Initial_Lot']
@@ -1524,6 +1597,8 @@ with tab_active_trade:
         
         # Gabungkan ke master_df
         master_df = st.session_state.df_active.copy()
+        for c in master_df.columns:
+            master_df[c] = master_df[c].astype(object)
         for col in ['Lot', 'Avg_Entry']:
             if col in updated_data.columns:
                 master_df[col] = updated_data[col]
@@ -1535,7 +1610,9 @@ with tab_active_trade:
             master_df = master_df.drop(columns=['Remaining %'])
             
         # Kirim data ke GSheet
-        success, msg = update_seluruh_gsheet("Active_Trades", master_df)
+        df_untuk_gsheet = master_df.astype(str).replace(['nan', 'None'], '')
+     
+        success, msg = update_seluruh_gsheet("Active_Trades", df_untuk_gsheet)
         if success:
             st.session_state.df_active = master_df
             st.session_state.editor_version += 1
@@ -1561,22 +1638,52 @@ with tab_active_trade:
         persen_slider = col3.slider("Persentase Jual (%)", 0, 100, 25, step=5)
         sell_lot = int(initial_lot * (persen_slider / 100))
         if sell_lot == 0 and persen_slider > 0: sell_lot = 1
-        sell_lot = min(sell_lot, current_lot) # Safety check
-        col3.caption(f"Jual: {sell_lot} lot ({persen_slider}%)")
-        col4.write("")
-        col4.write("")
+        
+        
+        if sell_lot >= current_lot:
+            sell_lot = current_lot  # Kunci agar tidak over-sell
+            persen_kirim_gsheet = 100  # Paksa kirim data ke Google Sheets sebesar 100%
+            col3.caption(f"🔥 **Jual Semua: {sell_lot} lot (ALL IN / 100%)**")
+        else:
+            persen_kirim_gsheet = persen_slider  # Tetap kirim persentase slider jika partial biasa
+            col3.caption(f"Jual: {sell_lot} lot ({persen_slider}%)")
+        
+        # --- 2. LIVE TEXT CALCULATION (TAKE PROFIT % / PERFORMANCE) ---
+        # Rumus standar performa trade: ((Harga Jual - Avg Entry) / Avg Entry) * 100
+        if default_avg > 0:
+            live_gain_loss_pct = ((sell_price - default_avg) / default_avg) * 100
+            
+            # Tentukan warna & tanda panah statis berdasarkan nilai
+            if live_gain_loss_pct > 0:
+                label_status = f"🟢 Potential Profit: +{live_gain_loss_pct:.2f}%"
+            elif live_gain_loss_pct < 0:
+                label_status = f"🔴 Potential Loss: {live_gain_loss_pct:.2f}%"
+            else:
+                label_status = f"⚪ Break Even Point (BEP): 0.00%"
+        else:
+            live_gain_loss_pct = 0.0
+            label_status = f"🟢 Performa Trade: 0.00%"
 
+        # Tampilkan metrik live text di kolom 4 agar sejajar rapi dengan input lainnya
+        col4.metric(
+            label="Est. Return %", 
+            value=f"{live_gain_loss_pct:+.2f}%", 
+            delta=f"vs Avg Entry Rp {default_avg:,.0f}",
+            delta_color="normal" if live_gain_loss_pct >= 0 else "inverse"
+        )
+        
+        
         st.divider()
         c_r1, c_r2 = st.columns([1, 2])
         kategori = c_r1.selectbox("Alasan Jual:", ["TP", "SL", "Trailing Stop", "BEP", "Manual Exit", "Lainnya"])
         catatan = c_r2.text_input("Catatan Detail (Opsional):")
         alasan_final = f"{kategori} - {catatan}" if catatan else kategori
         
-        if col4.button("🚀 Execute Sell", use_container_width=True):
+        if st.button("🚀 Execute Sell Position", use_container_width=True):
             if sell_lot > current_lot:
                 st.error("Lot yang ingin dijual melebihi sisa lot!")
             else:
-                success, msg = proses_jual_posisi(selected_trade, sell_price, sell_lot,alasan_final)
+                success, msg = proses_jual_posisi(selected_trade, str(sell_price), str(sell_lot), alasan_final)
                 if success:
                     st.session_state.editor_version += 1 
                     st.success(f"Trade {selected_trade} terjual {sell_lot} lot!")
@@ -1668,9 +1775,41 @@ with tab_journal:
         col_m5.metric("Expectancy", f"{expectancy:.2f}")
         col_m6.metric("Weighted R", f"{weighted_r:.2f}")
         
-        st.markdown("---")
+        nama_bulan_terpilih = selected_month_display if 'selected_month_display' in locals() else "Selected Month"
 
-        st.subheader("Trade Summary")
+        if 'df_filtered' in locals() and 'Profit_Loss_Rp' in df_filtered.columns:
+        # Paksa konversi ke numerik agar tidak terbaca sebagai string/objek oleh Pandas
+            profit_series = pd.to_numeric(df_filtered['Profit_Loss_Rp'], errors='coerce').fillna(0)
+            total_profit_bulan_ini = profit_series.sum()
+        else:
+            total_profit_bulan_ini = 0
+
+        st.markdown("---")
+        
+        # Membuat Layout Judul + Live Text Total Profit
+        col_title, col_profit = st.columns([2, 1])
+
+        with col_title:
+            st.subheader(f"📋 Trade Summary {nama_bulan_terpilih}")
+        
+        with col_profit:
+            # Menentukan format teks dan warna berdasarkan performa bulanan
+            if total_profit_bulan_ini > 0:
+                profit_text = f"🟢 **Total Profit: Rp {total_profit_bulan_ini:,.0f}**"
+            elif total_profit_bulan_ini < 0:
+                profit_text = f"🔴 **Total Loss: Rp {total_profit_bulan_ini:,.0f}**"
+            else:
+                profit_text = f"⚪ **Total Profit: Rp 0**"
+                
+            # Tampilkan di sudut kanan atas tabel dengan perataan kanan
+            st.markdown(
+                f"""
+                <div style="text-align: right; margin-top: 10px; font-size: 1.1rem; font-weight: bold;">
+                    {profit_text}
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
         
         # Tampilkan tabel utama
         cols_order = ['Ticker', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Initial_R', 'Realized_R', 'Grade']
@@ -1708,22 +1847,30 @@ with tab_journal:
             
             st.divider()
             st.subheader(f"Trade Detail: {selected_trade_id}")
+            detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id].copy()
+            detail['Tanggal'] = pd.to_datetime(detail['Tanggal'], errors='coerce')
+            if 'Tanggal_Sell' in detail.columns:
+                detail['Tanggal_Sell'] = pd.to_datetime(detail['Tanggal_Sell'], errors='coerce')
+                # Menghitung selisih hari (dt.days menghasilkan integer murni)
+                detail['Holding_Period'] = (detail['Tanggal_Sell'] - detail['Tanggal']).dt.days
+            else:
+                detail['Tanggal_Sell'] = pd.NaT
+                detail['Holding_Period'] = pd.NA
             
-            detail = df_filtered[df_filtered['Trade_ID'] == selected_trade_id]
-            if 'Avg_Entry' in detail.columns:
-                detail['Avg_Entry'] = pd.to_numeric(detail['Avg_Entry'], errors='coerce').fillna(0)
-            if 'Sell_Price' in detail.columns:
-                detail['Sell_Price'] = pd.to_numeric(detail['Sell_Price'], errors='coerce').fillna(0)
-                
-            cols_detail = ['Tanggal', 'Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R', 'Alasan_Final']
-            detail['Tanggal'] = pd.to_datetime(detail['Tanggal'])
             for col in ['Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 'Profit_Loss_Rp', 'Realized_R']:
                 if col in detail.columns:
-                    detail[col] = pd.to_numeric(detail[col], errors='coerce').fillna(0)
-                    
+                    detail[col] = pd.to_numeric(detail[col], errors='coerce').fillna(0)  
+            cols_detail = [
+                'Tanggal', 'Tanggal_Sell', 'Holding_Period', 
+                'Avg_Entry', 'Sell_Price', 'Lot', 'Gain_Loss_Pct', 
+                'Profit_Loss_Rp', 'Realized_R', 'Alasan_Final'
+            ]
+            
             st.dataframe(
                 detail[cols_detail].style.format({
-                    'Tanggal': lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '',
+                    'Tanggal': lambda x: x.strftime('%d %b %Y') if pd.notnull(x) else '-',
+                    'Tanggal_Sell': lambda x: x.strftime('%d %b %Y') if pd.notnull(x) else '-',
+                    'Holding_Period': lambda x: f"{int(x)} Hari" if pd.notnull(x) else '-',
                     'Avg_Entry': lambda x: f"Rp {x:,.0f}",
                     'Sell_Price': lambda x: f"Rp {x:,.0f}",
                     'Lot': '{:.0f}',
@@ -1734,14 +1881,16 @@ with tab_journal:
                     'Alasan_Final': '{}'
                 }),
                 column_config={
-                    "Tanggal": st.column_config.Column("Tanggal"),
+                    "Tanggal": st.column_config.Column("Entry Date"),
+                    "Tanggal_Sell": st.column_config.Column("Sell Date"),
+                    "Holding_Period": st.column_config.Column("Holding"),
                     "Avg_Entry": st.column_config.Column("Avg Entry"),
                     "Sell_Price": st.column_config.Column("Sell Price"),
                     "Lot": st.column_config.Column("Lot"),
                     "Gain_Loss_Pct": st.column_config.Column("Gain/Loss %"),
                     "Profit_Loss_Rp": st.column_config.Column("Profit/Loss (Rp)"),
                     "Realized_R": st.column_config.Column("Realized R"),
-                    "Alasan_Final": st.column_config.Column("Alasan Final")
+                    "Alasan_Final": st.column_config.Column("Reason/Note")
                 },
                 use_container_width=True, 
                 hide_index=True
